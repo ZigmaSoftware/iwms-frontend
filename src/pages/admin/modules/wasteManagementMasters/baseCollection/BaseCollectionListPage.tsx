@@ -13,9 +13,10 @@ import { adminApi } from "@/helpers/admin/registry";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useTranslation } from "react-i18next";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import {
   exportRecordsToExcel,
@@ -73,21 +74,13 @@ export default function BaseCollectionListPage({ scope }: Props) {
     companyUniqueId?: string;
     projectId?: string;
   } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  const companyProject = useCompanyProjectFilter(undefined, {
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
+  const companyUniqueId = companyProject.companyId;
+  const projectId = companyProject.projectId;
+  const { companies, isSuperAdmin } = companyProject.selection;
 
   const [summaryRows, setSummaryRows] = useState<SummaryRow[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<SummaryRow | null>(
@@ -210,7 +203,6 @@ export default function BaseCollectionListPage({ scope }: Props) {
     companies.length,
     companyUniqueId,
     isSuperAdmin,
-    showAllProjectsOption,
     projectId,
     scope,
   ]);
@@ -340,24 +332,9 @@ export default function BaseCollectionListPage({ scope }: Props) {
       searchValue={globalFilterValue}
       onSearchChange={onGlobalFilterChange}
       searchPlaceholder="Search..."
-      className="mb-4"
-    >
-      <FilterBarSelect
-        value={companyUniqueId || ""}
-        onChange={onCompanyChange}
-        options={companies}
-        placeholder="All Companies"
-        disabled={!isSuperAdmin || companies.length === 0}
-      />
-      <FilterBarSelect
-        value={projectId || ""}
-        onChange={setProjectId}
-        options={projects}
-        placeholder={showAllProjectsOption ? "All Projects" : undefined}
-        disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-      />
-    </FilterBar>
+    />
   );
+  const filterPanel = combineFilters(companyProject);
 
   const viewActionTemplate = (onClick: () => void) => (
     <div className="flex gap-3 justify-center">
@@ -427,10 +404,10 @@ export default function BaseCollectionListPage({ scope }: Props) {
         </span>
       </div>
 
-      {filterBar}
-
       {viewLevel === "summary" && (
         <DataTable
+          header={filterBar}
+          filterPanel={filterPanel}
           loadExportRows={async () => getFilteredExportRows()}
           value={summaryRows}
           dataKey="id"
@@ -523,6 +500,8 @@ export default function BaseCollectionListPage({ scope }: Props) {
       {viewLevel === "records" && (
         <div>
           <DataTable
+            header={filterBar}
+            filterPanel={filterPanel}
             value={selectedRecords}
             dataKey="unique_id"
             paginator

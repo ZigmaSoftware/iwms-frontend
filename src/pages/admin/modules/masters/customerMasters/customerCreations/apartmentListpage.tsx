@@ -21,10 +21,11 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import { useTranslation } from "react-i18next";
 import { customerCreationApi } from "@/helpers/admin";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
@@ -95,21 +96,12 @@ export default function ApartmentListPage() {
     companyUniqueId?: string;
     projectId?: string;
   } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  const companyProject = useCompanyProjectFilter(undefined, {
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { companies, isSuperAdmin } = companyProject.selection;
 
   const [apartmentQrByName, setApartmentQrByName] = useState<
     Record<string, string>
@@ -169,7 +161,6 @@ export default function ApartmentListPage() {
     companyUniqueId,
     allCustomers,
     isSuperAdmin,
-    showAllProjectsOption,
     projectId,
   ]);
 
@@ -377,27 +368,11 @@ export default function ApartmentListPage() {
           } as React.ChangeEvent<HTMLInputElement>)
         }
         searchPlaceholder="Search…"
-      >
-        <FilterBarSelect
-          value={companyUniqueId || ""}
-          onChange={(value) => onCompanyChange(value)}
-          options={companies}
-          placeholder={"All Companies"}
-          disabled={!isSuperAdmin || companies.length === 0}
-        />
-
-        <FilterBarSelect
-          value={projectId || ""}
-          onChange={(value) => setProjectId(value)}
-          options={projects}
-          placeholder={showAllProjectsOption ? "All Projects" : undefined}
-          disabled={
-            (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-          }
-        />
-      </FilterBar>
+      />
     </div>
   );
+
+  const filterPanel = combineFilters(companyProject);
 
   /* ---- shared column templates ---- */
 
@@ -537,6 +512,7 @@ export default function ApartmentListPage() {
           filters={filters}
           globalFilterFields={globalFilterFields.apartment}
           header={tableHeader}
+          filterPanel={filterPanel}
           emptyMessage={emptyMessage}
           stripedRows
           showGridlines
@@ -597,6 +573,7 @@ export default function ApartmentListPage() {
             filters={filters}
             globalFilterFields={globalFilterFields.block}
             header={tableHeader}
+            filterPanel={filterPanel}
             emptyMessage={emptyMessage}
             stripedRows
             showGridlines
@@ -639,6 +616,7 @@ export default function ApartmentListPage() {
             filters={filters}
             globalFilterFields={globalFilterFields.flat}
             header={tableHeader}
+            filterPanel={filterPanel}
             emptyMessage={emptyMessage}
             stripedRows
             showGridlines
@@ -681,6 +659,7 @@ export default function ApartmentListPage() {
             filters={filters}
             globalFilterFields={globalFilterFields.user}
             header={tableHeader}
+            filterPanel={filterPanel}
             emptyMessage={emptyMessage}
             stripedRows
             showGridlines

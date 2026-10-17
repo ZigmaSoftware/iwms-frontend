@@ -3,6 +3,7 @@ import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import type { StatusFilterValue } from "@/components/common/FilterBar";
+import { useOptionFilter } from "@/components/filters/useOptionFilter";
 
 /**
  * useFilterBarFilters
@@ -20,7 +21,8 @@ import type { StatusFilterValue } from "@/components/common/FilterBar";
  * unchanged from how both reference pages wire them today.
  *
  * Pair this with the <FilterBar /> component (src/components/common/FilterBar.tsx)
- * for the matching UI, or wire the returned values into your own markup.
+ * for the search box, and put the status choice in the table's Filters panel:
+ *   <DataTable filterPanel={combineFilters(statusFilter)} … />
  */
 export interface UseFilterBarFiltersOptions {
   /** Extra/per-column filters to seed the state with (e.g. STARTS_WITH columns). */
@@ -31,6 +33,11 @@ export interface UseFilterBarFiltersOptions {
   withStatusFilter?: boolean;
   defaultStatus?: StatusFilterValue;
 }
+
+const STATUS_OPTIONS = [
+  { label: "Active", value: "active" },
+  { label: "Inactive", value: "inactive" },
+];
 
 export function useFilterBarFilters(options?: UseFilterBarFiltersOptions) {
   const statusField = options?.statusField ?? "is_active";
@@ -77,6 +84,15 @@ export function useFilterBarFilters(options?: UseFilterBarFiltersOptions) {
     [statusField],
   );
 
+  // The same status choice as a Filters-panel part (draft, committed on Apply).
+  const statusFilter = useOptionFilter({
+    param: statusField,
+    label: "Status",
+    options: STATUS_OPTIONS,
+    onAppliedChange: (value) =>
+      onStatusFilterChange((value || "all") as StatusFilterValue),
+  });
+
   const onFilter = useCallback((e: DataTableFilterEvent) => {
     setFilters(e.filters);
   }, []);
@@ -89,5 +105,7 @@ export function useFilterBarFilters(options?: UseFilterBarFiltersOptions) {
     onGlobalFilterChange,
     statusValue,
     onStatusFilterChange,
+    /** Filters-panel part for the status choice; pass to combineFilters */
+    statusFilter,
   };
 }

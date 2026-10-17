@@ -16,6 +16,9 @@ import { useTranslation } from "react-i18next";
 import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
 import { FilterBar } from "@/components/common/FilterBar";
+import { FilterSection, type ActiveFilterChip } from "@/components/common/ListToolbar";
+import { useDraftFilter } from "@/components/filters/useDraftFilter";
+import { combineFilters, type FilterPart } from "@/components/filters/useOptionFilter";
 import { buildVehicleTrackingUrl } from "@/config/gpsApiConfig";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -54,8 +57,40 @@ export default function WasteSummary() {
     today.getMonth() + 1
   ).padStart(2, "0")}`;
 
-  const [monthValue, setMonthValue] = useState(initialMonth);
-  const [appliedMonth, setAppliedMonth] = useState(initialMonth);
+  // The month is required: the Filters panel edits a draft, Reset (and
+  // removing the chip) goes back to the current month.
+  const monthFilter = useDraftFilter({ empty: { month: initialMonth } });
+  const monthChips: ActiveFilterChip[] =
+    monthFilter.applied.month !== initialMonth
+      ? [
+          {
+            key: "month",
+            label: "Month",
+            value: monthFilter.applied.month,
+            onRemove: () => monthFilter.commit({ month: initialMonth }),
+          },
+        ]
+      : [];
+  const monthFilterPart: FilterPart = {
+    field: (
+      <FilterSection label="Month">
+        <input
+          type="month"
+          value={monthFilter.draft.month}
+          max={initialMonth}
+          onChange={(e) => monthFilter.setField("month", e.target.value)}
+          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+          aria-label="Month"
+        />
+      </FilterSection>
+    ),
+    chips: monthChips,
+    count: monthChips.length,
+    // an emptied month input falls back to the current month
+    apply: () => monthFilter.commit({ month: monthFilter.draft.month || initialMonth }),
+    reset: () => monthFilter.commit({ month: initialMonth }),
+  };
+  const appliedMonth = monthFilter.applied.month;
   const [rows, setRows] = useState<ApiRow[]>([]);
   const [totalHouseholdCount, setTotalHouseholdCount] = useState<number | null>(
     null
@@ -401,24 +436,6 @@ export default function WasteSummary() {
             {t("admin.reports.waste_summary.subtitle")}
           </p>
         </div>
-
-        <div className="flex gap-3 items-center">
-          <input
-            type="month"
-            value={monthValue}
-            max={initialMonth}
-            onChange={(e) => setMonthValue(e.target.value)}
-            className="border px-2 py-1 rounded"
-          />
-
-          <button
-            onClick={() => setAppliedMonth(monthValue)}
-            className="bg-blue-600 text-white px-4 py-2 rounded"
-          >
-            {t("common.go")}
-          </button>
-
-        </div>
       </div>
 
       <DataTable
@@ -440,6 +457,7 @@ export default function WasteSummary() {
         showGridlines
         emptyMessage={t("admin.reports.waste_summary.empty_message")}
         globalFilterFields={WASTE_SUMMARY_GLOBAL_FIELDS}
+        filterPanel={combineFilters(monthFilterPart)}
         className="p-datatable-sm"
       >
         <Column

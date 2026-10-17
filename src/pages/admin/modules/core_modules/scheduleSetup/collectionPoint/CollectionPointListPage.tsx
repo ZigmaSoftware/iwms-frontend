@@ -1,7 +1,4 @@
-import type {
-  CollectionPointCollectionType,
-  CollectionPointRecord,
-} from "./types";
+import type { CollectionPointRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -19,12 +16,18 @@ import type {
 } from "primereact/datatable";
 
 import { ActionMenu } from "@/components/ui/ActionMenu";
+import { useScreenAccess } from "@/contexts/screenPermission";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { collectionPointApi } from "@/helpers/admin";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import {
+  combineFilters,
+  useOptionFilter,
+  useStatusFilter,
+} from "@/components/filters/useOptionFilter";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
@@ -66,6 +69,7 @@ const COLLECTION_POINT_COLUMN_FIELDS: Record<string, string[]> = {
   district_name: ["district_id", "district_name"],
   city_name: ["city_id", "city_name"],
   panchayat_name: ["panchayat_id", "panchayat_name"],
+  zone_name: ["zone_id", "zone_name"],
   ward_name: ["ward_id", "ward_name"],
   latitude: ["latitude"],
   longitude: ["longitude"],
@@ -75,6 +79,7 @@ const COLLECTION_POINT_COLUMN_FIELDS: Record<string, string[]> = {
 export default function CollectionPointListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { canAdd, canEdit } = useScreenAccess();
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [records, setRecords] = useState<CollectionPointRecord[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -82,14 +87,8 @@ export default function CollectionPointListPage() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [collectionTypeFilter, setCollectionTypeFilter] = useState<
-    "all" | CollectionPointCollectionType
-  >("all");
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusValue, setStatusValue] = useState<"all" | "active" | "inactive">(
-    "all",
-  );
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const requestIdRef = useRef(0);
@@ -98,21 +97,26 @@ export default function CollectionPointListPage() {
     companyUniqueId?: string;
     projectId?: string;
   } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  const resetPage = () => setFirst(0);
+  const companyProject = useCompanyProjectFilter(resetPage, {
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
+  const companyUniqueId = companyProject.companyId;
+  const projectId = companyProject.projectId;
+  const { companies, isSuperAdmin } = companyProject.selection;
+
+  const collectionTypeFilter = useOptionFilter({
+    param: "collection_type",
+    label: "Collection type",
+    options: [
+      { value: "bin_collection", label: "Secondary Collection Point" },
+      { value: "bulk_waste_collection", label: "Bulk Waste Collection" },
+    ],
+    allLabel: "All Types",
+    onAppliedChange: resetPage,
+  });
+  const statusFilter = useStatusFilter(resetPage);
 
   const { encScheduleSetup, encCollectionPoints } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } =
@@ -146,9 +150,7 @@ export default function CollectionPointListPage() {
           params: {
             company_id: companyUniqueId,
             project_id: projectId || undefined,
-            ...(collectionTypeFilter !== "all"
-              ? { collection_type: collectionTypeFilter }
-              : {}),
+            ...collectionTypeFilter.applied,
             ...(search ? { search } : {}),
             ...(order ? { ordering: order } : {}),
           },
@@ -180,7 +182,7 @@ export default function CollectionPointListPage() {
     projectId,
     isSuperAdmin,
     companies.length,
-    collectionTypeFilter,
+    collectionTypeFilter.value,
     first,
     rowsPerPage,
     searchTerm,
@@ -197,10 +199,7 @@ export default function CollectionPointListPage() {
       return [] as CollectionPointRecord[];
     if (!companyUniqueId && !isSuperAdmin) return [] as CollectionPointRecord[];
 
-    if (statusValue === "all") return records;
-
-    const wantActive = statusValue === "active";
-    return records.filter((row) => Boolean(row.is_active) === wantActive);
+    return records.filter(statusFilter.matches);
   })();
 
   const onPage = (event: DataTablePageEvent) => {
@@ -216,10 +215,6 @@ export default function CollectionPointListPage() {
 
   const onGlobalFilterChange = (value: string) => {
     setGlobalFilterValue(value);
-  };
-
-  const onStatusFilterChange = (value: "all" | "active" | "inactive") => {
-    setStatusValue(value);
   };
 
   useEffect(() => {
@@ -238,18 +233,13 @@ export default function CollectionPointListPage() {
       params: {
         company_id: companyUniqueId,
         project_id: projectId || undefined,
-        ...(collectionTypeFilter !== "all"
-          ? { collection_type: collectionTypeFilter }
-          : {}),
+        ...collectionTypeFilter.applied,
         ...(searchTerm ? { search: searchTerm } : {}),
         ...(ordering ? { ordering } : {}),
       },
     });
     const exportRows = data as CollectionPointRecord[];
-    if (statusValue === "all") return exportRows;
-
-    const wantActive = statusValue === "active";
-    return exportRows.filter((row) => Boolean(row.is_active) === wantActive);
+    return exportRows.filter(statusFilter.matches);
   };
 
   const indexTemplate = (
@@ -319,7 +309,9 @@ export default function CollectionPointListPage() {
     return (
       <Switch
         checked={Boolean(row.is_active)}
-        disabled={isUpdating && pendingStatusId === String(row.unique_id)}
+        disabled={
+          !canEdit || (isUpdating && pendingStatusId === String(row.unique_id))
+        }
         onCheckedChange={updateStatus}
       />
     );
@@ -342,63 +334,36 @@ export default function CollectionPointListPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button
-            label={t("common.add_item", {
-              item: t("admin.nav.collection_point"),
-            })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() =>
-              navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
-            }
-          />
+          {canAdd && (
+            <Button
+              label={t("common.add_item", {
+                item: t("admin.nav.collection_point"),
+              })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() =>
+                navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
+              }
+            />
+          )}
         </div>
       </div>
 
-      <FilterBar
-        searchValue={globalFilterValue}
-        onSearchChange={onGlobalFilterChange}
-        searchPlaceholder={t("common.search_placeholder", {
-          item: t("admin.nav.collection_point"),
-        })}
-        statusValue={statusValue}
-        onStatusChange={onStatusFilterChange}
-        className="mb-4"
-      >
-        <FilterBarSelect
-          value={companyUniqueId || ""}
-          onChange={onCompanyChange}
-          options={companies}
-          placeholder="All Companies"
-          disabled={!isSuperAdmin || companies.length === 0}
-        />
-        <FilterBarSelect
-          value={projectId || ""}
-          onChange={setProjectId}
-          options={projects}
-          placeholder={showAllProjectsOption ? "All Projects" : undefined}
-          disabled={
-            (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-          }
-        />
-        <FilterBarSelect
-          value={collectionTypeFilter}
-          onChange={(value) => {
-            setFirst(0);
-            setCollectionTypeFilter(
-              value as "all" | CollectionPointCollectionType,
-            );
-          }}
-          aria-label="Collection type filter"
-          options={[
-            { value: "all", label: "All Types" },
-            { value: "bin_collection", label: "Secondary Collection Point" },
-            { value: "bulk_waste_collection", label: "Bulk Waste Collection" },
-          ]}
-        />
-      </FilterBar>
-
       <DataTable
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={onGlobalFilterChange}
+            searchPlaceholder={t("common.search_placeholder", {
+              item: t("admin.nav.collection_point"),
+            })}
+          />
+        }
+        filterPanel={combineFilters(
+          companyProject,
+          collectionTypeFilter,
+          statusFilter,
+        )}
         loadExportRows={async () => getFilteredExportRows()}
         value={rows}
         dataKey="unique_id"
@@ -484,6 +449,14 @@ export default function CollectionPointListPage() {
             field="panchayat_name"
             header={t("admin.nav.panchayat")}
             body={(row: CollectionPointRecord) => toDisplay(row.panchayat_name)}
+          />
+        )}
+        {/* only zone-based points have a zone; panchayat-only lists skip the column */}
+        {showCol("zone_name") && rows.some((row) => row.zone_name) && (
+          <Column
+            field="zone_name"
+            header={t("admin.nav.zone")}
+            body={(row: CollectionPointRecord) => toDisplay(row.zone_name)}
           />
         )}
         {showCol("ward_name") && (

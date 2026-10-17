@@ -20,6 +20,9 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { vehicleTypeApi } from "@/helpers/admin";
 import { FilterBar, type StatusFilterValue } from "@/components/common/FilterBar";
+import { combineFilters, useOptionFilter } from "@/components/filters/useOptionFilter";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 const SORTABLE_FIELDS = new Set(["vehicleType", "is_active"]);
 
@@ -36,10 +39,10 @@ const toRecordList = (value: unknown): VehicleTypeRecord[] => {
 
 export default function VehicleTypeCreationList() {
   const { t } = useTranslation();
+  const { canEdit } = useScreenAccess();
   const navigate = useNavigate();
 
   const [rows, setRows] = useState<VehicleTypeRecord[]>([]);
-  const [exportRows, setExportRows] = useState<VehicleTypeRecord[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -105,20 +108,15 @@ export default function VehicleTypeCreationList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  // SafeDataTable's built-in "Download All Excel" button reads the `exportRows`
-  // prop synchronously, so keep it refreshed with the full (unpaginated),
-  // currently-filtered result set whenever filters change.
-  useEffect(() => {
-    let mounted = true;
+  // "Excel (all data)" is built server-side for the full (unpaginated),
+  // currently-filtered result set.
+  const onServerExport = (filename: string, sheetName: string) => {
     const params: Record<string, string> = {};
     if (searchTerm) params.search = searchTerm;
     if (statusValue !== "all") params.is_active = statusValue === "active" ? "true" : "false";
 
-    vehicleTypeApi.readAllForExport({ params })
-      .then((data: unknown) => { if (mounted) setExportRows(toRecordList(data)); })
-      .catch(() => { if (mounted) setExportRows([]); });
-    return () => { mounted = false; };
-  }, [searchTerm, statusValue]);
+    return vehicleTypeApi.exportToExcel({ params }, filename, sheetName);
+  };
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -139,6 +137,17 @@ export default function VehicleTypeCreationList() {
     setStatusValue(value);
     setFirst(0);
   };
+
+  const statusFilter = useOptionFilter({
+    param: "is_active",
+    label: t("common.status"),
+    options: [
+      { label: "Active", value: "active" },
+      { label: "Inactive", value: "inactive" },
+    ],
+    onAppliedChange: (value) =>
+      onStatusFilterChange((value || "all") as StatusFilterValue),
+  });
 
   const statusTemplate = (row: VehicleTypeRecord) => {
     const updateStatus = async (value: boolean) => {
@@ -166,7 +175,7 @@ export default function VehicleTypeCreationList() {
     return (
       <Switch
         checked={Boolean(row.is_active)}
-        disabled={isUpdating && pendingStatusId === row.unique_id}
+        disabled={!canEdit || (isUpdating && pendingStatusId === row.unique_id)}
         onCheckedChange={updateStatus}
       />
     );
@@ -215,8 +224,6 @@ export default function VehicleTypeCreationList() {
         onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
       }
       searchPlaceholder={t("admin.vehicle_type.search_placeholder")}
-      statusValue={statusValue}
-      onStatusChange={onStatusFilterChange}
     />
   );
 
@@ -233,18 +240,21 @@ export default function VehicleTypeCreationList() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Button
-            label={t("admin.vehicle_type.add")}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("admin.vehicle_type.add")}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         </div>
       </div>
 
       <DataTable
+        filterPanel={combineFilters(statusFilter)}
         value={rows}
-        exportRows={exportRows}
+        onServerExport={onServerExport}
         dataKey="unique_id"
         lazy
         paginator

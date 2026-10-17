@@ -21,9 +21,12 @@ import { Switch } from "@/components/ui/switch";
 import { mainScreenTypeApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 
 import type { MainScreenType } from "../shared/admin.types";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 const SORTABLE_FIELDS = new Set(["type_name"]);
 
@@ -50,10 +53,11 @@ export default function MainScreenTypeList() {
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters();
 
   const navigate = useNavigate();
+  const { canEdit } = useScreenAccess();
   const { encAdmins, encMainScreenType } = getEncryptedRoute();
 
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -124,24 +128,20 @@ export default function MainScreenTypeList() {
     setSortOrder(event.sortOrder);
   };
 
-  // Feeds the table's single "Download Excel" button: the "All data" option
-  // fetches every row matching the current filters, while "Current page"
-  // uses the rows already on screen.
-  const loadAllExportRows = async () => {
-    try {
-      const response = await mainScreenTypeApi.readAllForExport({
+  // Feeds the table's single "Download Excel" button: "All data" is built
+  // server-side for the current filters, while "Current page" uses the rows
+  // already on screen.
+  const onServerExport = (filename: string, sheetName: string) =>
+    mainScreenTypeApi.exportToExcel(
+      {
         params: {
           ...(searchTerm ? { search: searchTerm } : {}),
           ...(statusValue !== "all" ? { is_active: statusValue === "active" } : {}),
         },
-      });
-      const rows = unwrapRows(response);
-      return rows;
-    } catch {
-      Swal.fire(t("common.error"), t("common.load_failed"), "error");
-    }
-    return [];
-  };
+      },
+      filename,
+      sheetName,
+    );
 
   const indexTemplate = (_: MainScreenType, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
@@ -199,7 +199,7 @@ export default function MainScreenTypeList() {
     return (
       <Switch
         checked={row.is_active}
-        disabled={pendingStatusId === String(row.unique_id)}
+        disabled={!canEdit || pendingStatusId === String(row.unique_id)}
         onCheckedChange={updateStatus}
       />
     );
@@ -212,8 +212,6 @@ export default function MainScreenTypeList() {
       searchPlaceholder={t("common.search_placeholder", {
         item: t("admin.nav.main_screen_type"),
       })}
-      statusValue={statusValue}
-      onStatusChange={onStatusFilterChange}
     />
   );
 
@@ -233,18 +231,21 @@ export default function MainScreenTypeList() {
             </p>
           </div>
 
-          <Button
-            label={t("common.add_item", {
-              item: t("admin.nav.main_screen_type"),
-            })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", {
+                item: t("admin.nav.main_screen_type"),
+              })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         </div>
 
         <DataTable
-          loadExportRows={loadAllExportRows}
+          filterPanel={combineFilters(statusFilter)}
+          onServerExport={onServerExport}
           value={mainScreenTypes}
           dataKey="unique_id"
           lazy

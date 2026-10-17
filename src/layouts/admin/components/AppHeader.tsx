@@ -9,6 +9,7 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import UserDropdown from "@/components/header/UserDropdown";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useSidebar } from "@/contexts/SideBarContext";
+import { useDashboardMenuItems } from "@/layouts/dashboard/dashboardMenu";
 import { cn } from "@/lib/utils";
 import {
   ADMIN_VIEW_MODE_DASHBOARD,
@@ -53,6 +54,8 @@ const AppHeader: React.FC = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { t } = useTranslation();
+  // Dashboard View only for users granted at least one User Dashboard tab.
+  const { items: dashboardTabs } = useDashboardMenuItems();
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10);
@@ -237,6 +240,7 @@ const AppHeader: React.FC = () => {
             )}
           >
             {/* Dashboard view button */}
+            {dashboardTabs.length > 0 && (
             <motion.button
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.96 }}
@@ -274,6 +278,7 @@ const AppHeader: React.FC = () => {
               <LayoutDashboard className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">{t("common.dashboard_view")}</span>
             </motion.button>
+            )}
 
             {/* Secondary CTA badge */}
             <div

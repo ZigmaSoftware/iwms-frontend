@@ -39,6 +39,9 @@ export default {
     reports_to: "रिपोर्ट्स टू",
     level: "स्तर",
     top_of_chain: "श्रृंखला का शीर्ष (कोई प्रमुख नहीं)",
+    escalation: "शिकायत एस्केलेशन",
+    escalation_yes: "शामिल",
+    escalation_no: "छोड़ा गया",
   },
   staff_template_audit: {
     title: "स्टाफ टेम्पलेट ऑडिट",

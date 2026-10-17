@@ -13,12 +13,15 @@ import { FilterMatchMode } from "primereact/api";
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { wasteTypeApi } from "@/helpers/admin";
 import type { WasteTypeListRecord } from "./types";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 const WASTE_TYPE_COLUMN_FIELDS: Record<string, string[]> = {
   waste_type_name: ["waste_type_name", "name"],
@@ -29,6 +32,7 @@ const WASTE_TYPE_COLUMN_FIELDS: Record<string, string[]> = {
 
 export default function WasteTypeListPage() {
   const { t } = useTranslation();
+  const { canEdit } = useScreenAccess();
   const navigate = useNavigate();
   const [allWasteTypes, setAllWasteTypes] = useState<WasteTypeListRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -41,7 +45,7 @@ export default function WasteTypeListPage() {
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters({
     initialFilters: {
       waste_type_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -54,21 +58,12 @@ export default function WasteTypeListPage() {
     companyUniqueId?: string;
     projectId?: string;
   } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  const companyProject = useCompanyProjectFilter(undefined, {
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { companies, isSuperAdmin } = companyProject.selection;
 
   const { encMasters, encWasteTypes } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } =
@@ -207,7 +202,9 @@ export default function WasteTypeListPage() {
     return (
       <Switch
         checked={Boolean(row.is_active)}
-        disabled={isUpdating && pendingStatusId === String(row.unique_id)}
+        disabled={
+          !canEdit || (isUpdating && pendingStatusId === String(row.unique_id))
+        }
         onCheckedChange={updateStatus}
       />
     );
@@ -234,14 +231,16 @@ export default function WasteTypeListPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button
-            label={t("common.add_item", { item: t("common.waste_type") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() =>
-              navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
-            }
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", { item: t("common.waste_type") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() =>
+                navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
+              }
+            />
+          </Can>
         </div>
       </div>
 
@@ -253,27 +252,9 @@ export default function WasteTypeListPage() {
             searchPlaceholder={t("common.search_placeholder", {
               item: t("common.waste_type"),
             })}
-            statusValue={statusValue}
-            onStatusChange={onStatusFilterChange}
             className="mb-4"
-          >
-            <FilterBarSelect
-              value={companyUniqueId || ""}
-              onChange={onCompanyChange}
-              options={companies}
-              placeholder="All Companies"
-              disabled={!isSuperAdmin || companies.length === 0}
-            />
-            <FilterBarSelect
-              value={projectId || ""}
-              onChange={setProjectId}
-              options={projects}
-              placeholder={showAllProjectsOption ? "All Projects" : undefined}
-              disabled={
-                (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-              }
-            />
-          </FilterBar></div>}
+          /></div>}
+        filterPanel={combineFilters(companyProject, statusFilter)}
         value={rows}
         exportRows={exportRows}
         exportSheetName="WasteTypes"

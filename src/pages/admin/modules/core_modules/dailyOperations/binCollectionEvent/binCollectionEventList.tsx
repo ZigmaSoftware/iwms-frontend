@@ -2,7 +2,7 @@ import type { BinCERecord } from "./types";
 import type { TableFilters } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -10,17 +10,20 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { binCollectionEventApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { FilterSection } from "@/components/common/ListToolbar";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { useDraftFilter } from "@/components/filters/useDraftFilter";
+import { combineFilters, useOptionFilter } from "@/components/filters/useOptionFilter";
 import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { formatCollectionTime } from "@/utils/formatTime";
 import { wasteTypeColorClass } from "@/utils/wasteTypeColors";
 import { EvidenceImagePreview } from "@/components/common/EvidenceImagePreview";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 const extractError = (error: unknown): string | null => {
   const data = (error as any)?.response?.data;
@@ -117,27 +120,31 @@ const today = new Date().toISOString().split("T")[0];
 export default function BinCollectionEventList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { canAdd } = useScreenAccess();
+
   const location = useLocation();
   const restoredState = location.state as {
     companyUniqueId?: string;
     projectId?: string;
   } | null;
-
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  const companyProject = useCompanyProjectFilter(undefined, {
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { companies, isSuperAdmin } = companyProject.selection;
+  const datePart = useDraftFilter({
+    empty: { collection_date: "" },
+    chips: { collection_date: { label: "Date" } },
+  });
+  // A5: viewset supports ward_id/zone_id/status query-param filters.
+  const statusPart = useOptionFilter({
+    param: "status",
+    label: "Status",
+    options: STATUS_OPTIONS,
+  });
+  const dateFilter = datePart.applied.collection_date;
+  const statusFilter = statusPart.value;
 
   const { encScheduleOperations, encBinCollectionEvent } = getEncryptedRoute();
   const { newPath: NEW_PATH } = createCrudRoutePaths(
@@ -178,10 +185,7 @@ export default function BinCollectionEventList() {
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
-    const dateFilter = filters.collection_date?.value;
     if (dateFilter) params.collection_date = dateFilter;
-    // A5: viewset supports ward_id/zone_id/status query-param filters.
-    const statusFilter = filters.status?.value;
     if (statusFilter) params.status = statusFilter;
     binCollectionEventApi
       .readAll({ params })
@@ -202,8 +206,8 @@ export default function BinCollectionEventList() {
     projectId,
     isSuperAdmin,
     companies.length,
-    filters.collection_date,
-    filters.status,
+    dateFilter,
+    statusFilter,
     t,
   ]);
 
@@ -327,7 +331,19 @@ export default function BinCollectionEventList() {
     };
   }, [filteredRows]);
 
-  const header = (
+  const dateField = (
+    <FilterSection label="Collection date">
+      <input
+        type="date"
+        value={datePart.draft.collection_date}
+        onChange={(e) => datePart.setField("collection_date", e.target.value)}
+        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+        aria-label="Collection date"
+      />
+    </FilterSection>
+  );
+
+  const renderHeader = (actions: ReactNode) => (
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold text-gray-800">
@@ -351,55 +367,7 @@ export default function BinCollectionEventList() {
         </span>
       </div>
 
-      {/* All filter dropdowns in a single line */}
-      <FilterBar hideSearch searchValue="" onSearchChange={() => {}}>
-        <FilterBarSelect
-          value={companyUniqueId || ""}
-          onChange={(value) => onCompanyChange(value)}
-          options={companies}
-          placeholder={"All Companies"}
-          disabled={!isSuperAdmin || companies.length === 0}
-        />
-        <FilterBarSelect
-          value={projectId || ""}
-          onChange={(value) => setProjectId(value)}
-          options={projects}
-          placeholder={showAllProjectsOption ? "All Projects" : undefined}
-          disabled={
-            (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-          }
-        />
-        <InputText
-          type="date"
-          value={filters.collection_date.value ?? ""}
-          onChange={(e) =>
-            setFilters((f) => ({
-              ...f,
-              collection_date: {
-                value: e.target.value,
-                matchMode: FilterMatchMode.CONTAINS,
-              },
-            }))
-          }
-          className="h-10 rounded border px-3 text-sm"
-        />
-        <FilterBarSelect
-          value={filters.status.value ?? ""}
-          onChange={(value) =>
-            setFilters((f) => ({
-              ...f,
-              status: {
-                value: value || null,
-                matchMode: FilterMatchMode.CONTAINS,
-              },
-            }))
-          }
-          options={STATUS_OPTIONS}
-          placeholder={"All Statuses"}
-        />
-      </FilterBar>
-
-      {/* Global search + Add button + export actions */}
+      {/* Global search + Add button + Filters / Documents */}
       <FilterBar
         searchValue={globalFilterValue}
         onSearchChange={(value) => {
@@ -412,14 +380,17 @@ export default function BinCollectionEventList() {
         searchPlaceholder={t("common.search_placeholder")}
         trailing={
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              label="Add Secondary Bin Collection Event"
-              icon="pi pi-plus"
-              className="p-button-success p-button-sm"
-              onClick={() =>
-                navigate(NEW_PATH, { state: { companyUniqueId, projectId } })
-              }
-            />
+            {canAdd && (
+              <Button
+                label="Add Secondary Bin Collection Event"
+                icon="pi pi-plus"
+                className="p-button-success p-button-sm"
+                onClick={() =>
+                  navigate(NEW_PATH, { state: { companyUniqueId, projectId } })
+                }
+              />
+            )}
+            {actions}
           </div>
         }
       />
@@ -450,7 +421,12 @@ export default function BinCollectionEventList() {
           "_zone",
           "collection_date",
         ]}
-        header={header}
+        renderHeaderWithActions={renderHeader}
+        filterPanel={combineFilters(
+          companyProject,
+          { ...datePart, field: dateField },
+          statusPart,
+        )}
         exportable={false}
         stripedRows
         showGridlines

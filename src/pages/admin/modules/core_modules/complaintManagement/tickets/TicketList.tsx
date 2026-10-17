@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -15,18 +15,17 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import {
   complaintFeedbackApi,
   complaintTicketApi,
-  geoApi,
 } from "@/features/complaintTicketing/api";
 import type {
   ComplaintFeedback,
   ComplaintTicket,
-  GeoOption,
-  LocalBodyOption,
 } from "@/features/complaintTicketing/types";
 import { asArray, errorText, formatDateTime } from "../utils";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 const toRecordList = (value: unknown): ComplaintTicket[] => {
   if (Array.isArray(value)) return value as ComplaintTicket[];
@@ -47,6 +46,7 @@ const SORTABLE_FIELDS = new Set(["ticket_no", "created"]);
 
 export default function TicketList() {
   const navigate = useNavigate();
+  const { canAdd } = useScreenAccess();
   const { encComplaintTicket, encComplaint } = getEncryptedRoute();
   const { newPath, editPath } = createCrudRoutePaths(
     encComplaintTicket,
@@ -70,16 +70,6 @@ export default function TicketList() {
     Map<string, ComplaintFeedback>
   >(new Map());
 
-  const [states, setStates] = useState<GeoOption[]>([]);
-  const [districts, setDistricts] = useState<GeoOption[]>([]);
-  const [panchayats, setPanchayats] = useState<LocalBodyOption[]>([]);
-  const [zones, setZones] = useState<LocalBodyOption[]>([]);
-  const [wards, setWards] = useState<LocalBodyOption[]>([]);
-  const [stateFilter, setStateFilter] = useState("");
-  const [districtFilter, setDistrictFilter] = useState("");
-  const [panchayatFilter, setPanchayatFilter] = useState("");
-  const [zoneFilter, setZoneFilter] = useState("");
-  const [wardFilter, setWardFilter] = useState("");
 
   useEffect(() => {
     complaintFeedbackApi
@@ -91,43 +81,19 @@ export default function TicketList() {
         );
       })
       .catch(() => setFeedbackByTicket(new Map()));
-    geoApi
-      .states()
-      .then(setStates)
-      .catch(() => setStates([]));
-    geoApi
-      .districts()
-      .then(setDistricts)
-      .catch(() => setDistricts([]));
   }, []);
 
   // Tickets are company/project-scoped (`CompanyScopedViewSet`), so the list
   // gets the same Company/Project pickers every scoped list uses — see
   // `staffTemplateList.tsx`.
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false, defaultToAll: true });
-
-  const selectedProjectId =
-    projectId && projects.some((project) => project.value === projectId)
-      ? projectId
-      : "";
+  // Company / Project live in the table's Filters panel.
+  const companyProject = useCompanyProjectFilter(() => setFirst(0));
+  const companyUniqueId = companyProject.companyId;
+  const selectedProjectId = companyProject.projectId;
 
   const buildTicketParams = () => ({
     ...(companyUniqueId ? { company_id: companyUniqueId } : {}),
     ...(selectedProjectId ? { project_id: selectedProjectId } : {}),
-    ...(stateFilter ? { state: stateFilter } : {}),
-    ...(districtFilter ? { district: districtFilter } : {}),
-    ...(panchayatFilter ? { panchayat: panchayatFilter } : {}),
-    ...(zoneFilter ? { zone: zoneFilter } : {}),
-    ...(wardFilter ? { ward: wardFilter } : {}),
   });
 
   const ordering =
@@ -176,11 +142,6 @@ export default function TicketList() {
     ordering,
     companyUniqueId,
     selectedProjectId,
-    stateFilter,
-    districtFilter,
-    panchayatFilter,
-    zoneFilter,
-    wardFilter,
   ]);
 
   useEffect(() => {
@@ -198,11 +159,6 @@ export default function TicketList() {
     ordering,
     companyUniqueId,
     selectedProjectId,
-    stateFilter,
-    districtFilter,
-    panchayatFilter,
-    zoneFilter,
-    wardFilter,
   ]);
 
   useEffect(() => {
@@ -219,84 +175,6 @@ export default function TicketList() {
     setFirst(0);
     setSortField(event.sortField);
     setSortOrder(event.sortOrder);
-  };
-
-  const filteredDistricts = useMemo(
-    () =>
-      districts.filter((item) => !stateFilter || item.state_id === stateFilter),
-    [districts, stateFilter],
-  );
-  const filteredPanchayats = useMemo(
-    () =>
-      panchayats.filter(
-        (item) =>
-          !districtFilter ||
-          !item.district_id ||
-          item.district_id === districtFilter,
-      ),
-    [panchayats, districtFilter],
-  );
-  const filteredZones = useMemo(
-    () =>
-      zones.filter(
-        (item) =>
-          !panchayatFilter ||
-          !item.panchayat_id ||
-          item.panchayat_id === panchayatFilter,
-      ),
-    [zones, panchayatFilter],
-  );
-  const filteredWards = useMemo(() => wards, [wards]);
-
-  const onStateFilterChange = (value: string) => {
-    setStateFilter(value);
-    setDistrictFilter("");
-    setPanchayatFilter("");
-    setZoneFilter("");
-    setWardFilter("");
-    setPanchayats([]);
-    setZones([]);
-    setWards([]);
-  };
-
-  const onDistrictFilterChange = async (value: string) => {
-    setDistrictFilter(value);
-    setPanchayatFilter("");
-    setZoneFilter("");
-    setWardFilter("");
-    setPanchayats([]);
-    setZones([]);
-    if (!value) {
-      setWards([]);
-      return;
-    }
-    const [panchayatRows, zoneRows] = await Promise.all([
-      geoApi.panchayats(value).catch(() => []),
-      geoApi.zones(value).catch(() => []),
-    ]);
-    setPanchayats(panchayatRows);
-    setZones(zoneRows);
-    setWards([]);
-  };
-
-  const onPanchayatFilterChange = async (value: string) => {
-    setPanchayatFilter(value);
-    setZoneFilter("");
-    setWardFilter("");
-    const zoneRows = await geoApi
-      .zones(districtFilter || undefined, value || undefined)
-      .catch(() => []);
-    setZones(zoneRows);
-    setWards([]);
-  };
-
-  const onZoneFilterChange = async (value: string) => {
-    setZoneFilter(value);
-    setWardFilter("");
-    const wardRows = await geoApi
-      .wards(value || undefined, panchayatFilter || undefined)
-      .catch(() => []);
-    setWards(wardRows);
   };
 
   const feedbackTemplate = (row: ComplaintTicket) => {
@@ -365,14 +243,14 @@ export default function TicketList() {
     );
   };
 
-  // "All data" re-fetches every ticket matching the active filters, since the
+  // "All data" is exported on the server with the active filters, since the
   // table is lazily paginated and only holds one page.
-  const loadAllExportRows = async () =>
-    toRecordList(
-      await complaintTicketApi.readAllForExport({
-        params: buildTicketParams(),
-      }),
-    ) as unknown as Record<string, unknown>[];
+  const serverExport = (filename: string, sheetName: string) =>
+    complaintTicketApi.exportToExcel(
+      { params: buildTicketParams() },
+      filename,
+      sheetName,
+    );
 
   return (
     <div className="p-3">
@@ -380,93 +258,28 @@ export default function TicketList() {
         title="Complaint Tickets"
         subtitle="Track submitted complaints and operational actions"
         actions={
-          <Button
-            label="Add Ticket"
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(newPath)}
-          />
+          canAdd ? (
+            <Button
+              label="Add Ticket"
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(newPath)}
+            />
+          ) : undefined
         }
         className="mb-4"
-        filters={
-          <div className="flex min-w-0 flex-col gap-3">
-        <FilterBar
-          searchValue={query}
-          onSearchChange={(value) => setQuery(value)}
-          searchPlaceholder="Search tickets"
-        >
-          <FilterBarSelect
-            value={companyUniqueId || ""}
-            onChange={(value) => onCompanyChange(value)}
-            options={companies}
-            placeholder="All Companies"
-            disabled={!isSuperAdmin || companies.length === 0}
-          />
-          <FilterBarSelect
-            value={selectedProjectId}
-            onChange={(value) => setProjectId(value)}
-            options={projects.map((project) => ({
-              value: String(project.value),
-              label: project.label || project.value,
-            }))}
-            placeholder={showAllProjectsOption ? "All Projects" : undefined}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-          />
-          <FilterBarSelect
-            value={stateFilter}
-            onChange={(value) => onStateFilterChange(value)}
-            options={states.map((item) => ({
-              value: String(item.unique_id),
-              label: item.name,
-            }))}
-            placeholder={"All states"}
-          />
-          <FilterBarSelect
-            value={districtFilter}
-            onChange={(value) => onDistrictFilterChange(value)}
-            options={filteredDistricts.map((item) => ({
-              value: String(item.unique_id),
-              label: item.name,
-            }))}
-            placeholder={"All districts"}
-          />
-          <FilterBarSelect
-            value={panchayatFilter}
-            onChange={(value) => onPanchayatFilterChange(value)}
-            options={filteredPanchayats.map((item) => ({
-              value: String(item.unique_id),
-              label: item.name,
-            }))}
-            placeholder={"All panchayats"}
-            disabled={!districtFilter}
-          />
-          <FilterBarSelect
-            value={zoneFilter}
-            onChange={(value) => onZoneFilterChange(value)}
-            options={filteredZones.map((item) => ({
-              value: String(item.unique_id),
-              label: item.name,
-            }))}
-            placeholder={"All zones"}
-            disabled={!districtFilter}
-          />
-          <FilterBarSelect
-            value={wardFilter}
-            onChange={(value) => setWardFilter(value)}
-            options={filteredWards.map((item) => ({
-              value: String(item.unique_id),
-              label: item.name,
-            }))}
-            placeholder={"All wards"}
-            disabled={!zoneFilter && !panchayatFilter}
-          />
-        </FilterBar>
-          </div>
-        }
       />
 
       <DataTable
-        loadExportRows={loadAllExportRows}
+        header={
+          <FilterBar
+            searchValue={query}
+            onSearchChange={(value) => setQuery(value)}
+            searchPlaceholder="Search tickets"
+          />
+        }
+        filterPanel={combineFilters(companyProject)}
+        onServerExport={serverExport}
         value={tableRows}
         dataKey="unique_id"
         lazy

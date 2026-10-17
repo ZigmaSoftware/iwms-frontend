@@ -1,42 +1,15 @@
-import { LayoutDashboard, FileText, Scale, MessageSquare } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { getEncryptedRoute } from "@/utils/routeCache";
-import { decryptSegment } from "@/utils/routeCrypto";
-
-const {
-  encDashboardGrievances,
-  encDashboardReports,
-  encDashboardWeighBridge,
-} = getEncryptedRoute();
-
-export const menuItems = [
-  { labelKey: "dashboard.nav.dashboard", url: "/dashboard", icon: LayoutDashboard, moduleName: null },
-  { labelKey: "dashboard.nav.grievances", url: `/dashboard/${encDashboardGrievances}`, icon: MessageSquare, moduleName: "dashboard-grievances" },
-  { labelKey: "dashboard.nav.reports", url: `/dashboard/${encDashboardReports}`, icon: FileText, moduleName: "dashboard-reports" },
-  { labelKey: "dashboard.nav.weighbridge", url: `/dashboard/${encDashboardWeighBridge}`, icon: Scale, moduleName: "dashboard-weighbridge" },
-];
-
-
-export function useDashboardActiveNav() {
-  const location = useLocation();
-  const pathSegments = location.pathname.split("/").filter(Boolean);
-  const currentModuleName = pathSegments[0] === "dashboard" && pathSegments[1]
-    ? decryptSegment(pathSegments[1])
-    : null;
-  const isDashboardHome = location.pathname === "/dashboard";
-
-  return (item: (typeof menuItems)[number]) =>
-    item.moduleName === null ? isDashboardHome : currentModuleName === item.moduleName;
-}
+import { useDashboardActiveNav, useDashboardMenuItems } from "@/layouts/dashboard/dashboardMenu";
 
 export function HorizontalNav() {
   const { t } = useTranslation();
   const isItemActive = useDashboardActiveNav();
+  const { items } = useDashboardMenuItems();
 
   return (
     <nav className="hidden items-center gap-1 lg:flex">
-      {menuItems.map((item) => {
+      {items.map((item) => {
         const isActive = isItemActive(item);
 
         return (

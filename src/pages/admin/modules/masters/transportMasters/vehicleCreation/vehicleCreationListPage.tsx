@@ -11,7 +11,12 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
-import { FilterBar, FilterBarSelect, type StatusFilterValue } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import {
+  combineFilters,
+  useOptionFilter,
+} from "@/components/filters/useOptionFilter";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -21,7 +26,6 @@ import { ActionMenu } from "@/components/ui/ActionMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { vehicleCreationApi } from "@/helpers/admin";
 import { adminApi } from "@/helpers/admin/registry";
@@ -30,8 +34,21 @@ import {
   excelFileToCsvFile,
   exportTemplateToExcel,
   getAdminScreenExcelFilename,
+  readExcelRows,
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
+import BulkUploadResultDialog from "@/components/common/BulkUploadResultDialog";
+import BulkRejectedPanel from "@/components/common/BulkRejectedPanel";
+import {
+  clearBulkResult,
+  loadBulkResult,
+  normalizeBulkErrors,
+  saveBulkResult,
+  type BulkUploadResult,
+} from "@/utils/bulkUpload";
+import { runBulkUpload } from "@/utils/backgroundJobs";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -98,6 +115,7 @@ const isImageUrl = (url?: string | null) => {
 
 export default function VehicleCreationListPage() {
   const { t } = useTranslation();
+  const { canEdit, canAdd, canImport } = useScreenAccess();
   const navigate = useNavigate();
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "transport-master",
@@ -107,7 +125,6 @@ export default function VehicleCreationListPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [modalImage, setModalImage] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [statusValue, setStatusValue] = useState<StatusFilterValue>("all");
   const [filteredRows, setFilteredRows] = useState<VehicleCreationRecord[]>([]);
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: {
@@ -146,6 +163,11 @@ export default function VehicleCreationListPage() {
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [refetchTrigger, setRefetchTrigger] = useState(0);
   const requestIdRef = useRef(0);
+  const BULK_KEY = "vehicle-creation";
+  const [uploadResult, setUploadResult] = useState<BulkUploadResult | null>(
+    () => loadBulkResult(BULK_KEY),
+  );
+  const [resultOpen, setResultOpen] = useState(false);
 
   // ── Company / Project ─────────────────────────────────────────────────────
   const location = useLocation();
@@ -153,21 +175,12 @@ export default function VehicleCreationListPage() {
     companyUniqueId?: string;
     projectId?: string;
   } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  const companyProject = useCompanyProjectFilter(undefined, {
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { companies, isSuperAdmin } = companyProject.selection;
 
   // ── Routes ────────────────────────────────────────────────────────────────
   const { encTransportMaster, encVehicleCreation } = getEncryptedRoute();
@@ -255,16 +268,24 @@ export default function VehicleCreationListPage() {
     }));
   };
 
-  const onStatusFilterChange = (value: StatusFilterValue) => {
-    setStatusValue(value);
-    setFilters((prev) => ({
-      ...prev,
-      is_active: {
-        value: value === "all" ? null : value === "active",
-        matchMode: FilterMatchMode.EQUALS,
-      },
-    }));
-  };
+  // Active / Inactive in the Filters panel; applied to the table's
+  // `is_active` column filter.
+  const statusFilter = useOptionFilter({
+    param: "is_active",
+    label: "Status",
+    options: [
+      { label: "Active", value: "active" },
+      { label: "Inactive", value: "inactive" },
+    ],
+    onAppliedChange: (value) =>
+      setFilters((prev) => ({
+        ...prev,
+        is_active: {
+          value: value ? value === "active" : null,
+          matchMode: FilterMatchMode.EQUALS,
+        },
+      })),
+  });
 
   // ── Bulk upload ───────────────────────────────────────────────────────────
   const downloadVehicleTemplate = async () => {
@@ -282,45 +303,42 @@ export default function VehicleCreationListPage() {
     if (!file) return;
 
     try {
+      const originalRows = (await readExcelRows(file)) as Record<
+        string,
+        unknown
+      >[];
       const csvFile = await excelFileToCsvFile(file, "vehicle_bulk_upload.csv");
       const formData = new FormData();
       formData.append("file", csvFile);
       if (companyUniqueId) formData.append("company_id_input", companyUniqueId);
       if (projectId) formData.append("project_id_input", projectId);
 
-      const res = await adminApi.vehicleCreations.action(
-        "bulk-upload",
-        formData,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-        },
-      );
+      const res = await runBulkUpload(adminApi.vehicleCreations, formData);
 
-      const errors = Array.isArray(res.errors) ? res.errors : [];
+      const errors = normalizeBulkErrors(res.errors, originalRows);
+      const successCount = Number(res.success_count ?? 0);
       recordExcelAudit("upload_excel", {
         file_name: file.name,
         status: "completed",
-        success_count: Number(res.success_count ?? 0),
+        success_count: successCount,
         error_count: errors.length,
       });
-      const errorPreview =
-        errors.length > 0
-          ? `<hr/><div class="text-left text-xs mt-2">${errors
-              .slice(0, 3)
-              .map((entry: { row: number; error: unknown }) => {
-                const detail =
-                  typeof entry.error === "string"
-                    ? entry.error
-                    : JSON.stringify(entry.error);
-                return `Row ${entry.row}: ${detail}`;
-              })
-              .join("<br/>")}</div>`
-          : "";
+      const result: BulkUploadResult = {
+        fileName: file.name,
+        successCount,
+        errors,
+        originalRows,
+      };
+      // Persist rejected rows so they stay visible across refetch / reload.
+      if (errors.length > 0) saveBulkResult(BULK_KEY, result);
+      else clearBulkResult(BULK_KEY);
+      setUploadResult(result);
+      setResultOpen(true);
 
       Swal.fire({
-        icon: "success",
+        icon: errors.length > 0 ? "warning" : "success",
         title: "Upload Completed",
-        html: `<b>Success:</b> ${res.success_count}<br/><b>Errors:</b> ${errors.length}${errorPreview}`,
+        text: `Success: ${successCount} · Rejected: ${errors.length}. ${errors.length > 0 ? "See rejected list below." : ""}`,
       });
 
       setRefetchTrigger((prev) => prev + 1);
@@ -429,7 +447,7 @@ export default function VehicleCreationListPage() {
     return (
       <Switch
         checked={row.is_active}
-        disabled={isUpdating && pendingStatusId === row.unique_id}
+        disabled={!canEdit || (isUpdating && pendingStatusId === row.unique_id)}
         onCheckedChange={updateStatus}
       />
     );
@@ -460,52 +478,7 @@ export default function VehicleCreationListPage() {
         onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
       }
       searchPlaceholder={t("admin.vehicle_creation.search_placeholder")}
-      statusValue={statusValue}
-      onStatusChange={onStatusFilterChange}
-      trailing={
-        <div className="flex items-center gap-2">
-          <Button
-            label={t("admin.vehicle_creation.download_template", {
-              defaultValue: "Download Template",
-            })}
-            icon="pi pi-download"
-            severity="secondary"
-            className="p-button-sm"
-            onClick={downloadVehicleTemplate}
-          />
-          <Button
-            label={t("admin.vehicle_creation.upload_csv", {
-              defaultValue: "Upload Excel",
-            })}
-            icon="pi pi-upload"
-            className="p-button-sm"
-            onClick={() => fileInputRef.current?.click()}
-          />
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls"
-            hidden
-            onChange={handleVehicleFileUpload}
-          />
-        </div>
-      }
-    >
-      <FilterBarSelect
-        value={companyUniqueId || ""}
-        onChange={onCompanyChange}
-        placeholder="All Companies"
-        options={companies}
-        disabled={!isSuperAdmin || companies.length === 0}
-      />
-      <FilterBarSelect
-        value={projectId || ""}
-        onChange={setProjectId}
-        placeholder={showAllProjectsOption ? "All Projects" : undefined}
-        options={projects}
-        disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-      />
-    </FilterBar>
+    />
   );
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -524,17 +497,34 @@ export default function VehicleCreationListPage() {
 
         <div className="flex items-center gap-3">
           {/* Add button */}
-          <Button
-            label={t("admin.vehicle_creation.add")}
-            icon="pi pi-plus"
-            className="p-button-success"
+          <Can action="add">
+            <Button
+              label={t("admin.vehicle_creation.add")}
+              icon="pi pi-plus"
+              className="p-button-success"
            
-            onClick={() =>
-              navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
-            }
-          />
+              onClick={() =>
+                navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
+              }
+            />
+          </Can>
         </div>
       </div>
+
+      {uploadResult && uploadResult.errors.length > 0 && (
+        <BulkRejectedPanel
+          result={uploadResult}
+          onClear={() => {
+            clearBulkResult(BULK_KEY);
+            setUploadResult(null);
+          }}
+          onReupload={
+            canAdd && canImport ? () => fileInputRef.current?.click() : undefined
+          }
+          onViewAll={() => setResultOpen(true)}
+          downloadFilename="vehicle_rejected.xlsx"
+        />
+      )}
 
       {/* Table */}
       <DataTable
@@ -550,6 +540,12 @@ export default function VehicleCreationListPage() {
         filters={filters}
         onFilter={onFilter}
         header={renderHeader()}
+        filterPanel={combineFilters(companyProject, statusFilter)}
+        documentActions={{
+          // the vehicle bulk upload (CSV conversion + company/project inputs)
+          downloadTemplate: { onClick: () => void downloadVehicleTemplate() },
+          uploadExcel: { onClick: () => fileInputRef.current?.click() },
+        }}
         stripedRows
         showGridlines
         className="p-datatable-sm"
@@ -674,6 +670,21 @@ export default function VehicleCreationListPage() {
           style={{ width: "150px" }}
         />
       </DataTable>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xls"
+        hidden
+        onChange={handleVehicleFileUpload}
+      />
+
+      <BulkUploadResultDialog
+        visible={resultOpen}
+        onClose={() => setResultOpen(false)}
+        title="Vehicle bulk upload — rejected records"
+        result={uploadResult}
+        downloadFilename="vehicle_rejected.xlsx"
+      />
 
       {/* Image modal */}
       {modalImage && (

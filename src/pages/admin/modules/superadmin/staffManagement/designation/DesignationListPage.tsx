@@ -17,10 +17,13 @@ import { designationApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 const { encStaffMasters, encDesignations } = getEncryptedRoute();
 const { newPath: NEW_PATH } = createCrudRoutePaths(
@@ -48,6 +51,7 @@ const SORTABLE_FIELDS = new Set(["designation_name"]);
 
 export default function DesignationListPage() {
   const navigate = useNavigate();
+  const { canEdit } = useScreenAccess();
   const [records, setRecords] = useState<DesignationRecord[]>([]);
 
   const [totalRecords, setTotalRecords] = useState(0);
@@ -63,7 +67,7 @@ export default function DesignationListPage() {
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters();
 
   const ordering =
@@ -172,26 +176,22 @@ export default function DesignationListPage() {
     }
   };
 
-  // Feeds the table's single "Download Excel" button: the "All data" option
-  // fetches every row matching the current filters, while "Current page"
-  // uses the rows already on screen.
-  const loadAllExportRows = async () => {
-    try {
-      const response = await designationApi.readAllForExport({
+  // Feeds the table's single "Download Excel" button: "All data" is built
+  // server-side for the current filters, while "Current page" uses the rows
+  // already on screen.
+  const onServerExport = (filename: string, sheetName: string) =>
+    designationApi.exportToExcel(
+      {
         params: {
           ...(searchTerm ? { search: searchTerm } : {}),
           ...(statusValue !== "all"
             ? { is_active: statusValue === "active" }
             : {}),
         },
-      });
-      const rows = unwrapRows(response);
-      return rows;
-    } catch {
-      Swal.fire("Error", "Failed to export designations", "error");
-    }
-    return [];
-  };
+      },
+      filename,
+      sheetName,
+    );
 
   return (
     <div className="min-h-full bg-gray-50/60 p-3 sm:p-5">
@@ -208,24 +208,25 @@ export default function DesignationListPage() {
           </h1>
           <p className="text-sm text-gray-500">Define roles and connect them to the right department.</p>
         </div>
-        <Button
-          label="Add Designation"
-          icon="pi pi-plus"
-          className="p-button-success"
-          onClick={() => navigate(NEW_PATH)}
-        />
+        <Can action="add">
+          <Button
+            label="Add Designation"
+            icon="pi pi-plus"
+            className="p-button-success"
+            onClick={() => navigate(NEW_PATH)}
+          />
+        </Can>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <DataTable
+        filterPanel={combineFilters(statusFilter)}
         header={<div className="border-b border-gray-100 bg-gray-50/70 p-3"><FilterBar
           searchValue={globalFilterValue}
           onSearchChange={onGlobalFilterChange}
           searchPlaceholder="Search designations"
-          statusValue={statusValue}
-          onStatusChange={onStatusFilterChange}
         /></div>}
-        loadExportRows={loadAllExportRows}
+        onServerExport={onServerExport}
         value={records}
         dataKey="unique_id"
         lazy
@@ -255,6 +256,7 @@ export default function DesignationListPage() {
           body={(row) => (
             <Switch
               checked={Boolean(row.is_active)}
+              disabled={!canEdit}
               onCheckedChange={(value) => toggleStatus(row, value)}
             />
           )}

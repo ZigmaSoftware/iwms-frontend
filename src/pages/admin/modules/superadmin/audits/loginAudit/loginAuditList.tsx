@@ -4,9 +4,9 @@ import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
-import { CONTROL_HEIGHT } from "@/components/common/controlSizing";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters, useOptionFilter } from "@/components/filters/useOptionFilter";
 import { filterRowsForExport } from "@/utils/adminListExport";
 
 import type { LoginAuditRecord } from "./types";
@@ -29,27 +29,31 @@ const LOGIN_AUDIT_SEARCH_FIELDS = [
 export default function LoginAuditList() {
   const { t } = useTranslation();
 
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
-  });
+  const companyProject = useCompanyProjectFilter();
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { isSuperAdmin } = companyProject.selection;
 
   const [selectedAudit, setSelectedAudit] = useState<LoginAuditRecord | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [sessionState, setSessionState] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     session_state: { value: null, matchMode: FilterMatchMode.EQUALS },
   });
+
+  // Logout type: sent to the API and mirrored into the table's own
+  // session_state column filter, both from the APPLIED value.
+  const sessionStateFilter = useOptionFilter({
+    param: "session_state",
+    label: "Logout type",
+    options: SESSION_STATE_OPTIONS,
+    allLabel: "All Logout Types",
+    onAppliedChange: (value) =>
+      setFilters((prev) => ({
+        ...prev,
+        session_state: { value: value || null, matchMode: FilterMatchMode.EQUALS },
+      })),
+  });
+  const sessionState = sessionStateFilter.value;
 
   const { rows, isLoading } = useLoginAudits({
     companyUniqueId,
@@ -61,29 +65,6 @@ export default function LoginAuditList() {
   const onGlobalFilterChange = (value: string) => {
     setGlobalFilterValue(value);
     setFilters((prev) => ({ ...prev, global: { value, matchMode: FilterMatchMode.CONTAINS } }));
-  };
-
-  const onSessionStateChange = (value: string) => {
-    setSessionState(value);
-    setFilters((prev) => ({
-      ...prev,
-      session_state: { value: value || null, matchMode: FilterMatchMode.EQUALS },
-    }));
-  };
-
-  // Company is only clearable for superadmins; everyone else is pinned to
-  // their own company.
-  const hasActiveFilters =
-    Boolean(globalFilterValue) ||
-    Boolean(sessionState) ||
-    Boolean(projectId) ||
-    (isSuperAdmin && Boolean(companyUniqueId));
-
-  const clearFilters = () => {
-    onGlobalFilterChange("");
-    onSessionStateChange("");
-    if (isSuperAdmin) onCompanyChange("");
-    setProjectId("");
   };
 
   const columns = useMemo(() => renderLoginAuditColumns({ t, onView: setSelectedAudit }), [t]);
@@ -99,45 +80,12 @@ export default function LoginAuditList() {
         searchValue={globalFilterValue}
         onSearchChange={onGlobalFilterChange}
         searchPlaceholder={t("admin.login_audit.search", "Search login audits...")}
-        trailing={
-          hasActiveFilters ? (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className={`inline-flex ${CONTROL_HEIGHT} items-center gap-1.5 whitespace-nowrap rounded-md border border-gray-200 bg-white px-3 text-sm font-medium text-gray-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600`}
-            >
-              <i className="pi pi-filter-slash text-xs" />
-              {t("common.clear_filters", "Clear filters")}
-            </button>
-          ) : null
-        }
-      >
-        <FilterBarSelect
-          value={companyUniqueId || ""}
-          onChange={(value) => onCompanyChange(value)}
-          options={companies}
-          placeholder={isSuperAdmin ? "All Companies" : t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-          disabled={!isSuperAdmin || companies.length === 0}
-        />
-        <FilterBarSelect
-          value={projectId || ""}
-          onChange={(value) => setProjectId(value)}
-          options={projects}
-          placeholder={showAllProjectsOption ? "All Projects" : t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-        />
-        <FilterBarSelect
-          value={sessionState}
-          onChange={onSessionStateChange}
-          options={SESSION_STATE_OPTIONS}
-          placeholder="All Logout Types"
-          aria-label="Logout type"
-        />
-      </FilterBar>
+      />
     </div>
   );
 
-  // Excel button sits inside the header card, top-right beside the title.
+  // Filters button + Documents menu sit inside the header card, top-right
+  // beside the title.
   const renderHeaderWithActions = (actions: ReactNode) => (
     <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -165,6 +113,7 @@ export default function LoginAuditList() {
           filters={filters}
           onFilter={(e) => setFilters(e.filters as DataTableFilterMeta)}
           renderHeaderWithActions={renderHeaderWithActions}
+          filterPanel={combineFilters(companyProject, sessionStateFilter)}
           stripedRows
           showGridlines
           emptyMessage={t("common.no_records")}

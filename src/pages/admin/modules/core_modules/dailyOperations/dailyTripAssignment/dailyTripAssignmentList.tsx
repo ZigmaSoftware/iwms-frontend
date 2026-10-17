@@ -21,6 +21,7 @@ import type {
 } from "primereact/datatable";
 
 import { ActionMenu, type ActionMenuItem } from "@/components/ui/ActionMenu";
+import { useScreenAccess } from "@/contexts/screenPermission";
 import {
   Dialog,
   DialogContent,
@@ -32,7 +33,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { useDraftFilter } from "@/components/filters/useDraftFilter";
+import {
+  combineFilters,
+  useOptionFilter,
+} from "@/components/filters/useOptionFilter";
+import { FilterSection } from "@/components/common/ListToolbar";
 import {
   dailyTripAssignmentApi,
   binApi,
@@ -45,7 +52,7 @@ import type { jsPDF } from "jspdf";
 const loadJsPdf = () => import("jspdf").then((m) => m.jsPDF);
 import { api } from "@/api";
 import { adminEndpoints } from "@/helpers/admin/endpoints";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
 import { downloadRecordsPdf, drawQrCode } from "@/utils/exportPdf";
 import { formatCollectionTime, formatTimeOnly } from "@/utils/formatTime";
 import { downloadCustomerQrStickerPdf } from "@/pages/admin/modules/masters/customerMasters/customerCreations/customerQrStickerPdf";
@@ -302,6 +309,7 @@ const toRecordList = (value: unknown): DailyTripAssignmentRecord[] => {
 export default function DailyTripAssignmentList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { canAdd, canEdit } = useScreenAccess();
   const location = useLocation();
   const restoredState = location.state as {
     companyUniqueId?: string;
@@ -312,21 +320,15 @@ export default function DailyTripAssignmentList() {
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } =
     createCrudRoutePaths(encScheduleOperations, encDailyTripAssignment);
 
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  // Company/Project (applied values), Trip Date and Collection Type live in
+  // the table's Filters panel as a draft and reach the list once applied.
+  const companyProject = useCompanyProjectFilter(() => setFirst(0), {
+    // coming back from the form restores the company/project it was opened with
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { projects, companies, isSuperAdmin } = companyProject.selection;
 
   const [rawAssignments, setRawAssignments] = useState<
     DailyTripAssignmentRecord[]
@@ -363,12 +365,29 @@ export default function DailyTripAssignmentList() {
   );
   const [isRetripSubmitting, setIsRetripSubmitting] = useState(false);
   const requestIdRef = useRef(0);
-  const [schedulerDate, setSchedulerDate] = useState(toDateInputValue());
+  // Trip date: filters the list (`?date=`) and is the date Run Scheduler /
+  // Generate Daily run for. Defaults to (and resets to) today.
+  const tripDate = useDraftFilter({
+    empty: { date: toDateInputValue() },
+    chips: { date: { label: "Trip date" } },
+    onAppliedChange: () => setFirst(0),
+  });
+  const schedulerDate = tripDate.applied.date;
   const [schedulerRunTime, setSchedulerRunTime] = useState("04:00");
   const [schedulerEnabled, setSchedulerEnabled] = useState(true);
-  const [collectionTypeFilter, setCollectionTypeFilter] = useState<
-    "all" | CollectionTypeKey
-  >("all");
+  // Client-only filter ("" = all types) — see the rows filter below.
+  const collectionType = useOptionFilter({
+    param: "collection_type",
+    label: "Collection type",
+    allLabel: "All Types",
+    options: [
+      { value: "bin", label: "Bin Collection" },
+      { value: "household", label: "Household" },
+      { value: "both", label: "Bin + Household" },
+    ],
+    onAppliedChange: () => setFirst(0),
+  });
+  const collectionTypeFilter = collectionType.value as "" | CollectionTypeKey;
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
@@ -640,7 +659,7 @@ export default function DailyTripAssignmentList() {
       .filter((row) => {
         if (schedulerDate && row.trip_date !== schedulerDate) return false;
         if (
-          collectionTypeFilter !== "all" &&
+          collectionTypeFilter &&
           getCollectionTypeKey(row) !== collectionTypeFilter
         )
           return false;
@@ -1070,7 +1089,7 @@ export default function DailyTripAssignmentList() {
       },
     ];
 
-    if (row.status === "In Progress") {
+    if (row.status === "In Progress" && canEdit) {
       extraActions.push({
         key: "close-next-trip",
         label: "Close & Start Next Trip",
@@ -1502,62 +1521,28 @@ export default function DailyTripAssignmentList() {
   };
 
   const renderHeader = () => (
-    <div className="flex flex-col gap-3">
-      <FilterBar hideSearch searchValue="" onSearchChange={() => {}}>
-        <FilterBarSelect
-          value={companyUniqueId || ""}
-          onChange={onCompanyChange}
-          placeholder="All Companies"
-          options={companies}
-          disabled={!isSuperAdmin || companies.length === 0}
-        />
-        <FilterBarSelect
-          value={projectId || ""}
-          onChange={setProjectId}
-          placeholder={showAllProjectsOption ? "All Projects" : undefined}
-          options={projects}
-          disabled={
-            (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-          }
-        />
-        <FilterBarSelect
-          value={collectionTypeFilter}
-          onChange={(value) =>
-            setCollectionTypeFilter(value as "all" | CollectionTypeKey)
-          }
-          options={[
-            { value: "all", label: "All Types" },
-            { value: "bin", label: "Bin Collection" },
-            { value: "household", label: "Household" },
-            { value: "both", label: "Bin + Household" },
-          ]}
-        />
-      </FilterBar>
+    <FilterBar
+      searchValue={globalFilterValue}
+      onSearchChange={(value) =>
+        onGlobalFilterChange({
+          target: { value },
+        } as React.ChangeEvent<HTMLInputElement>)
+      }
+      searchPlaceholder="Search assignments..."
+    />
+  );
 
-      <FilterBar
-        searchValue={globalFilterValue}
-        onSearchChange={(value) =>
-          onGlobalFilterChange({
-            target: { value },
-          } as React.ChangeEvent<HTMLInputElement>)
-        }
-        searchPlaceholder="Search assignments..."
-        trailing={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              label={
-                isExportingDetailed ? "Generating..." : "Detailed Report (QR)"
-              }
-              icon="pi pi-qrcode"
-              className="p-button-outlined p-button-sm"
-              disabled={isExportingDetailed}
-              onClick={handleDetailedPdfDownload}
-              title="One page per collection point / customer stop, with a QR code"
-            />
-          </div>
-        }
+  const tripDateField = (
+    <FilterSection label="Trip date">
+      <input
+        type="date"
+        value={tripDate.draft.date}
+        onChange={(event) => tripDate.setField("date", event.target.value)}
+        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+        aria-label="Trip date"
+        title="Trip date filter and manual scheduler date"
       />
-    </div>
+    </FilterSection>
   );
 
   return (
@@ -1572,33 +1557,26 @@ export default function DailyTripAssignmentList() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <label className="inline-flex items-center gap-2 text-sm text-gray-600">
-            Trip Date
-            <input
-              type="date"
-              value={schedulerDate}
-              onChange={(event) => setSchedulerDate(event.target.value)}
-              className="rounded border px-3 py-2 text-sm"
-              title="Trip date filter and manual scheduler date"
+          {canAdd && (
+            <Button
+              label={isSchedulerRunning ? "Running..." : "Run Scheduler"}
+              icon="pi pi-clock"
+              className="p-button-outlined"
+              disabled={isSchedulerRunning}
+              onClick={runSchedulerNow}
             />
-          </label>
+          )}
 
-          <Button
-            label={isSchedulerRunning ? "Running..." : "Run Scheduler"}
-            icon="pi pi-clock"
-            className="p-button-outlined"
-            disabled={isSchedulerRunning}
-            onClick={runSchedulerNow}
-          />
-
-          <Button
-            label="New Daily Trip Plan"
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() =>
-              navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
-            }
-          />
+          {canAdd && (
+            <Button
+              label="New Daily Trip Plan"
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() =>
+                navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
+              }
+            />
+          )}
         </div>
       </div>
 
@@ -1612,6 +1590,7 @@ export default function DailyTripAssignmentList() {
               type="checkbox"
               checked={schedulerEnabled}
               onChange={(event) => setSchedulerEnabled(event.target.checked)}
+              disabled={!canEdit}
               className="h-4 w-4 rounded border-gray-300"
             />
             Enabled
@@ -1622,24 +1601,29 @@ export default function DailyTripAssignmentList() {
               type="time"
               value={schedulerRunTime}
               onChange={(event) => setSchedulerRunTime(event.target.value)}
+              disabled={!canEdit}
               className="rounded border px-2 py-1 text-sm"
             />
           </label>
-          <Button
-            label={isSavingSchedulerConfig ? "Saving..." : "Save Schedule"}
-            icon="pi pi-save"
-            className="p-button-sm p-button-outlined"
-            disabled={isSavingSchedulerConfig}
-            onClick={saveSchedulerConfig}
-          />
-          <Button
-            label={isGeneratingDaily ? "Generating..." : "Generate Daily"}
-            icon="pi pi-calendar-plus"
-            className="p-button-sm p-button-success"
-            disabled={isGeneratingDaily}
-            onClick={runGenerateDailyNow}
-            title="Manually run the approved, repeat-day-matched auto-assign plans for the selected date (generate-daily action)"
-          />
+          {canEdit && (
+            <Button
+              label={isSavingSchedulerConfig ? "Saving..." : "Save Schedule"}
+              icon="pi pi-save"
+              className="p-button-sm p-button-outlined"
+              disabled={isSavingSchedulerConfig}
+              onClick={saveSchedulerConfig}
+            />
+          )}
+          {canAdd && (
+            <Button
+              label={isGeneratingDaily ? "Generating..." : "Generate Daily"}
+              icon="pi pi-calendar-plus"
+              className="p-button-sm p-button-success"
+              disabled={isGeneratingDaily}
+              onClick={runGenerateDailyNow}
+              title="Manually run the approved, repeat-day-matched auto-assign plans for the selected date (generate-daily action)"
+            />
+          )}
           <span className="text-gray-400">|</span>
           <span>
             Job: {schedulerStatus?.enabled ? "Enabled" : "Disabled"} at{" "}
@@ -1701,6 +1685,20 @@ export default function DailyTripAssignmentList() {
         filters={filters}
         onFilter={onFilter}
         header={renderHeader()}
+        filterPanel={combineFilters(
+          companyProject,
+          { ...tripDate, field: tripDateField },
+          collectionType,
+        )}
+        documentActions={{
+          // "Detailed Report (QR)": one page per collection point / customer
+          // stop, with a QR code (formerly a toolbar button).
+          downloadQr: {
+            onClick: () => void handleDetailedPdfDownload(),
+            busy: isExportingDetailed,
+            disabled: isExportingDetailed,
+          },
+        }}
         exportable={false}
         stripedRows
         showGridlines

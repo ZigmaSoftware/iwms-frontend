@@ -1,6 +1,6 @@
 import type { DailyTripLogRecord } from "./types";
 import { formatCollectionTime } from "./collectionTime";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -18,13 +18,20 @@ import type {
 } from "primereact/datatable";
 
 import { MultiSelect } from "primereact/multiselect";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { useDraftFilter } from "@/components/filters/useDraftFilter";
+import {
+  combineFilters,
+  useOptionFilter,
+} from "@/components/filters/useOptionFilter";
+import { FilterSection } from "@/components/common/ListToolbar";
 import { dailyTripLogApi, wasteTypeApi } from "@/helpers/admin";
 import { api } from "@/api";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
 import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { formatTimeOnly } from "@/utils/formatTime";
 import { wasteTypeColorClass } from "@/utils/wasteTypeColors";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 const STATUS_STYLES: Record<string, string> = {
   Unverified: "bg-gray-100 text-gray-700",
@@ -721,26 +728,22 @@ export default function DailyTripLogList() {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
+  const { canEdit } = useScreenAccess();
   const restoredState = location.state as {
     companyUniqueId?: string;
     projectId?: string;
   } | null;
 
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  // Company/Project (applied values), Collection type, Trip date and Waste
+  // type live in the table's Filters panel as a draft and reach the list
+  // once applied.
+  const companyProject = useCompanyProjectFilter(() => setFirst(0), {
+    // coming back from the form restores the company/project it was opened with
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { companies, isSuperAdmin } = companyProject.selection;
 
   const [rawRows, setRawRows] = useState<DailyTripLogRecord[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -748,14 +751,50 @@ export default function DailyTripLogList() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
-  const [collectionType, setCollectionType] = useState<
-    "all" | "bin" | "household"
-  >("all");
-  const [dateFilter, setDateFilter] = useState("");
-  const [wasteTypeFilter, setWasteTypeFilter] = useState<string[]>([]);
+  const collectionTypeFilter = useOptionFilter({
+    param: "collection_type",
+    label: "Collection",
+    allLabel: "All Collections",
+    options: [
+      { value: "bin", label: "Bin Collection" },
+      { value: "household", label: "Household Collection" },
+    ],
+    onAppliedChange: () => setFirst(0),
+  });
+  const collectionType = (collectionTypeFilter.value || "all") as
+    | "all"
+    | "bin"
+    | "household";
   const [wasteTypeOptions, setWasteTypeOptions] = useState<
     { label: string; value: string }[]
   >([]);
+  // Waste types are kept as one comma-joined string in the draft/applied
+  // state (the multiselect splits it back into ids).
+  const tripFilters = useDraftFilter({
+    empty: { date: "", wasteTypes: "" },
+    chips: {
+      date: { label: "Trip date" },
+      wasteTypes: {
+        label: "Waste type",
+        format: (ids) =>
+          ids
+            .split(",")
+            .map(
+              (id) =>
+                wasteTypeOptions.find((option) => option.value === id)
+                  ?.label ?? id,
+            )
+            .join(", "),
+      },
+    },
+    onAppliedChange: () => setFirst(0),
+  });
+  const dateFilter = tripFilters.applied.date;
+  const appliedWasteTypes = tripFilters.applied.wasteTypes;
+  const wasteTypeFilter = useMemo(
+    () => (appliedWasteTypes ? appliedWasteTypes.split(",") : []),
+    [appliedWasteTypes],
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [modalState, setModalState] = useState<{
     row: DailyTripLogRecord;
@@ -1015,25 +1054,27 @@ export default function DailyTripLogList() {
 
         {/* Verify — requires the trip to have actually ended (actual_end_time
             set), disabled once already Verified (read-only) */}
-        <button
-          title={
-            isVerified
-              ? "Already verified"
-              : canVerify
-                ? "Verify this log"
-                : "Trip must have an actual end time before it can be verified"
-          }
-          disabled={!canVerify}
-          onClick={() => setModalState({ row, mode: "verify" })}
-          className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
-            canVerify
-              ? "bg-green-100 text-green-700 hover:bg-green-200"
-              : "bg-green-50 text-green-400 cursor-not-allowed opacity-60"
-          }`}
-        >
-          <i className="pi pi-check-circle text-xs" />
-          Verify
-        </button>
+        {canEdit && (
+          <button
+            title={
+              isVerified
+                ? "Already verified"
+                : canVerify
+                  ? "Verify this log"
+                  : "Trip must have an actual end time before it can be verified"
+            }
+            disabled={!canVerify}
+            onClick={() => setModalState({ row, mode: "verify" })}
+            className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
+              canVerify
+                ? "bg-green-100 text-green-700 hover:bg-green-200"
+                : "bg-green-50 text-green-400 cursor-not-allowed opacity-60"
+            }`}
+          >
+            <i className="pi pi-check-circle text-xs" />
+            Verify
+          </button>
+        )}
       </div>
     );
   };
@@ -1189,63 +1230,46 @@ export default function DailyTripLogList() {
   };
 
   const renderHeader = () => (
-    <div className="flex flex-col gap-3">
-      <FilterBar hideSearch searchValue="" onSearchChange={() => {}}>
-        <FilterBarSelect
-          value={companyUniqueId || ""}
-          onChange={onCompanyChange}
-          placeholder="All Companies"
-          options={companies}
-          disabled={!isSuperAdmin || companies.length === 0}
-        />
-        <FilterBarSelect
-          value={projectId || ""}
-          onChange={setProjectId}
-          placeholder={showAllProjectsOption ? "All Projects" : undefined}
-          options={projects}
-          disabled={
-            (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-          }
-        />
-        <FilterBarSelect
-          value={collectionType}
-          onChange={(value) =>
-            setCollectionType(value as "all" | "bin" | "household")
-          }
-          options={[
-            { value: "all", label: "All Collections" },
-            { value: "bin", label: "Bin Collection" },
-            { value: "household", label: "Household Collection" },
-          ]}
-        />
+    <FilterBar
+      searchValue={globalFilterValue}
+      onSearchChange={(value) =>
+        onGlobalFilterChange({
+          target: { value },
+        } as React.ChangeEvent<HTMLInputElement>)
+      }
+      searchPlaceholder="Search trip logs..."
+    />
+  );
+
+  const tripFiltersField = (
+    <>
+      <FilterSection label="Trip date">
         <input
           type="date"
-          value={dateFilter}
-          onChange={(e) => setDateFilter(e.target.value)}
-          className="h-10 rounded-md border border-gray-300 px-3 text-sm text-gray-700"
+          value={tripFilters.draft.date}
+          onChange={(e) => tripFilters.setField("date", e.target.value)}
+          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+          aria-label="Trip date"
           title="Filter by trip date"
         />
+      </FilterSection>
+      <FilterSection label="Waste type">
         <MultiSelect
-          value={wasteTypeFilter}
-          onChange={(e) => setWasteTypeFilter(e.value)}
+          value={
+            tripFilters.draft.wasteTypes
+              ? tripFilters.draft.wasteTypes.split(",")
+              : []
+          }
+          onChange={(e) =>
+            tripFilters.setField("wasteTypes", (e.value as string[]).join(","))
+          }
           options={wasteTypeOptions}
           placeholder="Waste Type"
           display="chip"
-          className="h-10 text-sm"
-          style={{ minWidth: 180 }}
+          className="w-full text-sm"
         />
-      </FilterBar>
-
-      <FilterBar
-        searchValue={globalFilterValue}
-        onSearchChange={(value) =>
-          onGlobalFilterChange({
-            target: { value },
-          } as React.ChangeEvent<HTMLInputElement>)
-        }
-        searchPlaceholder="Search trip logs..."
-      />
-    </div>
+      </FilterSection>
+    </>
   );
 
   /* ── KPI pills: computed from the CURRENT PAGE only (post-collectionType
@@ -1308,6 +1332,10 @@ export default function DailyTripLogList() {
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading}
         header={renderHeader()}
+        filterPanel={combineFilters(companyProject, collectionTypeFilter, {
+          ...tripFilters,
+          field: tripFiltersField,
+        })}
         exportable={false}
         stripedRows
         showGridlines

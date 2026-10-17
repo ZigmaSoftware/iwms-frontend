@@ -15,13 +15,17 @@ import { FilterMatchMode } from "primereact/api";
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { Switch } from "@/components/ui/switch";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { adminApi } from "@/helpers/admin/registry";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { FilterSection } from "@/components/common/ListToolbar";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { useDraftFilter } from "@/components/filters/useDraftFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { formatTimeOnly } from "@/utils/formatTime";
 import { WASTE_TYPE_COLORS } from "@/utils/wasteTypeColors";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,6 +56,7 @@ const isFilterableField = (field: string): field is FilterableField =>
 export default function WasteCollectedDataList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { canAdd, canEdit } = useScreenAccess();
   const location = useLocation();
   const restoredState = location.state as {
     companyUniqueId?: string;
@@ -62,34 +67,29 @@ export default function WasteCollectedDataList() {
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } =
     createCrudRoutePaths(encScheduleOperations, encWasteCollectedData);
 
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  const companyProject = useCompanyProjectFilter(undefined, {
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
+  const companyUniqueId = companyProject.companyId;
+  const projectId = companyProject.projectId;
+  const { companies, isSuperAdmin } = companyProject.selection;
 
   const [wasteCollections, setWasteCollections] = useState<WasteCollection[]>(
     [],
   );
   const [loading, setLoading] = useState(false);
-  const [collectionDateFilter, setCollectionDateFilter] = useState("");
+  const collectionDate = useDraftFilter({
+    empty: { collection_date: "" },
+    chips: { collection_date: { label: "Collection date" } },
+  });
+  const collectionDateFilter = collectionDate.applied.collection_date;
   const {
     filters,
     onFilter,
     globalFilterValue,
     onGlobalFilterChange,
-    statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters({
     initialFilters: {
       customer_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -251,7 +251,13 @@ export default function WasteCollectedDataList() {
         Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
       }
     };
-    return <Switch checked={!!row.is_active} onCheckedChange={updateStatus} />;
+    return (
+      <Switch
+        checked={!!row.is_active}
+        disabled={!canEdit}
+        onCheckedChange={updateStatus}
+      />
+    );
   };
 
   const handleDelete = async (id: string) => {
@@ -330,63 +336,51 @@ export default function WasteCollectedDataList() {
         </span>
       </div>
 
-      {/* All filter dropdowns in a single line */}
-      <FilterBar
-        hideSearch
-        searchValue=""
-        onSearchChange={() => {}}
-        statusValue={statusValue}
-        onStatusChange={onStatusFilterChange}
-        className="mb-3"
-      >
-        <FilterBarSelect
-          value={companyUniqueId || ""}
-          onChange={onCompanyChange}
-          options={companies}
-          placeholder="All Companies"
-          disabled={!isSuperAdmin || companies.length === 0}
-        />
-        <FilterBarSelect
-          value={projectId || ""}
-          onChange={setProjectId}
-          options={projects}
-          placeholder={showAllProjectsOption ? "All Projects" : undefined}
-          disabled={
-            (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-          }
-        />
-        <input
-          type="date"
-          value={collectionDateFilter}
-          onChange={(e) => setCollectionDateFilter(e.target.value)}
-          className="h-10 rounded-md border border-gray-300 px-3 text-sm text-gray-700"
-          title="Filter by collection date"
-        />
-      </FilterBar>
-
-      {/* Global search + Add button + export actions */}
-      <FilterBar
-        searchValue={globalFilterValue}
-        onSearchChange={onGlobalFilterChange}
-        searchPlaceholder={t("admin.waste_collected_data.search_placeholder")}
-        className="mb-4"
-        trailing={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              label={t("admin.waste_collected_data.add_new")}
-              icon="pi pi-plus"
-              className="p-button-success"
-              onClick={() =>
-                navigate(ENC_NEW_PATH, {
-                  state: { companyUniqueId, projectId },
-                })
-              }
-            />
-          </div>
-        }
-      />
-
       <DataTable
+        header={
+          /* Global search + Add button */
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={onGlobalFilterChange}
+            searchPlaceholder={t("admin.waste_collected_data.search_placeholder")}
+            trailing={
+              canAdd ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    label={t("admin.waste_collected_data.add_new")}
+                    icon="pi pi-plus"
+                    className="p-button-success"
+                    onClick={() =>
+                      navigate(ENC_NEW_PATH, {
+                        state: { companyUniqueId, projectId },
+                      })
+                    }
+                  />
+                </div>
+              ) : undefined
+            }
+          />
+        }
+        filterPanel={combineFilters(
+          companyProject,
+          {
+            ...collectionDate,
+            field: (
+              <FilterSection label="Collection date">
+                <input
+                  type="date"
+                  value={collectionDate.draft.collection_date}
+                  onChange={(e) =>
+                    collectionDate.setField("collection_date", e.target.value)
+                  }
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  aria-label="Collection date"
+                />
+              </FilterSection>
+            ),
+          },
+          statusFilter,
+        )}
         loadExportRows={async () => buildExportRows()}
         onPdfRequest={handleDownloadPdf}
         value={wasteCollections}

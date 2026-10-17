@@ -1,6 +1,12 @@
 import type { Staff } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { type ChangeEvent, useEffect, useRef, useState } from "react";
+import {
+  type ChangeEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { adminApi } from "@/helpers/admin/registry";
 import Swal from "@/lib/notify";
@@ -21,17 +27,23 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 
 import { Switch } from "@/components/ui/switch";
 import QrPreviewDialog from "@/components/common/QrPreviewDialog";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { FilterBar } from "@/components/common/FilterBar";
+import { FormSelect } from "@/components/common/FormSelect";
+import { FilterSection } from "@/components/common/ListToolbar";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { useDraftFilter } from "@/components/filters/useDraftFilter";
 import {
-  FilterBar,
-  FilterBarSelect,
-  type StatusFilterValue,
-} from "@/components/common/FilterBar";
+  combineFilters,
+  useOptionFilter,
+  type FilterPart,
+} from "@/components/filters/useOptionFilter";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 const STAFF_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   unique_id: ["staff_id", "unique_id", "staff_unique_id", "zigma_id"],
@@ -79,6 +91,7 @@ const BACKEND_ORDER_FIELD: Record<string, string> = {
 export default function StaffCreationList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { canEdit } = useScreenAccess();
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "staff-masters",
     "staff-creation",
@@ -97,28 +110,52 @@ export default function StaffCreationList() {
     companyUniqueId?: string;
     projectId?: string;
   } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  const resetPage = () => setFirst(0);
+  const companyProject = useCompanyProjectFilter(resetPage, {
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { companies, isSuperAdmin } = companyProject.selection;
 
-  const [filterParams, setFilterParams] = useState({
-    salary_type: "",
-    active_status: "",
-    site_name: "",
-    employee_name: "",
+  const salaryTypeOptions = [
+    { value: "Monthly", label: t("admin.staff_creation.salary_monthly") },
+    { value: "Daily", label: t("admin.staff_creation.salary_daily") },
+    { value: "Contract", label: t("admin.staff_creation.salary_contract") },
+  ];
+
+  // Salary type / site / employee, edited in the Filters panel and sent once
+  // applied (they used to wait for the "Go" button).
+  const staffFilter = useDraftFilter({
+    empty: { salary_type: "", site_name: "", employee_name: "" },
+    chips: {
+      salary_type: {
+        label: t("admin.staff_creation.salary_type"),
+        format: (value) =>
+          salaryTypeOptions.find((option) => option.value === value)?.label ??
+          value,
+      },
+      site_name: { label: t("admin.staff_creation.site_name") },
+      employee_name: { label: t("admin.staff_creation.employee_name") },
+    },
+    onAppliedChange: resetPage,
   });
+
+  // Active / Inactive → `?active_status=1|0`.
+  const statusFilter = useOptionFilter({
+    param: "active_status",
+    label: "Status",
+    options: [
+      { label: "Active", value: "1" },
+      { label: "Inactive", value: "0" },
+    ],
+    onAppliedChange: resetPage,
+  });
+
+  const filterParams = {
+    ...staffFilter.applied,
+    active_status: statusFilter.value,
+  };
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [globalSearchTerm, setGlobalSearchTerm] = useState("");
@@ -140,7 +177,6 @@ export default function StaffCreationList() {
     "project_name",
   ];
 
-  const [refetchTrigger, setRefetchTrigger] = useState(0);
   const requestIdRef = useRef(0);
 
   const requestParams = {
@@ -256,20 +292,11 @@ export default function StaffCreationList() {
     globalSearchTerm,
     sortField,
     sortOrder,
-    refetchTrigger,
+    filterParams.salary_type,
+    filterParams.site_name,
+    filterParams.employee_name,
+    filterParams.active_status,
   ]);
-
-  const applyFilter = () => {
-    setFirst(0);
-    setRefetchTrigger((n) => n + 1);
-  };
-
-  const handleFilterChange = (
-    ev: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
-  ) => {
-    const { name, value } = ev.target;
-    setFilterParams((prev) => ({ ...prev, [name]: value }));
-  };
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -293,22 +320,6 @@ export default function StaffCreationList() {
     }, 400);
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
-
-  const statusFilterValue: StatusFilterValue =
-    filterParams.active_status === "1"
-      ? "active"
-      : filterParams.active_status === "0"
-        ? "inactive"
-        : "all";
-
-  const onStatusFilterChange = (value: StatusFilterValue) => {
-    setFilterParams((prev) => ({
-      ...prev,
-      active_status: value === "all" ? "" : value === "active" ? "1" : "0",
-    }));
-    setFirst(0);
-    setRefetchTrigger((n) => n + 1);
-  };
 
   const fetchExportRows = async (): Promise<Staff[]> => {
     const exportParams: Record<string, unknown> = { ...requestParams };
@@ -364,7 +375,11 @@ export default function StaffCreationList() {
     };
 
     return (
-      <Switch checked={row.active_status} onCheckedChange={updateStatus} />
+      <Switch
+        checked={row.active_status}
+        disabled={!canEdit}
+        onCheckedChange={updateStatus}
+      />
     );
   };
 
@@ -418,7 +433,61 @@ export default function StaffCreationList() {
   const indexTemplate = (_: Staff, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
 
-  const header = (
+  const staffFilterField = (
+    <FilterSection label="Staff">
+      <div className="grid grid-cols-2 gap-2">
+        {showCol("salary_type") && (
+          <FormSelect
+            label={t("admin.staff_creation.salary_type")}
+            value={staffFilter.draft.salary_type}
+            onChange={(value) => staffFilter.setField("salary_type", value)}
+            options={salaryTypeOptions}
+            placeholder={t("common.all")}
+          />
+        )}
+        {showCol("site_name") && (
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-xs font-semibold">
+              {t("admin.staff_creation.site_name")}
+            </span>
+            <input
+              value={staffFilter.draft.site_name}
+              onChange={(e) => staffFilter.setField("site_name", e.target.value)}
+              placeholder={t("admin.staff_creation.site_placeholder")}
+              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            />
+          </label>
+        )}
+        {showCol("employee_name") && (
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-xs font-semibold">
+              {t("admin.staff_creation.employee_name")}
+            </span>
+            <input
+              value={staffFilter.draft.employee_name}
+              onChange={(e) =>
+                staffFilter.setField("employee_name", e.target.value)
+              }
+              placeholder={t("admin.staff_creation.employee_placeholder")}
+              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            />
+          </label>
+        )}
+      </div>
+    </FilterSection>
+  );
+
+  const filterParts: FilterPart[] = [
+    companyProject,
+    ...(showCol("salary_type") || showCol("site_name") || showCol("employee_name")
+      ? [{ ...staffFilter, field: staffFilterField }]
+      : []),
+    ...(showCol("active_status") ? [statusFilter] : []),
+  ];
+
+  // Title + Create button, then the search with the Filters button and the
+  // Documents menu beside it.
+  const renderHeader = (actions: ReactNode) => (
     <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -431,125 +500,33 @@ export default function StaffCreationList() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button
-            label={t("admin.staff_creation.create")}
-            icon="pi pi-plus"
-            className="p-button-success p-button-sm"
-            onClick={() =>
-              navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
-            }
-          />
-        </div>
-      </div>
-
-      {/* Filters Row */}
-      <div className="rounded-lg border border-gray-100 bg-gray-50/80 p-3">
-      <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {showCol("salary_type") && (
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-semibold">
-              {t("admin.staff_creation.salary_type")}
-            </span>
-            <FilterBarSelect
-              className="w-full sm:w-full"
-              value={filterParams.salary_type}
-              onChange={(value) =>
-                handleFilterChange({
-                  target: { name: "salary_type", value },
-                } as ChangeEvent<HTMLInputElement>)
+          <Can action="add">
+            <Button
+              label={t("admin.staff_creation.create")}
+              icon="pi pi-plus"
+              className="p-button-success p-button-sm"
+              onClick={() =>
+                navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
               }
-              options={[
-                {
-                  value: "Monthly",
-                  label: t("admin.staff_creation.salary_monthly"),
-                },
-                {
-                  value: "Daily",
-                  label: t("admin.staff_creation.salary_daily"),
-                },
-                {
-                  value: "Contract",
-                  label: t("admin.staff_creation.salary_contract"),
-                },
-              ]}
-              placeholder={t("common.all")}
             />
-          </div>
-        )}
-
-        {showCol("site_name") && (
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-semibold">
-              {t("admin.staff_creation.site_name")}
-            </span>
-            <input
-              name="site_name"
-              value={filterParams.site_name}
-              onChange={handleFilterChange}
-              placeholder={t("admin.staff_creation.site_placeholder")}
-              className="h-10 w-full min-w-0 rounded-lg border px-3 text-sm"
-            />
-          </div>
-        )}
-
-        {showCol("employee_name") && (
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-semibold">
-              {t("admin.staff_creation.employee_name")}
-            </span>
-            <input
-              name="employee_name"
-              value={filterParams.employee_name}
-              onChange={handleFilterChange}
-              placeholder={t("admin.staff_creation.employee_placeholder")}
-              className="h-10 w-full min-w-0 rounded-lg border px-3 text-sm"
-            />
-          </div>
-        )}
-
-        <div className="flex items-end">
-          <button
-            onClick={applyFilter}
-            className="h-10 rounded-full bg-blue-600 px-6 text-sm font-semibold text-white"
-          >
-            {t("common.go")}
-          </button>
+          </Can>
         </div>
       </div>
-      </div>
 
-      {/* Search + Status */}
-      <div className="flex justify-end border-t border-gray-100 pt-3">
-        <FilterBar
-          searchValue={globalFilterValue}
-          onSearchChange={(value) =>
-            onGlobalFilterChange({
-              target: { value },
-            } as ChangeEvent<HTMLInputElement>)
-          }
-          searchPlaceholder={t("admin.staff_creation.search_placeholder")}
-          statusValue={showCol("active_status") ? statusFilterValue : undefined}
-          onStatusChange={
-            showCol("active_status") ? onStatusFilterChange : undefined
-          }
-        >
-          <FilterBarSelect
-            value={companyUniqueId || ""}
-            onChange={(value) => onCompanyChange(value)}
-            options={companies}
-            placeholder="All Companies"
-            disabled={!isSuperAdmin || companies.length === 0}
-          />
-          <FilterBarSelect
-            value={projectId || ""}
-            onChange={(value) => setProjectId(value)}
-            options={projects}
-            placeholder={showAllProjectsOption ? "All Projects" : undefined}
-            disabled={
-              (!companyUniqueId && !isSuperAdmin) || projects.length === 0
+      {/* Search + Filters / Documents */}
+      <div className="flex min-w-0 flex-wrap items-center gap-3 border-t border-gray-100 pt-3">
+        <div className="min-w-0 flex-1">
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={(value) =>
+              onGlobalFilterChange({
+                target: { value },
+              } as ChangeEvent<HTMLInputElement>)
             }
+            searchPlaceholder={t("admin.staff_creation.search_placeholder")}
           />
-        </FilterBar>
+        </div>
+        <div className="ml-auto shrink-0">{actions}</div>
       </div>
     </div>
   );
@@ -570,7 +547,8 @@ export default function StaffCreationList() {
           sortOrder={sortOrder}
           onSort={onSort}
           loading={loading}
-          header={header}
+          renderHeaderWithActions={renderHeader}
+          filterPanel={combineFilters(...filterParts)}
           emptyMessage={t("common.no_items_found", {
             item: t("admin.staff_creation.staff_label"),
           })}

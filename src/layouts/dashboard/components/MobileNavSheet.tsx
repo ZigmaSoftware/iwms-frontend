@@ -3,7 +3,7 @@ import { Crown, LogOut, Menu, Moon, Sun } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
-import { menuItems, useDashboardActiveNav } from "@/layouts/dashboard/components/HorizontalNav";
+import { useDashboardActiveNav, useDashboardMenuItems } from "@/layouts/dashboard/dashboardMenu";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -32,6 +32,7 @@ export function MobileNavSheet({
   const { t } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const isItemActive = useDashboardActiveNav();
+  const { items } = useDashboardMenuItems();
   const [open, setOpen] = useState(false);
 
   return (
@@ -52,7 +53,7 @@ export function MobileNavSheet({
         </SheetHeader>
 
         <nav className="mt-4 flex flex-col gap-1">
-          {menuItems.map((item) => {
+          {items.map((item) => {
             const isActive = isItemActive(item);
             return (
               <SheetClose asChild key={item.url}>

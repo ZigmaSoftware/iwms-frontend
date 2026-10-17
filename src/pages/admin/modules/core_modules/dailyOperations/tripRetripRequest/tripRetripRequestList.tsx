@@ -15,10 +15,14 @@ import type {
   SortOrder,
 } from "primereact/datatable";
 
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { api } from "@/api";
 import { retripRequestApi } from "@/helpers/admin";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { FilterSection } from "@/components/common/ListToolbar";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { useDraftFilter } from "@/components/filters/useDraftFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 /* ── Badge helpers ─────────────────────────────────────────────── */
 
@@ -374,16 +378,7 @@ function RejectDialog({
 /* ── Main Component ─────────────────────────────────────────────── */
 export default function TripRetripRequestList() {
   const { t } = useTranslation();
-
-  const {
-    companyUniqueId,
-    projectId,
-    companies,
-    projects,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false, defaultToAll: true });
+  const { canEdit } = useScreenAccess();
 
   const [rawRows, setRawRows] = useState<TripRetripRequestRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -394,11 +389,21 @@ export default function TripRetripRequestList() {
   const [totalRecords, setTotalRecords] = useState(0);
   const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [statusFilter, setStatusFilter] = useState<RetripStatus | "">(
-    "Pending",
-  );
   const requestIdRef = useRef(0);
   const [clock, setClock] = useState(() => Date.now());
+
+  const resetPage = () => setFirst(0);
+  const companyProject = useCompanyProjectFilter(resetPage);
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { companies, isSuperAdmin } = companyProject.selection;
+
+  // "Pending" is the default (Reset returns to it; removing the chip = All).
+  const statusPart = useDraftFilter({
+    empty: { status: "Pending" },
+    chips: { status: { label: "Status" } },
+    onAppliedChange: resetPage,
+  });
+  const statusFilter = statusPart.applied.status as RetripStatus | "";
 
   const [approveTarget, setApproveTarget] =
     useState<TripRetripRequestRecord | null>(null);
@@ -604,7 +609,7 @@ export default function TripRetripRequestList() {
   /* ── Action column ──────────────────────────────────────────────── */
   const actionTemplate = (row: TripRetripRequestRecord) => (
     <div className="flex items-center justify-center gap-3">
-      {row.status === "Pending" && !isPastDeadline(row, clock) && (
+      {canEdit && row.status === "Pending" && !isPastDeadline(row, clock) && (
         <button
           title="Re-Trip (Approve)"
           onClick={() => void openApproveDialog(row)}
@@ -614,7 +619,7 @@ export default function TripRetripRequestList() {
           <i className="pi pi-check-circle" />
         </button>
       )}
-      {row.status === "Pending" && !isPastDeadline(row, clock) && (
+      {canEdit && row.status === "Pending" && !isPastDeadline(row, clock) && (
         <button
           title="Reject"
           onClick={() => setRejectTarget(row)}
@@ -627,16 +632,16 @@ export default function TripRetripRequestList() {
   );
 
   /* ── Header ─────────────────────────────────────────────────────── */
-  // Feeds the table's "Download Excel" button: "All data" re-fetches every
-  // request matching the current filters, since the table itself is lazily
+  // Feeds the table's "Download Excel" button: "All data" is exported on the
+  // server with the current filters, since the table itself is lazily
   // paginated and only holds one page.
-  const loadAllExportRows = async () => {
+  const serverExport = (filename: string, sheetName: string) => {
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
     if (searchTerm.trim()) params.search = searchTerm.trim();
     if (statusFilter) params.status = statusFilter;
-    return toRecordList(await retripRequestApi.readAllForExport({ params }));
+    return retripRequestApi.exportToExcel({ params }, filename, sheetName);
   };
 
   const header = (
@@ -644,45 +649,30 @@ export default function TripRetripRequestList() {
       searchValue={globalFilterValue}
       onSearchChange={setGlobalFilterValue}
       searchPlaceholder="Search Re-Trip requests…"
-      trailing={
-        <div className="flex flex-wrap items-center gap-2">
-          {(["Pending", "Approved", "Rejected", "Expired", ""] as const).map((s) => (
-            <button
-              key={s || "all"}
-              type="button"
-              onClick={() => {
-                setFirst(0);
-                setStatusFilter(s);
-              }}
-              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                statusFilter === s
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
-            >
-              {s || "All"}
-            </button>
-          ))}
-        </div>
-      }
-    >
-      {isSuperAdmin && (
-        <FilterBarSelect
-          value={companyUniqueId || ""}
-          onChange={(value) => onCompanyChange(value)}
-          options={companies}
-          placeholder="All Companies"
-          disabled={companies.length === 0}
-        />
-      )}
-      <FilterBarSelect
-        value={projectId || ""}
-        onChange={(value) => setProjectId(value)}
-        options={projects}
-        placeholder="All Projects"
-        disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-      />
-    </FilterBar>
+    />
+  );
+
+  const statusField = (
+    <FilterSection label="Status">
+      <div role="radiogroup" aria-label="Status" className="flex flex-wrap gap-1.5">
+        {(["Pending", "Approved", "Rejected", "Expired", ""] as const).map((s) => (
+          <button
+            key={s || "all"}
+            type="button"
+            role="radio"
+            aria-checked={statusPart.draft.status === s}
+            onClick={() => statusPart.setField("status", s)}
+            className={`h-9 rounded-lg border px-3.5 text-sm font-medium transition-colors ${
+              statusPart.draft.status === s
+                ? "border-green-600 bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-100"
+                : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+            }`}
+          >
+            {s || "All"}
+          </button>
+        ))}
+      </div>
+    </FilterSection>
   );
 
   /* ════════════════════════════════════════════════════════════════
@@ -704,7 +694,7 @@ export default function TripRetripRequestList() {
 
       {/* DataTable */}
       <DataTable
-        loadExportRows={loadAllExportRows}
+        onServerExport={serverExport}
         value={rawRows as unknown as Record<string, unknown>[]}
         dataKey="unique_id"
         lazy
@@ -719,6 +709,7 @@ export default function TripRetripRequestList() {
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={loading}
         header={header}
+        filterPanel={combineFilters(companyProject, { ...statusPart, field: statusField })}
         stripedRows
         showGridlines
         className="p-datatable-sm"
