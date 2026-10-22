@@ -359,6 +359,7 @@ export default {
     group_dashboard: "Dashboard",
     superadmin_dashboard: "Superadmin Dashboard",
     admin_dashboard: "Admin Dashboard",
+    vehicle_status_dashboard: "Vehicle Status Dashboard",
     group_super_admin: "Super Admin",
     group_masters: "Masters",
     group_core_modules: "Core Modules",
@@ -507,6 +508,7 @@ export default {
   dashboards: {
     admin: { title: "Admin Dashboard" },
     superadmin: { title: "Superadmin Dashboard", subtitle: "All companies and projects" },
+    vehicle_status: { title: "Vehicle Status Dashboard" },
     range: {
       today: "Today",
       yesterday: "Yesterday",

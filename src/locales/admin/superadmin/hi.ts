@@ -359,6 +359,7 @@ export default {
     group_dashboard: "डैशबोर्ड",
     superadmin_dashboard: "सुपरएडमिन डैशबोर्ड",
     admin_dashboard: "एडमिन डैशबोर्ड",
+    vehicle_status_dashboard: "वाहन स्थिति डैशबोर्ड",
     group_super_admin: "सुपर एडमिन",
     group_masters: "मास्टर्स",
     group_core_modules: "कोर मॉड्यूल",
@@ -509,6 +510,7 @@ export default {
   dashboards: {
     admin: { title: "एडमिन डैशबोर्ड" },
     superadmin: { title: "सुपरएडमिन डैशबोर्ड", subtitle: "सभी कंपनियाँ और परियोजनाएँ" },
+    vehicle_status: { title: "वाहन स्थिति डैशबोर्ड" },
     range: {
       today: "आज",
       yesterday: "कल",

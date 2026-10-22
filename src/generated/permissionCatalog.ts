@@ -14,6 +14,7 @@ export const PERMISSION_CATALOG = {
     screens: {
       "admin-dashboard": { label: "Admin Dashboard", group: null },
       "superadmin-dashboard": { label: "Superadmin Dashboard", group: null },
+      "vehicle-status-dashboard": { label: "Vehicle Status Dashboard", group: null },
     },
   },
   "user-dashboard": {

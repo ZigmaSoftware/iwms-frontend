@@ -1,5 +1,10 @@
 import type { DailyTripAssignmentRecord } from "./types";
 import type { CollectionTypeKey } from "./types";
+import {
+  RETRIP_OTHER_REASON_MIN_LENGTH,
+  RETRIP_REASON_OPTIONS,
+  retripReasonError,
+} from "../tripRetripRequest/types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -44,7 +49,9 @@ import {
   dailyTripAssignmentApi,
   binApi,
   customerCreationApi,
+  vehicleCreationApi,
 } from "@/helpers/admin";
+import Select from "@/components/form/Select";
 import type { jsPDF } from "jspdf";
 
 // jspdf is ~386KB minified — loaded on demand only when a user actually
@@ -359,11 +366,21 @@ export default function DailyTripAssignmentList() {
   const [retripRow, setRetripRow] = useState<DailyTripAssignmentRecord | null>(
     null,
   );
+  const [retripReasonCode, setRetripReasonCode] = useState("");
   const [retripRemarks, setRetripRemarks] = useState("");
   const [retripSelectedCps, setRetripSelectedCps] = useState<Set<string>>(
     new Set(),
   );
   const [isRetripSubmitting, setIsRetripSubmitting] = useState(false);
+  // Change Vehicle — move a not-started trip off a broken-down vehicle.
+  const [vehicleRow, setVehicleRow] = useState<DailyTripAssignmentRecord | null>(
+    null,
+  );
+  const [vehicleOptions, setVehicleOptions] = useState<
+    { value: string; label: string }[]
+  >([]);
+  const [newVehicleId, setNewVehicleId] = useState("");
+  const [isChangingVehicle, setIsChangingVehicle] = useState(false);
   const requestIdRef = useRef(0);
   // Trip date: filters the list (`?date=`) and is the date Run Scheduler /
   // Generate Daily run for. Defaults to (and resets to) today.
@@ -727,7 +744,18 @@ export default function DailyTripAssignmentList() {
         </span>
       </div>
     ) : (
-      <Badge value={row.status} styleMap={STATUS_STYLES} />
+      <div className="flex flex-col gap-1">
+        <Badge value={row.status} styleMap={STATUS_STYLES} />
+        {row.vehicle_under_breakdown && (
+          <span
+            className="inline-flex w-fit items-center rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-800"
+            title="Move this trip to another vehicle, or mark the vehicle repaired, before it can start."
+          >
+            Vehicle under breakdown
+            {row.vehicle?.vehicle_no ? ` · ${row.vehicle.vehicle_no}` : ""}
+          </span>
+        )}
+      </div>
     );
 
   /* ── Re-Trip: close an In Progress trip early, carrying leftover stops to
@@ -744,6 +772,7 @@ export default function DailyTripAssignmentList() {
       (cp) => cp.status !== "Collected" && cp.status !== "Missed",
     );
     setRetripRow(row);
+    setRetripReasonCode("");
     setRetripRemarks("");
     setRetripSelectedCps(
       new Set(pending.map((cp) => cp.unique_id).filter(Boolean) as string[]),
@@ -770,11 +799,12 @@ export default function DailyTripAssignmentList() {
     if (!rowId) return;
 
     const remarks = retripRemarks.trim();
-    if (!remarks) {
+    const reasonError = retripReasonError(retripReasonCode, remarks);
+    if (reasonError) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
-        text: "Please enter a reason.",
+        text: reasonError,
       });
       return;
     }
@@ -790,6 +820,7 @@ export default function DailyTripAssignmentList() {
     setIsRetripSubmitting(true);
     try {
       await dailyTripAssignmentApi.action(`${rowId}/proceed-next-trip`, {
+        reason_code: retripReasonCode,
         remarks,
         collection_point_ids: retripIsBinTrip
           ? Array.from(retripSelectedCps)
@@ -812,6 +843,60 @@ export default function DailyTripAssignmentList() {
       });
     } finally {
       setIsRetripSubmitting(false);
+    }
+  };
+
+  const openChangeVehicle = async (row: DailyTripAssignmentRecord) => {
+    setVehicleRow(row);
+    setNewVehicleId("");
+    setVehicleOptions([]);
+    try {
+      const vehicles = await vehicleCreationApi.readAll({
+        params: {
+          company_id: row.company_unique_id ?? row.company_id ?? undefined,
+          project_id: row.project_unique_id ?? row.project_id ?? undefined,
+        },
+      });
+      setVehicleOptions(
+        (vehicles as any[])
+          .filter(
+            (v) =>
+              v.is_active &&
+              v.operational_status !== "BREAKDOWN" &&
+              v.unique_id !== row.vehicle?.unique_id,
+          )
+          .map((v) => ({ value: v.unique_id, label: v.vehicle_no })),
+      );
+    } catch (err) {
+      Swal.fire(t("common.error"), extractError(err) ?? "Could not load vehicles.", "error");
+    }
+  };
+
+  const submitChangeVehicle = async () => {
+    if (!vehicleRow || !newVehicleId) return;
+    setIsChangingVehicle(true);
+    try {
+      await api.patch(
+        `/schedule-operations/daily-trip-assignments/${vehicleRow.unique_id}/change-vehicle/`,
+        { vehicle_id: newVehicleId },
+      );
+      Swal.fire({
+        icon: "success",
+        title: "Vehicle changed",
+        text: `${vehicleRow.unique_id} will run on the new vehicle with the same crew.`,
+        timer: 2000,
+        showConfirmButton: false,
+      });
+      setVehicleRow(null);
+      void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    } catch (err) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: extractError(err) ?? "Failed to change the vehicle.",
+      });
+    } finally {
+      setIsChangingVehicle(false);
     }
   };
 
@@ -1088,6 +1173,15 @@ export default function DailyTripAssignmentList() {
         disabledReason: total === 0 ? "No stops on this trip — nothing to print" : undefined,
       },
     ];
+
+    if (row.vehicle_under_breakdown && canEdit) {
+      extraActions.push({
+        key: "change-vehicle",
+        label: "Change Vehicle",
+        icon: <i className="pi pi-car" />,
+        onClick: () => void openChangeVehicle(row),
+      });
+    }
 
     if (row.status === "In Progress" && canEdit) {
       extraActions.push({
@@ -1930,12 +2024,29 @@ export default function DailyTripAssignmentList() {
                 and opens a new trip carrying the remaining stops.
               </p>
               <div className="space-y-1.5">
-                <Label htmlFor="retrip-remarks">Reason *</Label>
+                <Label htmlFor="retrip-reason-code">Reason *</Label>
+                <Select
+                  id="retrip-reason-code"
+                  options={RETRIP_REASON_OPTIONS}
+                  value={retripReasonCode}
+                  onChange={setRetripReasonCode}
+                  placeholder="Select reason"
+                  disabled={isRetripSubmitting}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="retrip-remarks">
+                  {retripReasonCode === "OTHER" ? "Describe the reason *" : "Details (optional)"}
+                </Label>
                 <Textarea
                   id="retrip-remarks"
                   value={retripRemarks}
                   onChange={(e) => setRetripRemarks(e.target.value)}
-                  placeholder="Why is this trip being closed early?"
+                  placeholder={
+                    retripReasonCode === "OTHER"
+                      ? `Why is this trip being closed early? (at least ${RETRIP_OTHER_REASON_MIN_LENGTH} characters)`
+                      : "Anything to note for the record"
+                  }
                   rows={3}
                   disabled={isRetripSubmitting}
                 />
@@ -1992,6 +2103,53 @@ export default function DailyTripAssignmentList() {
               }
               onClick={submitRetrip}
               disabled={isRetripSubmitting}
+            />
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(vehicleRow)}
+        onOpenChange={(open) => !open && !isChangingVehicle && setVehicleRow(null)}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Change Vehicle</DialogTitle>
+          </DialogHeader>
+          {vehicleRow && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                <span className="font-medium">{vehicleRow.unique_id}</span> is on{" "}
+                <span className="font-medium text-red-700">
+                  {vehicleRow.vehicle?.vehicle_no ?? "a vehicle"}
+                </span>
+                , which is under breakdown. Pick another vehicle — the crew stays
+                the same.
+              </p>
+              <div className="space-y-1.5">
+                <Label htmlFor="change-vehicle">New vehicle *</Label>
+                <Select
+                  id="change-vehicle"
+                  value={newVehicleId}
+                  onChange={setNewVehicleId}
+                  options={vehicleOptions}
+                  placeholder="Select vehicle"
+                  disabled={isChangingVehicle}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              label={t("common.cancel")}
+              severity="secondary"
+              onClick={() => setVehicleRow(null)}
+              disabled={isChangingVehicle}
+            />
+            <Button
+              label={isChangingVehicle ? t("common.saving") : "Change Vehicle"}
+              onClick={submitChangeVehicle}
+              disabled={isChangingVehicle || !newVehicleId}
             />
           </DialogFooter>
         </DialogContent>

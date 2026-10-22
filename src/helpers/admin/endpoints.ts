@@ -173,6 +173,8 @@ export const adminEndpoints = {
   dashboardSummary: "dashboard/summary",
   adminDashboard: "dashboards/admin",
   superadminDashboard: "dashboards/superadmin",
+  // Not "vehicle-status": the permission middleware reads a "v…" segment as the API version.
+  vehicleStatusDashboard: "dashboards/fleet-status",
 
   /* =========================
      AUDITS

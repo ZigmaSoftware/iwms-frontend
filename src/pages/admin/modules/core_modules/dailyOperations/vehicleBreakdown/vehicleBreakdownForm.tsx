@@ -413,8 +413,15 @@ export default function VehicleBreakdownForm() {
             .finally(() => setFetchingVehicles(false));
 
           setFetchingStaff(true);
+          // The trip's own crew is listed too: it is only "busy" on this
+          // trip, so it can carry on with the replacement vehicle.
+          const originalTemplateId: string = String(
+            data.staff_template_id ?? data.staff_template?.unique_id ?? "",
+          );
           api
-            .get("/schedule-operations/vehicle-breakdowns/available-staff-templates/", { params })
+            .get("/schedule-operations/vehicle-breakdowns/available-staff-templates/", {
+              params: { ...params, trip_assignment_id: assignId },
+            })
             .then((res) => {
               const list = Array.isArray(res.data) ? res.data : [];
               const opts: StaffTemplateOption[] = list
@@ -424,7 +431,12 @@ export default function VehicleBreakdownForm() {
                   driverId: String(template.driver_id ?? ""),
                   operatorId: String(template.operator_id ?? ""),
                 }))
-                .filter((o) => o.value && o.driverId && o.operatorId);
+                .filter((o) => o.value && o.driverId && o.operatorId)
+                .map((o) =>
+                  o.value === originalTemplateId
+                    ? { ...o, label: `${o.label} (same crew)` }
+                    : o,
+                );
 
               const currentDriverId = String(record?.replacement_driver_id ?? "");
               const currentOperatorId = String(record?.replacement_operator_id ?? "");
@@ -445,6 +457,20 @@ export default function VehicleBreakdownForm() {
               }
 
               setStaffTemplateOptions(opts);
+              // New report: default to the same crew carrying on.
+              const sameCrew = opts.find((o) => o.value === originalTemplateId);
+              if (!isEdit && sameCrew) {
+                setForm((prev) =>
+                  prev.replacement_staff_template_id
+                    ? prev
+                    : {
+                        ...prev,
+                        replacement_staff_template_id: sameCrew.value,
+                        replacement_driver_id: sameCrew.driverId,
+                        replacement_operator_id: sameCrew.operatorId,
+                      },
+                );
+              }
             })
             .catch(() => setStaffTemplateOptions([]))
             .finally(() => setFetchingStaff(false));

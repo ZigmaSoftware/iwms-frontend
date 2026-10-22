@@ -15,6 +15,8 @@ export type VehicleCreationRecord = {
   vehicle_insurance?: string | null;
   insurance_expiry_date?: string | null;
   vehicle_condition?: "NEW" | "SECOND_HAND" | string | null;
+  // Set by vehicle breakdowns; read-only here.
+  operational_status?: "ACTIVE" | "BREAKDOWN" | null;
   fuel_tank_capacity?: string | null;
   rc_upload?: string | null;
   vehicle_insurance_file?: string | null;

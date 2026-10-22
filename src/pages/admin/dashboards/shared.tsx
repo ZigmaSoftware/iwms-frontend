@@ -520,20 +520,43 @@ export function SelectionChips({
   );
 }
 
-/** Pill links that scroll to each section. */
-export function SectionNav({ items }: { items: { id: string; label: string }[] }) {
+/** Pill links that scroll to each section — or, given `onSelect`, tabs:
+ * the page shows only the `active` section. */
+export function SectionNav({
+  items,
+  active,
+  onSelect,
+}: {
+  items: { id: string; label: string }[];
+  active?: string;
+  onSelect?: (id: string) => void;
+}) {
   return (
-    <nav className="mb-4 flex gap-1.5 overflow-x-auto pb-1">
-      {items.map((item) => (
-        <button
-          key={item.id}
-          type="button"
-          onClick={() => document.getElementById(item.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
-          className="shrink-0 rounded-full border border-[#dfe8e2] bg-white px-3 py-1 text-[12px] font-medium text-[#3c4b41] hover:border-[#1f9d47] hover:text-[#167a37] dark:border-[#26352b] dark:bg-[#17221b] dark:text-[#c5d3ca]"
-        >
-          {item.label}
-        </button>
-      ))}
+    <nav className="mb-4 flex gap-1.5 overflow-x-auto pb-1" role={onSelect ? "tablist" : undefined}>
+      {items.map((item) => {
+        const selected = Boolean(onSelect) && item.id === active;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            role={onSelect ? "tab" : undefined}
+            aria-selected={onSelect ? selected : undefined}
+            aria-controls={onSelect ? item.id : undefined}
+            onClick={() =>
+              onSelect
+                ? onSelect(item.id)
+                : document.getElementById(item.id)?.scrollIntoView({ behavior: "smooth", block: "start" })
+            }
+            className={`shrink-0 rounded-full border px-3 py-1 text-[12px] font-medium ${
+              selected
+                ? "border-[#1f9d47] bg-[#1f9d47] text-white"
+                : "border-[#dfe8e2] bg-white text-[#3c4b41] hover:border-[#1f9d47] hover:text-[#167a37] dark:border-[#26352b] dark:bg-[#17221b] dark:text-[#c5d3ca]"
+            }`}
+          >
+            {item.label}
+          </button>
+        );
+      })}
     </nav>
   );
 }

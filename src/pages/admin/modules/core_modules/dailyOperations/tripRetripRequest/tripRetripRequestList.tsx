@@ -3,6 +3,7 @@ import { RETRIP_STATUS_LABELS } from "./types";
 import { useEffect, useRef, useState } from "react";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -23,6 +24,8 @@ import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectF
 import { useDraftFilter } from "@/components/filters/useDraftFilter";
 import { combineFilters } from "@/components/filters/useOptionFilter";
 import { useScreenAccess } from "@/contexts/screenPermission";
+import { getEncryptedRoute } from "@/utils/routeCache";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 
 /* ── Badge helpers ─────────────────────────────────────────────── */
 
@@ -263,8 +266,9 @@ function ApproveDialog({
         {households.length > 0 && (
           <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 text-xs text-blue-800">
             <strong>Household Re-Trip:</strong> only the selected household
-            stop(s) will be reassigned. Unselected stops stay on the source trip
-            record and will not appear in the new mobile assignment.
+            stop(s) will be reassigned. Unselected stops will be marked Not
+            Available on the current trip and will not appear in the new mobile
+            assignment.
           </div>
         )}
 
@@ -278,6 +282,13 @@ function ApproveDialog({
         <div className="rounded-lg bg-green-50 border border-green-100 p-3 text-xs text-green-800">
           A new trip will be created with {carriedCount} stop(s); the current
           trip ({row.assignment_unique_id}) will be marked ended.
+          {stops.length > carriedCount && (
+            <>
+              {" "}
+              {stops.length - carriedCount} unselected stop(s) will be marked
+              missed.
+            </>
+          )}
         </div>
 
         <div>
@@ -378,7 +389,11 @@ function RejectDialog({
 /* ── Main Component ─────────────────────────────────────────────── */
 export default function TripRetripRequestList() {
   const { t } = useTranslation();
-  const { canEdit } = useScreenAccess();
+  const navigate = useNavigate();
+  const { canAdd, canEdit } = useScreenAccess();
+
+  const { encScheduleOperations, encTripRetripRequest } = getEncryptedRoute();
+  const { newPath } = createCrudRoutePaths(encScheduleOperations, encTripRetripRequest);
 
   const [rawRows, setRawRows] = useState<TripRetripRequestRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -393,7 +408,16 @@ export default function TripRetripRequestList() {
   const [clock, setClock] = useState(() => Date.now());
 
   const resetPage = () => setFirst(0);
-  const companyProject = useCompanyProjectFilter(resetPage);
+  const location = useLocation();
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
+  // coming back from the form restores the company/project it was opened with
+  const companyProject = useCompanyProjectFilter(resetPage, {
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
   const { companyId: companyUniqueId, projectId } = companyProject;
   const { companies, isSuperAdmin } = companyProject.selection;
 
@@ -689,6 +713,16 @@ export default function TripRetripRequestList() {
           <p className="text-sm text-gray-500">
             Drivers asking to end a trip early with stops still remaining
           </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {canAdd && (
+            <Button
+              label="Raise Re-Trip Request"
+              icon="pi pi-plus"
+              className="p-button-success p-button-sm"
+              onClick={() => navigate(newPath, { state: { companyUniqueId, projectId } })}
+            />
+          )}
         </div>
       </div>
 

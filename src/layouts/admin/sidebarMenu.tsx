@@ -263,6 +263,12 @@ export const navItems: NavItem[] = [
     exact: true,
     ...permissionFor("dashboard", "admin-dashboard"),
   },
+  {
+    nameKey: "admin.nav.vehicle_status_dashboard",
+    icon: <Truck size={18} />,
+    path: "/admin/vehicle-status",
+    ...permissionFor("dashboard", "vehicle-status-dashboard"),
+  },
 ];
 
 export const attendanceItems: NavItem[] = [

@@ -128,6 +128,7 @@ export function buildNavRouteMap(): RouteEntry[] {
       nameKey: "admin.nav.superadmin_dashboard",
     },
     { path: "/admin", nameKey: "admin.nav.admin_dashboard" },
+    { path: "/admin/vehicle-status", nameKey: "admin.nav.vehicle_status_dashboard" },
     {
       path: `/${encAttendance}/${encAttendance}`,
       nameKey: "admin.nav.attendance",

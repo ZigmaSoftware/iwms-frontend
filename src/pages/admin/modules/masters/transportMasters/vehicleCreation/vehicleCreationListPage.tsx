@@ -626,6 +626,22 @@ export default function VehicleCreationListPage() {
             showFilterMatchModes={false}
           />
         )}
+        <Column
+          field="operational_status"
+          header={t("admin.vehicle_creation.operational_status")}
+          body={(row: VehicleCreationRecord) =>
+            row.operational_status === "BREAKDOWN" ? (
+              <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
+                {t("admin.vehicle_creation.operational_status_breakdown")}
+              </span>
+            ) : (
+              <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                {t("admin.vehicle_creation.operational_status_active")}
+              </span>
+            )
+          }
+          sortable
+        />
         {showCol("insurance_expiry_date") && (
           <Column
             field="insurance_expiry_date"

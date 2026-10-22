@@ -21,6 +21,7 @@ const NotFound = lazy(() => import("@/pages/dashboard/pages/NotFound"));
 const DashboardHome = lazy(() => import("@/layouts/dashboard/DashboardHome"));
 const AdminDashboard = lazy(() => import("@/pages/admin/dashboards/AdminDashboard"));
 const SuperadminDashboard = lazy(() => import("@/pages/admin/dashboards/SuperadminDashboard"));
+const VehicleStatusDashboard = lazy(() => import("@/pages/admin/dashboards/vehicleStatus/VehicleStatusDashboard"));
 const AdminEncryptedRouter = lazy(() => import("@/layouts/admin/encryptedRouting/AdminEncryptedRouter"));
 const CommonAuditList = lazy(
   () => import("@/pages/admin/modules/superadmin/audits/commonAudit/commonAuditList"),
@@ -170,6 +171,7 @@ export default function App() {
         {/* ── Admin panel (Company Admin, superadmin, etc.) ── */}
         <Route path="/admin" element={withAdmin(<AdminDashboard />)} />
         <Route path="/admin/superadmin-dashboard" element={withAdmin(<SuperadminDashboard />)} />
+        <Route path="/admin/vehicle-status" element={withAdmin(<VehicleStatusDashboard />)} />
         <Route path="/audits/common-audit" element={withAdmin(<CommonAuditList />)} />
         <Route path="/:encMaster/:encModule" element={withAdmin(<AdminEncryptedRouter />)} />
         <Route path="/:encMaster/:encModule/new" element={withAdmin(<AdminEncryptedRouter />)} />

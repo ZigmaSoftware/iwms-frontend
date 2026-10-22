@@ -49,6 +49,14 @@ export type DailyTripAssignmentRecord = {
     has_household?: boolean;
   };
   household_waste_types?: { unique_id?: string; waste_type_name?: string }[];
+  vehicle?: {
+    unique_id: string;
+    vehicle_no: string;
+    operational_status?: "ACTIVE" | "BREAKDOWN";
+  } | null;
+  // Not started and its vehicle is broken down: it cannot start until it is
+  // moved to another vehicle or the vehicle is marked repaired.
+  vehicle_under_breakdown?: boolean;
   collection_types?: { has_bin: boolean; has_household: boolean };
   collection_points?: DailyTripCollectionPointInline[];
   household_collection_points?: DailyTripHouseholdCollectionInline[];
