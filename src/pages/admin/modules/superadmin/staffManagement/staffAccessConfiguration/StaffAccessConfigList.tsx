@@ -4,6 +4,7 @@ import Swal from "@/lib/notify";
 import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import { StackCell } from "@/components/common/TableCells";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
@@ -311,24 +312,45 @@ export default function StaffAccessConfigList() {
           item: t("admin.staff_access_configuration.item_label"),
         })}
         className="p-datatable-sm"
+        fitWidth
       >
-        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: 80 }} />
-        <Column field="staff_id" header="ID" sortable={Boolean(SORTABLE_FIELD_ORDERING.staff_id)} />
+        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "5%" }} />
+        <Column
+          field="staff_id"
+          header="ID"
+          sortable={Boolean(SORTABLE_FIELD_ORDERING.staff_id)}
+          style={{ width: "12%" }}
+        />
         <Column
           field="staff_name"
           header={t("admin.staff_access_configuration.staff_name")}
           sortable={Boolean(SORTABLE_FIELD_ORDERING.staff_name)}
+          style={{ width: "24%" }}
+          body={(row: ListRow) => (
+            <StackCell
+              primary={row.staff_name}
+              lines={[{ label: "Role", value: roleTemplate(row) }]}
+            />
+          )}
         />
-        <Column header="Role" body={roleTemplate} />
-        <Column header={t("admin.nav.project")} body={projectTemplate} />
-        <Column field="company_name" header={t("admin.nav.company")} />
+        <Column
+          field="company_name"
+          header={t("admin.nav.company")}
+          style={{ width: "31%" }}
+          body={(row: ListRow) => (
+            <StackCell
+              primary={row.company_name}
+              lines={[{ label: t("admin.nav.project"), value: projectTemplate(row) }]}
+            />
+          )}
+        />
         <Column
           header="Permissions"
           body={(row: ListRow) => row.screen_count ?? row.main_screen_count ?? "-"}
-          style={{ width: 120 }}
+          style={{ width: "10%" }}
         />
-        <Column header="Status" body={statusTemplate} style={{ width: 120 }} />
-        <Column header={t("common.actions")} body={actionTemplate} style={{ width: 100, textAlign: "center" }} />
+        <Column header="Status" body={statusTemplate} style={{ width: "10%" }} />
+        <Column header={t("common.actions")} body={actionTemplate} style={{ width: "8%", textAlign: "center" }} />
       </DataTable>
     </ComponentCard>
   );

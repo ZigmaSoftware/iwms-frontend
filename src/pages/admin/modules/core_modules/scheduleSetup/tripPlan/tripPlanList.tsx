@@ -29,6 +29,8 @@ import { tripPlanApi, vehicleCreationApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
+import { StackCell } from "@/components/common/TableCells";
 import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
 import {
   combineFilters,
@@ -779,69 +781,87 @@ export default function TripPlanList() {
         loading={loading}
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         emptyMessage="No trip plans found"
       >
         <Column
           header={t("common.s_no")}
           body={(_, { rowIndex }) => rowIndex + 1}
-          style={{ width: 70 }}
+          style={{ width: "4%" }}
         />
-        <Column field="display_code" header="Plan Code" sortable />
-        <Column field="_location" header="Location" body={locationText} />
-        <Column field="_staff" header="Staff Template" body={staffText} />
-        <Column field="_vehicle" header="Vehicle" body={vehicleBody} style={{ minWidth: 150 }} />
         <Column
-          header="Vehicle Breakdown"
-          body={breakdownBody}
-          style={{ minWidth: 140 }}
+          field="display_code"
+          header="Plan Code"
+          sortable
+          style={{ width: "15%" }}
+          body={(row: TripPlanRecord) => (
+            <StackCell
+              primary={row.display_code}
+              lines={[CollectionTypeBadge(row)]}
+            />
+          )}
         />
-        <Column field="_waste_type" header="Waste Type" body={WasteTypeChips} />
+        {locationColumn<TripPlanRecord>({
+          header: "Location",
+          style: { width: "14%" },
+          levels: [
+            { label: "Panchayat", value: (row) => row.panchayat?.panchayat_name },
+            { label: "Zone", value: (row) => row.zone?.name },
+            { label: "Ward", value: wardNamesText },
+          ],
+        })}
         <Column
-          field="_stop_count"
-          header="Stops"
-          style={{ width: 100 }}
-          body={stopCountText}
+          field="_staff"
+          header="Crew & Vehicle"
+          style={{ width: "20%" }}
+          body={(row: TripPlanRecord) => (
+            <StackCell
+              primary={staffText(row)}
+              lines={[
+                { label: "Driver", value: driverText(row) },
+                { label: "Operator", value: operatorText(row) },
+                vehicleText(row) && { icon: "pi-truck", value: vehicleBody(row) },
+                row.active_breakdown ? breakdownBody(row) : null,
+              ]}
+            />
+          )}
+        />
+        <Column
+          field="_waste_type"
+          header="Waste Type"
+          body={WasteTypeChips}
+          style={{ width: "12%" }}
         />
         <Column
           field="scheduled_time"
-          header="Start Time"
-          body={(row: TripPlanRecord) => time12h(row.scheduled_time)}
-        />
-        <Column
-          header="Auto Assign"
+          header="Schedule"
+          style={{ width: "12%" }}
           body={(row: TripPlanRecord) => (
-            <span
-              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${row.is_auto_assign ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-500"}`}
-            >
-              {row.is_auto_assign ? "Auto" : "Manual"}
-            </span>
+            <StackCell
+              primary={time12h(row.scheduled_time)}
+              lines={[
+                { label: "Stops", value: stopCountText(row) },
+                <span
+                  key="assign"
+                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${row.is_auto_assign ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-500"}`}
+                >
+                  {row.is_auto_assign ? "Auto" : "Manual"}
+                </span>,
+              ]}
+            />
           )}
-          style={{ width: 110 }}
         />
         <Column
-          field="_collection_type"
-          header="Collection Type"
-          body={CollectionTypeBadge}
-          style={{ minWidth: 170 }}
+          field="approval_status"
+          header="Approval"
+          sortable
+          style={{ width: "9%" }}
         />
-        <Column
-          field="_driver"
-          header="Driver"
-          body={driverText}
-          style={{ minWidth: 130 }}
-        />
-        <Column
-          field="_operator"
-          header="Operator"
-          body={operatorText}
-          style={{ minWidth: 130 }}
-        />
-        <Column field="approval_status" header="Approval" sortable />
-        <Column header="Status" body={statusBody} style={{ width: 120 }} />
+        <Column header="Status" body={statusBody} style={{ width: "8%" }} />
         <Column
           header={t("common.actions")}
-          style={{ width: 120 }}
+          style={{ width: "6%" }}
           body={(row: TripPlanRecord) => (
             <div className="flex justify-center">
               <ActionMenu

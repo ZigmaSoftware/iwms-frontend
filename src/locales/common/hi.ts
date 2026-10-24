@@ -31,6 +31,8 @@ export default {
     "city": "शहर",
     "district": "ज़िला",
     "state": "राज्य",
+    "location": "लोकेशन",
+    "panchayat": "पंचायत",
     "country": "देश",
     "address": "पता",
     "owner": "मालिक",

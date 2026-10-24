@@ -37,9 +37,43 @@ export interface ButtonProps
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, onClick, disabled, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
-    return <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />;
+
+    // When onClick is async, ignore further clicks until it settles. The ref
+    // blocks rapid repeat clicks before the disabled state has re-rendered.
+    const busyRef = React.useRef(false);
+    const [busy, setBusy] = React.useState(false);
+
+    const handleClick = React.useCallback(
+      (event: React.MouseEvent<HTMLButtonElement>) => {
+        if (busyRef.current) {
+          event.preventDefault();
+          return;
+        }
+        const result: unknown = onClick?.(event);
+        if (result instanceof Promise) {
+          busyRef.current = true;
+          setBusy(true);
+          result.finally(() => {
+            busyRef.current = false;
+            setBusy(false);
+          });
+        }
+      },
+      [onClick],
+    );
+
+    return (
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        onClick={handleClick}
+        disabled={disabled || busy}
+        aria-busy={busy || undefined}
+        {...props}
+      />
+    );
   },
 );
 Button.displayName = "Button";

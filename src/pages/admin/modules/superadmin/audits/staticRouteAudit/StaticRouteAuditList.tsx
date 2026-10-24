@@ -13,6 +13,7 @@ import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primerea
 
 import { staticRouteAuditApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
+import { StackCell } from "@/components/common/TableCells";
 import { FormSelect } from "@/components/common/FormSelect";
 import { FilterSection } from "@/components/common/ListToolbar";
 import { useDraftFilter } from "@/components/filters/useDraftFilter";
@@ -372,44 +373,61 @@ export default function StaticRouteAuditList() {
           loading={loading}
           stripedRows
           showGridlines
+          fitWidth
           className="p-datatable-sm"
           emptyMessage="No static route deviations found"
         >
-          <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 60 }} />
+          <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: "4%" }} />
           <Column
             field="trip_plan_code"
             header="Trip plan"
             body={(r: StaticRouteAuditRecord) => (
-              <div className="leading-tight">
-                <div className="font-medium">{r.trip_plan_code || r.trip_plan_id}</div>
-                <div className="text-xs text-gray-500">{r.project_name || r.project_id || "-"}</div>
-              </div>
+              <StackCell
+                primary={r.trip_plan_code || r.trip_plan_id}
+                lines={[r.project_name || r.project_id]}
+              />
             )}
+            style={{ width: "17%" }}
           />
-          <Column field="new_version" header="Version" body={versionTemplate} sortable style={{ width: 110 }} />
-          <Column field="change_type" header="Deviation" body={changeTypeTemplate} sortable />
+          <Column field="new_version" header="Version" body={versionTemplate} sortable style={{ width: "9%" }} />
           <Column
-            field="trigger"
-            header="Source"
-            body={(r: StaticRouteAuditRecord) => r.trigger_label || r.trigger}
+            field="change_type"
+            header="Deviation"
+            body={(r: StaticRouteAuditRecord) => (
+              <StackCell
+                primary={changeTypeTemplate(r)}
+                lines={[{ label: "Source", value: r.trigger_label || r.trigger }]}
+              />
+            )}
+            sortable
+            style={{ width: "14%" }}
           />
-          <Column header="Route deviation" body={deviationTemplate} style={{ minWidth: 170 }} />
-          <Column field="distance_change_meters" header="Distance" body={distanceTemplate} sortable />
+          <Column header="Route deviation" body={deviationTemplate} style={{ width: "19%" }} />
           <Column
-            header="Trips"
-            body={(r: StaticRouteAuditRecord) => r.affected_trip_count ?? 0}
-            style={{ width: 70 }}
-          />
-          <Column
-            field="updated_by_name"
-            header="Updated by"
-            body={(r: StaticRouteAuditRecord) => r.updated_by_name || r.updated_by || "-"}
+            field="distance_change_meters"
+            header="Distance"
+            body={(r: StaticRouteAuditRecord) => (
+              <StackCell
+                primary={distanceTemplate(r)}
+                lines={[{ label: "Trips", value: String(r.affected_trip_count ?? 0) }]}
+              />
+            )}
+            sortable
+            style={{ width: "13%" }}
           />
           <Column
             field="timestamp"
             header="When"
-            body={(r: StaticRouteAuditRecord) => formatDateTime(r.timestamp)}
+            body={(r: StaticRouteAuditRecord) => (
+              <StackCell
+                primary={formatDateTime(r.timestamp)}
+                lines={[
+                  { icon: "pi-user", title: "Updated by", value: r.updated_by_name || r.updated_by },
+                ]}
+              />
+            )}
             sortable
+            style={{ width: "16%" }}
           />
           <Column
             header={t("common.actions")}
@@ -420,7 +438,7 @@ export default function StaticRouteAuditList() {
                 </button>
               </div>
             )}
-            style={{ width: 110 }}
+            style={{ width: "8%" }}
           />
         </DataTable>
       </div>

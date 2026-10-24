@@ -10,6 +10,7 @@ import {
 } from "@/utils/customerUtils";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import { StackCell } from "@/components/common/TableCells";
 import { Column } from "primereact/column";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
@@ -459,68 +460,97 @@ export default function WasteSummary() {
         globalFilterFields={WASTE_SUMMARY_GLOBAL_FIELDS}
         filterPanel={combineFilters(monthFilterPart)}
         className="p-datatable-sm"
+        fitWidth
       >
         <Column
           header={t("admin.reports.waste_summary.columns.s_no")}
           body={(_, o) => o.rowIndex + 1}
-          style={{ width: "80px" }}
+          style={{ width: "6%" }}
         />
         <Column
           field="date"
           header={t("admin.reports.waste_summary.columns.date")}
           sortable
+          style={{ width: "14%" }}
         />
         <Column
           header={t("admin.reports.waste_summary.columns.total_household")}
-          body={() => formatNum(totalHouseholdCount)}
-        />
-        <Column
-          header={t("admin.reports.waste_summary.columns.collected")}
-          body={() => formatNum(totalCollectedCount)}
-        />
-        <Column
-          header={t("admin.reports.waste_summary.columns.not_collected")}
-          body={() =>
-            formatNum(
-              totalHouseholdCount !== null
-                ? Math.max(totalHouseholdCount - (totalCollectedCount ?? 0), 0)
-                : null
-            )
-          }
-        />
-        <Column
-          header={t("admin.reports.waste_summary.columns.vehicle_count")}
-          body={(r) => formatNum(getVehicleCount(r))}
+          style={{ width: "22%" }}
+          body={() => (
+            <StackCell
+              primary={formatNum(totalHouseholdCount)}
+              lines={[
+                {
+                  label: t("admin.reports.waste_summary.columns.collected"),
+                  value: formatNum(totalCollectedCount),
+                },
+                {
+                  label: t("admin.reports.waste_summary.columns.not_collected"),
+                  value: formatNum(
+                    totalHouseholdCount !== null
+                      ? Math.max(totalHouseholdCount - (totalCollectedCount ?? 0), 0)
+                      : null
+                  ),
+                },
+              ]}
+            />
+          )}
         />
         <Column
           field="total_trip"
           header={t("admin.reports.waste_summary.columns.trip_count")}
           sortable
+          style={{ width: "16%" }}
+          body={(r) => (
+            <StackCell
+              primary={r.total_trip}
+              lines={[
+                {
+                  label: t("admin.reports.waste_summary.columns.vehicle_count"),
+                  value: formatNum(getVehicleCount(r)),
+                },
+              ]}
+            />
+          )}
         />
         <Column
-          field="dry_weight"
-          header={t("admin.reports.waste_summary.columns.dry_weight")}
-          sortable
-        />
-        <Column
-          field="wet_weight"
-          header={t("admin.reports.waste_summary.columns.wet_weight")}
-          sortable
-        />
-        <Column
-          field="mix_weight"
-          header={t("admin.reports.waste_summary.columns.mixed_weight")}
-          sortable
+          header="Waste Split"
+          style={{ width: "22%" }}
+          body={(r) => (
+            <StackCell
+              lines={[
+                {
+                  label: t("admin.reports.waste_summary.columns.dry_weight"),
+                  value: r.dry_weight,
+                },
+                {
+                  label: t("admin.reports.waste_summary.columns.wet_weight"),
+                  value: r.wet_weight,
+                },
+                {
+                  label: t("admin.reports.waste_summary.columns.mixed_weight"),
+                  value: r.mix_weight,
+                },
+              ]}
+            />
+          )}
         />
         <Column
           field="total_net_weight"
           header={t("admin.reports.waste_summary.columns.weighment")}
           sortable
-        />
-        <Column
-          field="average_weight_per_trip"
-          header={t("admin.reports.waste_summary.columns.avg_per_trip")}
-          body={(r) => Number(r.average_weight_per_trip).toFixed(2)}
+          style={{ width: "20%" }}
+          body={(r) => (
+            <StackCell
+              primary={r.total_net_weight}
+              lines={[
+                {
+                  label: t("admin.reports.waste_summary.columns.avg_per_trip"),
+                  value: Number(r.average_weight_per_trip).toFixed(2),
+                },
+              ]}
+            />
+          )}
         />
       </DataTable>
     </div>

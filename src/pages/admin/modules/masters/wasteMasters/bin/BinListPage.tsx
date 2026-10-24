@@ -26,6 +26,7 @@ import { ActionMenu } from "@/components/ui/ActionMenu";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { binApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
 import { combineFilters } from "@/components/filters/useOptionFilter";
@@ -467,13 +468,14 @@ export default function BinList() {
         ]}
         stripedRows
         showGridlines
+        fitWidth
         loading={isLoading}
         className="p-datatable-sm"
       >
         <Column
           header={t("common.s_no")}
           body={indexTemplate}
-          style={{ width: "80px" }}
+          style={{ width: "5%" }}
         />
         {showCol("bin_name") && (
           <Column
@@ -483,7 +485,7 @@ export default function BinList() {
             filter
             showFilterMatchModes={false}
             body={(row: Bin) => cap(row.bin_name)}
-            style={{ minWidth: "200px" }}
+            style={{ width: "22%" }}
           />
         )}
         {showCol("bin_capacity") && (
@@ -493,43 +495,27 @@ export default function BinList() {
             sortable
             filter
             showFilterMatchModes={false}
-            style={{ minWidth: "150px" }}
+            style={{ width: "14%" }}
           />
         )}
-        {/* only zone-based bins have a zone; panchayat-only lists skip the column */}
-        {showCol("zone_name") && bins.some((bin) => bin.zone_name) && (
-          <Column
-            field="zone_name"
-            header={t("admin.nav.zone")}
-            body={(row: Bin) => cap(row.zone_name || "-")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            style={{ minWidth: "120px" }}
-          />
-        )}
-        {showCol("ward_name") && (
-          <Column
-            field="ward_name"
-            header={t("admin.nav.ward")}
-            body={(row: Bin) => cap(row.ward_name || row.ward || "-")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            style={{ minWidth: "120px" }}
-          />
-        )}
-        {showCol("panchayat_name") && (
-          <Column
-            field="panchayat_name"
-            header={t("admin.nav.panchayat")}
-            body={(row: Bin) => cap(row.panchayat_name || row.panchayat || "-")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            style={{ minWidth: "140px" }}
-          />
-        )}
+        {locationColumn<Bin>({
+          header: t("common.location"),
+          style: { width: "20%" },
+          levels: [
+            showCol("panchayat_name") && {
+              label: t("common.panchayat"),
+              value: (row) => cap(row.panchayat_name || row.panchayat),
+            },
+            showCol("zone_name") && {
+              label: t("admin.nav.zone"),
+              value: (row) => cap(row.zone_name),
+            },
+            showCol("ward_name") && {
+              label: t("admin.nav.ward"),
+              value: (row) => cap(row.ward_name || row.ward),
+            },
+          ],
+        })}
         {showCol("waste_type_name") && (
           <Column
             field="waste_type_name"
@@ -538,7 +524,7 @@ export default function BinList() {
             sortable
             filter
             showFilterMatchModes={false}
-            style={{ minWidth: "160px" }}
+            style={{ width: "15%" }}
           />
         )}
         {showCol("qr_code") && (
@@ -546,7 +532,7 @@ export default function BinList() {
             field="qr_code"
             header={t("admin.bin.qr_label")}
             body={(row: Bin) => qrTemplate(row)}
-            style={{ width: "100px", textAlign: "center" }}
+            style={{ width: "9%", textAlign: "center" }}
           />
         )}
         {showCol("is_active") && (
@@ -554,14 +540,14 @@ export default function BinList() {
             field="is_active"
             header={t("common.status")}
             body={(row: Bin) => statusBodyTemplate(row)}
-            style={{ width: "150px", textAlign: "center" }}
+            style={{ width: "8%", textAlign: "center" }}
           />
         )}
         <Column
           field="actions"
           header={t("common.actions")}
           body={(row: Bin) => actionBodyTemplate(row)}
-          style={{ width: "150px", textAlign: "center" }}
+          style={{ width: "7%", textAlign: "center" }}
         />
       </DataTable>
 

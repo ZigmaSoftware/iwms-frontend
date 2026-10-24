@@ -22,6 +22,8 @@ import { Switch } from "@/components/ui/switch";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { collectionPointApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
+import { StackCell } from "@/components/common/TableCells";
 import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
 import {
   combineFilters,
@@ -380,6 +382,7 @@ export default function CollectionPointListPage() {
         loading={isLoading}
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         emptyMessage={t("common.no_items_found", {
           item: t("admin.nav.collection_point"),
@@ -388,128 +391,119 @@ export default function CollectionPointListPage() {
         <Column
           header={t("common.s_no")}
           body={indexTemplate}
-          style={{ width: "80px" }}
+          style={{ width: "5%" }}
         />
         <Column
-          header="Collection Type"
-          style={{ minWidth: 160 }}
-          sortable={SORTABLE_FIELDS.has("collection_type")}
-          field="collection_type"
+          field={showCol("cp_name") ? "cp_name" : "collection_type"}
+          header={
+            showCol("cp_name") ? t("admin.nav.collection_point") : "Collection Type"
+          }
+          sortable={SORTABLE_FIELDS.has(
+            showCol("cp_name") ? "cp_name" : "collection_type",
+          )}
+          style={{ width: "28%" }}
           body={(row: CollectionPointRecord) => {
             const type = row.collection_type;
             const isBin = !type || type === "bin_collection";
             return (
-              <span
-                className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${isBin ? "bg-blue-100 text-blue-800" : "bg-purple-100 text-purple-800"}`}
-              >
-                {COLLECTION_TYPE_LABELS[type ?? "bin_collection"]}
-              </span>
+              <StackCell
+                primary={
+                  showCol("cp_name") &&
+                  cap(toOptionalString(row.cp_name ?? row.collection_point_name))
+                }
+                lines={[
+                  <span
+                    key="type"
+                    className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${isBin ? "bg-blue-100 text-blue-800" : "bg-purple-100 text-purple-800"}`}
+                  >
+                    {COLLECTION_TYPE_LABELS[type ?? "bin_collection"]}
+                  </span>,
+                ]}
+              />
             );
           }}
         />
-        {showCol("cp_name") && (
-          <Column
-            field="cp_name"
-            header={t("admin.nav.collection_point")}
-            sortable={SORTABLE_FIELDS.has("cp_name")}
-            body={(row: CollectionPointRecord) =>
-              cap(toOptionalString(row.cp_name ?? row.collection_point_name))
-            }
-          />
-        )}
-        {showCol("state_name") && (
-          <Column
-            field="state_name"
-            header={t("common.state")}
-            body={(row: CollectionPointRecord) =>
-              cap(toOptionalString(row.state_name))
-            }
-          />
-        )}
-        {showCol("district_name") && (
-          <Column
-            field="district_name"
-            header={t("common.district")}
-            body={(row: CollectionPointRecord) =>
-              cap(toOptionalString(row.district_name))
-            }
-          />
-        )}
-        {showCol("city_name") && (
-          <Column
-            field="city_name"
-            header={t("common.city")}
-            body={(row: CollectionPointRecord) =>
-              cap(toOptionalString(row.city_name))
-            }
-          />
-        )}
-        {showCol("panchayat_name") && (
-          <Column
-            field="panchayat_name"
-            header={t("admin.nav.panchayat")}
-            body={(row: CollectionPointRecord) => toDisplay(row.panchayat_name)}
-          />
-        )}
-        {/* only zone-based points have a zone; panchayat-only lists skip the column */}
-        {showCol("zone_name") && rows.some((row) => row.zone_name) && (
-          <Column
-            field="zone_name"
-            header={t("admin.nav.zone")}
-            body={(row: CollectionPointRecord) => toDisplay(row.zone_name)}
-          />
-        )}
-        {showCol("ward_name") && (
-          <Column
-            field="ward_name"
-            header={t("admin.nav.ward")}
-            body={(row: CollectionPointRecord) => {
-              const wards = row.wards as
-                | { unique_id: string; ward_name: string }[]
-                | undefined;
-              if (wards && wards.length > 0) {
-                return (
-                  <div className="flex flex-wrap gap-1">
-                    {wards.map((w) => (
-                      <span
-                        key={w.unique_id}
-                        className="inline-block bg-green-100 text-green-800 text-xs font-medium px-2 py-0.5 rounded-full"
-                      >
-                        {cap(w.ward_name)}
-                      </span>
-                    ))}
-                  </div>
-                );
-              }
-              return <span>{toDisplay(row.ward_name)}</span>;
-            }}
-          />
-        )}
-        {showCol("latitude") && (
+        {locationColumn<CollectionPointRecord>({
+          header: t("common.location"),
+          style: { width: "32%" },
+          levels: [
+            showCol("state_name") && {
+              label: t("common.state"),
+              value: (row) => cap(toOptionalString(row.state_name)),
+            },
+            showCol("district_name") && {
+              label: t("common.district"),
+              value: (row) => cap(toOptionalString(row.district_name)),
+            },
+            showCol("city_name") && {
+              label: t("common.city"),
+              value: (row) => cap(toOptionalString(row.city_name)),
+            },
+            showCol("panchayat_name") && {
+              label: t("common.panchayat"),
+              value: (row) => toOptionalString(row.panchayat_name),
+            },
+            showCol("zone_name") && {
+              label: t("admin.nav.zone"),
+              value: (row) => toOptionalString(row.zone_name),
+            },
+            showCol("ward_name") && {
+              label: t("admin.nav.ward"),
+              value: (row) => {
+                const wards = row.wards as
+                  | { unique_id: string; ward_name: string }[]
+                  | undefined;
+                if (wards && wards.length > 0) {
+                  return (
+                    <div className="flex flex-wrap gap-1">
+                      {wards.map((w) => (
+                        <span
+                          key={w.unique_id}
+                          className="inline-block bg-green-100 text-green-800 text-xs font-medium px-2 py-0.5 rounded-full"
+                        >
+                          {cap(w.ward_name)}
+                        </span>
+                      ))}
+                    </div>
+                  );
+                }
+                return toOptionalString(row.ward_name);
+              },
+            },
+          ],
+        })}
+        {(showCol("latitude") || showCol("longitude")) && (
           <Column
             field="latitude"
-            header="Latitude"
-            body={(row: CollectionPointRecord) => toDisplay(row.latitude)}
-          />
-        )}
-        {showCol("longitude") && (
-          <Column
-            field="longitude"
-            header="Longitude"
-            body={(row: CollectionPointRecord) => toDisplay(row.longitude)}
+            header="Coordinates"
+            style={{ width: "17%" }}
+            body={(row: CollectionPointRecord) => (
+              <StackCell
+                lines={[
+                  showCol("latitude") && {
+                    label: "Lat",
+                    value: toDisplay(row.latitude),
+                  },
+                  showCol("longitude") && {
+                    label: "Long",
+                    value: toDisplay(row.longitude),
+                  },
+                ]}
+              />
+            )}
           />
         )}
         {showCol("is_active") && (
           <Column
             header={t("common.status")}
             body={statusTemplate}
-            style={{ width: "140px" }}
+            style={{ width: "10%" }}
           />
         )}
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ width: "150px", textAlign: "center" }}
+          style={{ width: "8%", textAlign: "center" }}
         />
       </DataTable>
     </div>

@@ -22,6 +22,8 @@ import type {
 } from "@/features/complaintTicketing/types";
 import { asArray, errorText, formatDateTime } from "../utils";
 import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
+import { StackCell } from "@/components/common/TableCells";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
 import { combineFilters } from "@/components/filters/useOptionFilter";
@@ -227,13 +229,13 @@ export default function TicketList() {
       context.other_reference,
     ].filter(Boolean);
     return (
-      <div className="min-w-44">
+      <div className="min-w-0">
         <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold capitalize text-indigo-700">
           {context.incident_type || "other"}
         </span>
         {references.length > 0 && (
           <p
-            className="mt-1 max-w-56 truncate text-xs text-slate-500"
+            className="mt-1 truncate text-xs text-slate-500"
             title={references.join(" · ")}
           >
             {references.join(" · ")}
@@ -295,65 +297,108 @@ export default function TicketList() {
         loading={tableLoading}
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage="No tickets found"
         className="p-datatable-sm"
       >
         <Column
           header="S.No"
           body={(_, options) => options.rowIndex + 1}
-          style={{ width: "80px" }}
+          style={{ width: "4%" }}
         />
-        <Column field="ticket_no" header="Ticket No" sortable />
         <Column
-          field="created"
-          header="Created"
-          body={(row) => formatDateTime(row.created)}
+          field="ticket_no"
+          header="Ticket"
           sortable
-        />
-        <Column
-          header="Source"
-          body={(row) =>
-            row.source_code ? (
-              <span
-                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                  row.source_code === "SYSTEM"
-                    ? "bg-indigo-100 text-indigo-800"
-                    : "bg-slate-100 text-slate-700"
-                }`}
-                title={row.source_code === "SYSTEM" ? "Raised automatically by the system" : undefined}
-              >
-                {row.source_code === "SYSTEM" ? "Automatic" : row.source_code.replace(/_/g, " ")}
-              </span>
-            ) : (
-              "-"
-            )
-          }
+          style={{ width: "15%" }}
+          body={(row: ComplaintTicket) => (
+            <StackCell
+              primary={row.ticket_no}
+              lines={[
+                { icon: "pi-calendar", value: formatDateTime(row.created) },
+                row.source_code && (
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      row.source_code === "SYSTEM"
+                        ? "bg-indigo-100 text-indigo-800"
+                        : "bg-slate-100 text-slate-700"
+                    }`}
+                    title={row.source_code === "SYSTEM" ? "Raised automatically by the system" : undefined}
+                  >
+                    {row.source_code === "SYSTEM" ? "Automatic" : row.source_code.replace(/_/g, " ")}
+                  </span>
+                ),
+              ]}
+            />
+          )}
         />
         <Column
           header="Customer"
-          body={(row) => row.customer_name || row.profile_name || "-"}
+          style={{ width: "13%" }}
+          body={(row: ComplaintTicket) => (
+            <StackCell
+              primary={row.customer_name || row.profile_name}
+              lines={[{ icon: "pi-phone", value: row.wa_phone }]}
+            />
+          )}
         />
-        <Column field="wa_phone" header="Phone" />
-        <Column field="category_name" header="Category" />
-        <Column header="Operational Context" body={contextTemplate} />
-        <Column field="waste_type_name" header="Waste Type" />
-        <Column field="subcategory_name" header="Subcategory" />
-        <Column header="District" body={(row) => row.district_name || "-"} />
         <Column
-          header="Panchayat"
-          body={(row) => row.panchayat_name || "-"}
+          header="Complaint"
+          style={{ width: "20%" }}
+          body={(row: ComplaintTicket) => (
+            <StackCell
+              primary={row.category_name}
+              lines={[
+                { label: "Subcategory", value: row.subcategory_name },
+                { label: "Waste Type", value: row.waste_type_name },
+                contextTemplate(row),
+              ]}
+            />
+          )}
         />
-        <Column header="Zone" body={(row) => row.zone_name || "-"} />
-        <Column header="Ward" body={(row) => row.ward_name || "-"} />
-        <Column field="priority_code" header="Priority" />
-        <Column header="Status" body={statusTemplate} />
-        <Column field="assigned_staff_name" header="Assigned Staff" />
+        {locationColumn<ComplaintTicket>({
+          header: "Location",
+          style: { width: "14%" },
+          levels: [
+            { label: "District", value: (row) => row.district_name },
+            { label: "Panchayat", value: (row) => row.panchayat_name },
+            { label: "Zone", value: (row) => row.zone_name },
+            { label: "Ward", value: (row) => row.ward_name },
+          ],
+        })}
         <Column
-          header="Next Escalation Due"
-          body={(row) => formatDateTime(row.next_escalation_due_at)}
+          header="Status"
+          style={{ width: "14%" }}
+          body={(row: ComplaintTicket) => (
+            <div className="flex flex-wrap items-center gap-1">
+              {statusTemplate(row)}
+              {slaTemplate(row)}
+              {feedbackByTicket.has(String(row.unique_id)) && feedbackTemplate(row)}
+              {row.priority_code && (
+                <span className="text-xs text-gray-600">
+                  <span className="text-gray-500">Priority:</span> {row.priority_code}
+                </span>
+              )}
+            </div>
+          )}
         />
-        <Column header="SLA" body={slaTemplate} style={{ width: "120px" }} />
-        <Column header="Feedback" body={feedbackTemplate} />
+        <Column
+          header="Assignment"
+          style={{ width: "13%" }}
+          body={(row: ComplaintTicket) => (
+            <StackCell
+              primary={row.assigned_staff_name}
+              lines={[
+                {
+                  label: "Next Escalation",
+                  value: row.next_escalation_due_at
+                    ? formatDateTime(row.next_escalation_due_at)
+                    : null,
+                },
+              ]}
+            />
+          )}
+        />
         <Column
           header="Actions"
           body={(row) => (
@@ -365,7 +410,7 @@ export default function TicketList() {
               <Eye className="h-5 w-5" />
             </button>
           )}
-          style={{ width: "100px" }}
+          style={{ width: "7%" }}
         />
       </DataTable>
     </div>

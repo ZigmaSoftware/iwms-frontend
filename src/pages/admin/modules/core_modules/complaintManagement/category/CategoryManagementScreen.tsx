@@ -7,7 +7,7 @@ import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason"
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
+import { FilterBar } from "@/components/common/FilterBar";
 import { FilterMatchMode } from "primereact/api";
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { createCrudRoutePaths } from "@/utils/routePaths";
@@ -144,28 +144,26 @@ export default function CategoryManagementScreen() {
         selection={selectedCategory}
         onSelectionChange={(event: any) => setSelectedCategoryId(event.value?.unique_id ?? null)}
         header={
-          <div className="flex justify-end">
-            <InputText
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setFilters((prev: any) => ({ ...prev, global: { ...prev.global, value: event.target.value } }));
-              }}
-              placeholder="Search"
-              className="p-inputtext-sm"
-            />
-          </div>
+          <FilterBar
+            searchValue={query}
+            onSearchChange={(value) => {
+              setQuery(value);
+              setFilters((prev: any) => ({ ...prev, global: { ...prev.global, value } }));
+            }}
+            searchPlaceholder="Search"
+          />
         }
         emptyMessage="No categories found"
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
       >
-        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "80px" }} />
+        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "5%" }} />
         {MASTER_CONFIG.category.columns.map((column) => (
           <Column key={column.field} field={column.field} header={column.header} sortable={column.sortable} />
         ))}
-        <Column header="Active" body={(row) => yesNo(row.is_active !== false)} />
+        <Column header="Active" body={(row) => yesNo(row.is_active !== false)} style={{ width: "8%" }} />
         <Column
           header="Actions"
           body={(row) => (
@@ -176,7 +174,7 @@ export default function CategoryManagementScreen() {
               />
             </div>
           )}
-          style={{ width: "100px" }}
+          style={{ width: "8%" }}
         />
       </DataTable>
 
@@ -204,13 +202,14 @@ export default function CategoryManagementScreen() {
             emptyMessage="No subcategories found for this category"
             stripedRows
             showGridlines
+            fitWidth
             className="p-datatable-sm"
           >
-            <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "80px" }} />
+            <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "5%" }} />
             <Column field="subcategory_code" header="Code" sortable />
             <Column field="subcategory_name" header="Subcategory" sortable />
             <Column field="default_priority_code" header="Default Priority" />
-            <Column header="Active" body={(row) => yesNo(row.is_active !== false)} />
+            <Column header="Active" body={(row) => yesNo(row.is_active !== false)} style={{ width: "8%" }} />
             <Column
               header="Actions"
               body={(row) => (
@@ -221,7 +220,7 @@ export default function CategoryManagementScreen() {
                   />
                 </div>
               )}
-              style={{ width: "100px" }}
+              style={{ width: "8%" }}
             />
           </DataTable>
         )}

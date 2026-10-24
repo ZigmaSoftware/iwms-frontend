@@ -67,7 +67,13 @@ export type DailyTripAssignmentRecord = {
     from_date?: string;
     to_date?: string;
   } | null;
-  effective_staff?: { source?: string; unique_id?: string; display_code?: string } | null;
+  effective_staff?: {
+    source?: string;
+    unique_id?: string;
+    display_code?: string;
+    driver?: string | null;
+    operator?: string | null;
+  } | null;
   panchayat?: NamedRef & { panchayat_name?: string };
   wards?: WardRef[];
   zone?: NamedRef & { zone_name?: string };
@@ -104,6 +110,14 @@ export type DailyTripAssignmentRecord = {
     replacement_operator?: string | null;
     new_assignment_id?: string | null;
   } | null;
+  // Delay reports, re-trip requests and continuations, oldest first.
+  trip_events?: {
+    label: string;
+    kind?: "delay";
+    status?: string;
+    detail?: string | null;
+    at?: string | null;
+  }[];
   retrip_info?: {
     unique_id: string;
     status: "Pending" | "Approved" | "Rejected" | "Expired";

@@ -329,10 +329,11 @@ export default function ComplaintAuditList() {
           loading={loading}
           stripedRows
           showGridlines
+          fitWidth
           className="p-datatable-sm"
           emptyMessage="No complaints found"
         >
-          <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 60 }} />
+          <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: "4%" }} />
           <Column
             header="Ticket"
             body={(r: ComplaintAuditRecord) => (
@@ -342,6 +343,7 @@ export default function ComplaintAuditList() {
                 <div className="text-xs text-gray-400">{r.project_name || ""}</div>
               </div>
             )}
+            style={{ width: "17%" }}
           />
           <Column
             header="Category"
@@ -351,6 +353,7 @@ export default function ComplaintAuditList() {
                 {r.subcategory_name && <div className="text-xs text-gray-500">{r.subcategory_name}</div>}
               </div>
             )}
+            style={{ width: "13%" }}
           />
           <Column
             header="Status"
@@ -366,6 +369,7 @@ export default function ComplaintAuditList() {
                 )}
               </div>
             )}
+            style={{ width: "10%" }}
           />
           <Column
             header="Raised"
@@ -375,6 +379,7 @@ export default function ComplaintAuditList() {
                 <div className="text-xs text-gray-500">{r.created_by_name || r.reporter_name || "-"}</div>
               </div>
             )}
+            style={{ width: "13%" }}
           />
           <Column
             header="Resolution remarks"
@@ -383,37 +388,40 @@ export default function ComplaintAuditList() {
                 {truncate(r.resolution_remarks) || "-"}
               </span>
             )}
-            style={{ minWidth: 180 }}
+            style={{ width: "16%" }}
           />
           <Column
-            header="Reopens"
-            body={(r: ComplaintAuditRecord) =>
-              r.reopen_count ? (
-                <div className="leading-tight" title={r.last_reopen_reason ?? ""}>
-                  <div className="font-medium text-purple-700">{r.reopen_count}</div>
-                  <div className="text-xs text-gray-500">{truncate(r.last_reopen_reason, 40)}</div>
-                </div>
-              ) : (
-                <span className="text-gray-400">0</span>
-              )
-            }
-            style={{ minWidth: 120 }}
-          />
-          <Column
-            header="Escalations"
-            body={(r: ComplaintAuditRecord) =>
-              r.escalation_count ? (
-                <div className="leading-tight">
-                  <div className="font-medium text-red-700">{r.escalation_count}</div>
-                  <div className="text-xs text-gray-500">
-                    up to L{r.max_escalation_level}
-                    {r.auto_escalation_count ? ` · ${r.auto_escalation_count} auto` : ""}
+            header="Reopens / Escalations"
+            body={(r: ComplaintAuditRecord) => (
+              <div className="space-y-1 leading-tight">
+                {r.reopen_count ? (
+                  <div title={r.last_reopen_reason ?? ""}>
+                    <div className="text-xs">
+                      <span className="text-gray-500">Reopens:</span>{" "}
+                      <span className="font-medium text-purple-700">{r.reopen_count}</span>
+                    </div>
+                    <div className="text-xs text-gray-500">{truncate(r.last_reopen_reason, 40)}</div>
                   </div>
-                </div>
-              ) : (
-                <span className="text-gray-400">0</span>
-              )
-            }
+                ) : (
+                  <div className="text-xs text-gray-400">Reopens: 0</div>
+                )}
+                {r.escalation_count ? (
+                  <div>
+                    <div className="text-xs">
+                      <span className="text-gray-500">Escalations:</span>{" "}
+                      <span className="font-medium text-red-700">{r.escalation_count}</span>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      up to L{r.max_escalation_level}
+                      {r.auto_escalation_count ? ` · ${r.auto_escalation_count} auto` : ""}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xs text-gray-400">Escalations: 0</div>
+                )}
+              </div>
+            )}
+            style={{ width: "12%" }}
           />
           <Column
             header="Time taken"
@@ -431,6 +439,7 @@ export default function ComplaintAuditList() {
                 </span>
               )
             }
+            style={{ width: "9%" }}
           />
           <Column
             header={t("common.actions")}
@@ -446,7 +455,7 @@ export default function ComplaintAuditList() {
                 />
               </div>
             )}
-            style={{ width: 100 }}
+            style={{ width: "6%" }}
           />
         </DataTable>
       </div>

@@ -15,6 +15,7 @@ import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primerea
 import { api } from "@/api";
 import { tripDelayReportApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
+import { StackCell } from "@/components/common/TableCells";
 import { FilterSection } from "@/components/common/ListToolbar";
 import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
 import { useDraftFilter } from "@/components/filters/useDraftFilter";
@@ -404,41 +405,63 @@ export default function TripDelayReportList() {
         })}
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         emptyMessage="No delays reported."
       >
-        <Column header={t("common.s_no")} body={(_: any, { rowIndex }: any) => rowIndex + 1} style={{ width: 60 }} />
-        <Column field="unique_id" header="Delay ID" style={{ minWidth: 150 }} />
+        <Column header={t("common.s_no")} body={(_: any, { rowIndex }: any) => rowIndex + 1} style={{ width: "4%" }} />
         <Column
-          field="trip_assignment_id"
-          header="Trip"
-          style={{ minWidth: 160 }}
+          field="unique_id"
+          header="Delay"
+          style={{ width: "18%" }}
           body={(r: TripDelayReportRecord) => (
-            <div className="text-sm text-gray-800">
-              {r.trip_assignment_id}
-              {r.trip_date && <div className="text-xs text-gray-400">{r.trip_date}</div>}
-            </div>
+            <StackCell
+              primary={r.unique_id}
+              lines={[
+                { label: "Trip", value: r.trip_assignment_id },
+                { icon: "pi-calendar", value: r.trip_date },
+                { icon: "pi-truck", value: r.vehicle_no },
+              ]}
+            />
           )}
         />
-        <Column field="vehicle_no" header="Vehicle" style={{ minWidth: 120 }} body={(r) => r.vehicle_no || "—"} />
-        <Column field="delay_reason" header="Reason" sortable style={{ minWidth: 150 }} body={(r) => r.delay_reason_display} />
+        <Column
+          field="delay_reason"
+          header="Reason"
+          sortable
+          style={{ width: "15%" }}
+          body={(r: TripDelayReportRecord) => (
+            <StackCell
+              primary={r.delay_reason_display}
+              lines={[
+                {
+                  label: "Est. delay",
+                  value: r.estimated_delay_minutes != null ? `${r.estimated_delay_minutes} min` : null,
+                },
+              ]}
+            />
+          )}
+        />
         <Column
           field="delay_remarks"
           header="Remarks"
-          style={{ minWidth: 260 }}
-          body={(r: TripDelayReportRecord) => <span className="text-sm text-gray-700">{r.delay_remarks}</span>}
+          style={{ width: "24%" }}
+          body={(r: TripDelayReportRecord) => <span className="wrap-break-word text-sm text-gray-700">{r.delay_remarks}</span>}
         />
         <Column
-          field="estimated_delay_minutes"
-          header="Est. delay"
-          style={{ minWidth: 110 }}
-          body={(r: TripDelayReportRecord) =>
-            r.estimated_delay_minutes != null ? `${r.estimated_delay_minutes} min` : "—"
-          }
+          field="reported_by_name"
+          header="Reported by"
+          style={{ width: "13%" }}
+          body={(r: TripDelayReportRecord) => (
+            <StackCell
+              primary={r.reported_by_name}
+              lines={[{ icon: "pi-clock", value: r.delay_time?.slice(0, 5) }]}
+            />
+          )}
         />
         <Column
           header="Evidence"
-          style={{ width: 100 }}
+          style={{ width: "8%" }}
           body={(r: TripDelayReportRecord) => (
             <EvidenceImagePreview
               url={r.evidence_image_url}
@@ -446,16 +469,14 @@ export default function TripDelayReportList() {
             />
           )}
         />
-        <Column field="reported_by_name" header="Reported by" style={{ minWidth: 150 }} body={(r) => r.reported_by_name || "—"} />
-        <Column field="delay_time" header="At" style={{ minWidth: 100 }} body={(r) => r.delay_time?.slice(0, 5) || "—"} />
         <Column
           field="status"
           header="Status"
           sortable
-          style={{ minWidth: 130 }}
+          style={{ width: "10%" }}
           body={(r: TripDelayReportRecord) => <StatusBadge value={r.status} />}
         />
-        <Column header={t("common.actions")} body={actionTemplate} style={{ width: 110 }} />
+        <Column header={t("common.actions")} body={actionTemplate} style={{ width: "8%" }} />
       </DataTable>
 
       {target && (

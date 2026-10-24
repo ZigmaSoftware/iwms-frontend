@@ -31,6 +31,8 @@ export default {
     "city": "நகரம்",
     "district": "மாவட்டம்",
     "state": "மாநிலம்",
+    "location": "இடம்",
+    "panchayat": "பஞ்சாயத்து",
     "country": "நாடு",
     "address": "முகவரி",
     "owner": "உரிமையாளர்",

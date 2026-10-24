@@ -28,15 +28,27 @@ import { FilterSection } from "@/components/common/ListToolbar";
 import { dailyTripLogApi, wasteTypeApi } from "@/helpers/admin";
 import { api } from "@/api";
 import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { downloadRecordsPdf } from "@/utils/exportPdf";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import { formatTimeOnly } from "@/utils/formatTime";
-import { wasteTypeColorClass } from "@/utils/wasteTypeColors";
 import { useScreenAccess } from "@/contexts/screenPermission";
+import { KpiCard, WasteTypeChips } from "./tripLogDisplay";
+import { EMPTY_SUMMARY, formatKg, type TripLogSummary } from "./tripLogSummary";
 
 const STATUS_STYLES: Record<string, string> = {
   Unverified: "bg-gray-100 text-gray-700",
   Verified: "bg-green-100 text-green-800",
 };
+
+/* Status tabs above the table — "" = every status. */
+const STATUS_TABS: Array<{ key: string; label: string; dot: string }> = [
+  { key: "", label: "All", dot: "bg-slate-400" },
+  { key: "Unverified", label: "Unverified", dot: "bg-gray-400" },
+  { key: "Verified", label: "Verified", dot: "bg-green-500" },
+];
 
 const COLLECTION_STATUS_STYLES: Record<string, string> = {
   "Not Started": "bg-red-50 text-red-600",
@@ -272,6 +284,26 @@ const computeTotalWeight = (row: DailyTripLogRecord): number => {
     (Number.isFinite(binWeight) ? binWeight : 0) +
     (Number.isFinite(householdWeight) ? householdWeight : 0)
   );
+};
+
+type CollectionType = "all" | "bin" | "household";
+
+/* ── client-side "bin vs household" post-filter ── */
+const matchesCollectionType = (row: DailyTripLogRecord, collectionType: CollectionType): boolean => {
+  if (collectionType === "bin") {
+    const cps = row.collection_points ?? [];
+    const hasPointWeights = cps.some(
+      (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined,
+    );
+    return (
+      (hasPointWeights && computeCollectedWeight(cps) > 0) ||
+      (row.collected_weight_kg != null && Number(row.collected_weight_kg) > 0)
+    );
+  }
+  if (collectionType === "household") {
+    return row.household_collected_weight_kg != null && Number(row.household_collected_weight_kg) > 0;
+  }
+  return true;
 };
 
 /* ─────────────────────────────────────────────────────
@@ -724,6 +756,50 @@ function TripLogModal({
 /* ─────────────────────────────────────────────────────
    Main list component
 ───────────────────────────────────────────────────── */
+type EnrichedTripLog = DailyTripLogRecord & {
+  _assignment: string;
+  _waste: string;
+  _base_template: string;
+  _alt_template: string;
+  _location: string;
+  _driver: string;
+  _operator: string;
+  _vehicle: string;
+  _computed_weight: number;
+  _has_point_weights: boolean;
+};
+
+/* ── client-side enrichment applied to every raw API row ── */
+const enrichTripLogRow = (rec: DailyTripLogRecord): EnrichedTripLog => {
+  return {
+    ...rec,
+    _assignment:
+      rec.trip_assignment?.display_code ??
+      rec.trip_assignment?.unique_id ??
+      rec.trip_assignment_id ??
+      "",
+    _waste: wasteTypesLabel(rec),
+    _base_template: rec.staff_template?.base?.display_code ?? "",
+    _alt_template: rec.staff_template?.alt?.display_code ?? "",
+    _location: locationText(rec),
+    _driver:
+      rec.staff_template?.base?.driver?.employee_name ??
+      rec.driver?.employee_name ??
+      "",
+    _operator:
+      rec.staff_template?.base?.operator?.employee_name ??
+      rec.operator?.employee_name ??
+      "",
+    _vehicle: rec.vehicle?.vehicle_no ?? "",
+    _computed_weight: computeCollectedWeight(rec.collection_points),
+    _has_point_weights: (rec.collection_points ?? []).some(
+      (cp) =>
+        cp?.collected_weight_kg !== null &&
+        cp?.collected_weight_kg !== undefined,
+    ),
+  };
+};
+
 export default function DailyTripLogList() {
   const { t } = useTranslation();
   const location = useLocation();
@@ -761,10 +837,7 @@ export default function DailyTripLogList() {
     ],
     onAppliedChange: () => setFirst(0),
   });
-  const collectionType = (collectionTypeFilter.value || "all") as
-    | "all"
-    | "bin"
-    | "household";
+  const collectionType = (collectionTypeFilter.value || "all") as CollectionType;
   const [wasteTypeOptions, setWasteTypeOptions] = useState<
     { label: string; value: string }[]
   >([]);
@@ -795,6 +868,7 @@ export default function DailyTripLogList() {
     () => (appliedWasteTypes ? appliedWasteTypes.split(",") : []),
     [appliedWasteTypes],
   );
+  const [statusFilter, setStatusFilter] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [modalState, setModalState] = useState<{
     row: DailyTripLogRecord;
@@ -803,7 +877,16 @@ export default function DailyTripLogList() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [exporting, setExporting] = useState<"excel" | "pdf" | null>(null);
+  const [summary, setSummary] = useState<TripLogSummary>(EMPTY_SUMMARY);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryVersion, setSummaryVersion] = useState(0);
   const requestIdRef = useRef(0);
+
+  // Nothing loads until there is a company to scope to.
+  const noScope =
+    (isSuperAdmin && companies.length === 0) ||
+    (!companyUniqueId && !isSuperAdmin);
 
   /* ── waste type options for the filter multiselect ── */
   useEffect(() => {
@@ -840,15 +923,9 @@ export default function DailyTripLogList() {
       ? `${sortOrder === -1 ? "-" : ""}${sortField}`
       : undefined;
 
-  /* ── load logs (re-runs whenever pagination/sort/search/company/project/date/waste-type filters change) ── */
+  /* ── load logs (re-runs whenever pagination/sort/search/status/company/project/date/waste-type filters change) ── */
   useEffect(() => {
-    if (isSuperAdmin && companies.length === 0) {
-      requestIdRef.current += 1;
-      setRawRows([]);
-      setTotalRecords(0);
-      return;
-    }
-    if (!companyUniqueId && !isSuperAdmin) {
+    if (noScope) {
       requestIdRef.current += 1;
       setRawRows([]);
       setTotalRecords(0);
@@ -869,6 +946,7 @@ export default function DailyTripLogList() {
             params: {
               ...buildParams(),
               ...(searchTerm ? { search: searchTerm } : {}),
+              ...(statusFilter ? { status: statusFilter } : {}),
               ...(ordering ? { ordering } : {}),
             },
           },
@@ -903,18 +981,49 @@ export default function DailyTripLogList() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    noScope,
     companyUniqueId,
     projectId,
-    isSuperAdmin,
-    companies.length,
     dateFilter,
     wasteTypeFilter,
+    statusFilter,
     first,
     rowsPerPage,
     searchTerm,
     ordering,
     t,
   ]);
+
+  /* ── KPIs + status-tab counts over EVERY matching log (server-side), not
+     just this page. The status tab is left out so its counts stay visible. ── */
+  const summaryKey = JSON.stringify({
+    ...buildParams(),
+    ...(searchTerm ? { search: searchTerm } : {}),
+  });
+  useEffect(() => {
+    if (noScope) {
+      setSummary(EMPTY_SUMMARY);
+      return;
+    }
+    let active = true;
+    setSummaryLoading(true);
+    api
+      .get<TripLogSummary>("/schedule-operations/daily-trip-logs/summary/", {
+        params: JSON.parse(summaryKey),
+      })
+      .then((res) => {
+        if (active) setSummary({ ...EMPTY_SUMMARY, ...res.data });
+      })
+      .catch(() => {
+        if (active) setSummary(EMPTY_SUMMARY);
+      })
+      .finally(() => {
+        if (active) setSummaryLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [noScope, summaryKey, summaryVersion]);
 
   /* ── reset to first page whenever a non-pagination filter changes ── */
   useEffect(() => {
@@ -941,60 +1050,15 @@ export default function DailyTripLogList() {
     setSortOrder(event.sortOrder);
   };
 
-  /* ── enrich rows (current page only) ── */
-  const rows = rawRows.map((rec) => {
-    const zoneName = rec.trip_assignment?.zone?.zone_name ?? null;
-    return {
-      ...rec,
-      trip_assignment: rec.trip_assignment
-        ? { ...rec.trip_assignment, zone: zoneName }
-        : null,
-      _assignment:
-        rec.trip_assignment?.display_code ??
-        rec.trip_assignment?.unique_id ??
-        rec.trip_assignment_id ??
-        "",
-      _waste: wasteTypesLabel(rec),
-      _base_template: rec.staff_template?.base?.display_code ?? "",
-      _alt_template: rec.staff_template?.alt?.display_code ?? "",
-      _location: locationText(rec),
-      _computed_weight: computeCollectedWeight(rec.collection_points),
-      _has_point_weights: (rec.collection_points ?? []).some(
-        (cp) =>
-          cp?.collected_weight_kg !== null &&
-          cp?.collected_weight_kg !== undefined,
-      ),
-    };
-  });
-
   /* ── filter by collection type — a client-side post-filter applied to the
      CURRENT PAGE only (bin-vs-household split isn't a simple backend field);
      totalRecords above still reflects the server-side total. Company/project
      scoping is applied server-side via params in the fetch effect above. ── */
-  const data = (() => {
-    if (isSuperAdmin && companies.length === 0) return [];
-    if (!companyUniqueId && !isSuperAdmin) return [];
-    return rows.filter((row) => {
-      if (collectionType === "bin") {
-        const hasBinWeight =
-          (row._has_point_weights && (row._computed_weight ?? 0) > 0) ||
-          (row.collected_weight_kg != null &&
-            Number(row.collected_weight_kg) > 0);
-        return hasBinWeight;
-      }
-      if (collectionType === "household") {
-        return (
-          row.household_collected_weight_kg != null &&
-          Number(row.household_collected_weight_kg) > 0
-        );
-      }
-      return true;
-    });
-  })();
-
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
-  };
+  const data = noScope
+    ? []
+    : rawRows
+        .map(enrichTripLogRow)
+        .filter((row) => matchesCollectionType(row, collectionType));
 
   /* ── verify confirm (from modal) ── */
   const handleVerifyConfirm = async (remarks: string) => {
@@ -1013,6 +1077,7 @@ export default function DailyTripLogList() {
         ),
       );
       setModalState(null);
+      setSummaryVersion((v) => v + 1);
       Swal.fire({
         icon: "success",
         title: "Verified",
@@ -1031,50 +1096,94 @@ export default function DailyTripLogList() {
     }
   };
 
-  /* ── inline action buttons ── */
+  /* ── revert a verified log back to Unverified ── */
+  const handleRevertToUnverified = async (row: DailyTripLogRecord) => {
+    const result = await Swal.fire({
+      title: "Revert to Unverified?",
+      text: `This will move the log from "${row.log_status}" back to "Unverified".`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, revert",
+    });
+    if (!result.isConfirmed) return;
+    try {
+      const res = await api.patch(
+        `/schedule-operations/daily-trip-logs/${row.unique_id}/change-status/`,
+        { log_status: "Unverified" },
+      );
+      const updated = (res as any)?.data ?? res;
+      setRawRows((current) =>
+        current.map((item) =>
+          item.unique_id === row.unique_id
+            ? {
+                ...item,
+                log_status: updated.log_status ?? "Unverified",
+                verified_by_name: updated.verified_by_name ?? null,
+                verified_at: updated.verified_at ?? null,
+              }
+            : item,
+        ),
+      );
+      setSummaryVersion((v) => v + 1);
+      Swal.fire({
+        icon: "success",
+        title: "Done",
+        text: "Status changed to Unverified.",
+        timer: 2000,
+        showConfirmButton: false,
+      });
+    } catch (err: any) {
+      Swal.fire(
+        t("common.error"),
+        extractError(err) ?? "Failed to change status",
+        "error",
+      );
+    }
+  };
+
+  /* ── kebab action menu: View / Verify / Revert ── */
   const actionTemplate = (row: DailyTripLogRecord) => {
     const isVerified = row.log_status === "Verified";
+    // Verify requires the trip to have actually ended (actual_end_time set).
     const canVerify = !isVerified && Boolean(row.actual_end_time);
 
     return (
-      <div className="flex items-center gap-1.5">
-        {/* View — full trip detail report page */}
-        <button
-          title="View details"
-          onClick={() =>
-            navigate(
-              `${location.pathname.replace(/\/$/, "")}/${row.unique_id}/report`,
-            )
-          }
-          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-        >
-          <i className="pi pi-eye text-xs" />
-          View
-        </button>
-
-        {/* Verify — requires the trip to have actually ended (actual_end_time
-            set), disabled once already Verified (read-only) */}
-        {canEdit && (
-          <button
-            title={
-              isVerified
-                ? "Already verified"
-                : canVerify
-                  ? "Verify this log"
-                  : "Trip must have an actual end time before it can be verified"
-            }
-            disabled={!canVerify}
-            onClick={() => setModalState({ row, mode: "verify" })}
-            className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
-              canVerify
-                ? "bg-green-100 text-green-700 hover:bg-green-200"
-                : "bg-green-50 text-green-400 cursor-not-allowed opacity-60"
-            }`}
-          >
-            <i className="pi pi-check-circle text-xs" />
-            Verify
-          </button>
-        )}
+      <div className="flex justify-center">
+        <ActionMenu
+          actions={[
+            {
+              key: "view",
+              label: "View details",
+              icon: <i className="pi pi-eye" />,
+              onClick: () =>
+                navigate(
+                  `${location.pathname.replace(/\/$/, "")}/${row.unique_id}/report`,
+                ),
+            },
+            ...(canEdit
+              ? [
+                  {
+                    key: "verify",
+                    label: "Verify this log",
+                    icon: <i className="pi pi-check-circle" />,
+                    onClick: () => setModalState({ row, mode: "verify" as const }),
+                    disabled: !canVerify,
+                    disabledReason: isVerified
+                      ? "Already verified"
+                      : "Trip must have an actual end time before it can be verified",
+                  },
+                  {
+                    key: "revert",
+                    label: "Revert to unverified",
+                    icon: <i className="pi pi-undo" />,
+                    onClick: () => void handleRevertToUnverified(row),
+                    disabled: !isVerified,
+                    disabledReason: "Not verified yet",
+                  },
+                ]
+              : []),
+          ]}
+        />
       </div>
     );
   };
@@ -1164,45 +1273,25 @@ export default function DailyTripLogList() {
     return out;
   };
 
-  /* ── download: fetch the FULL company/project/date/waste/search-filtered
+  /* ── download: fetch the FULL company/project/date/waste/status/search-filtered
      dataset fresh from the server (independent of whatever page is currently
-     on screen), then apply the same enrichment + collectionType post-filter
-     used for the on-screen rows, and explode into per-point/customer rows. ── */
-  const handleDownloadPdf = async () => {
+     on screen), then apply the same collectionType post-filter used for the
+     on-screen rows, and explode into per-point/customer rows. ── */
+  const handleDownload = async (format: "excel" | "pdf") => {
+    setExporting(format);
     try {
       const exportRaw = toRecordList(
         await dailyTripLogApi.readAllForExport({
           params: {
             ...buildParams(),
             ...(searchTerm ? { search: searchTerm } : {}),
+            ...(statusFilter ? { status: statusFilter } : {}),
           },
         }),
       );
-      const exportSourceRows = exportRaw.filter((row) => {
-        const cps = row.collection_points ?? [];
-        const hasPointWeights = cps.some(
-          (cp) =>
-            cp?.collected_weight_kg !== null &&
-            cp?.collected_weight_kg !== undefined,
-        );
-        const computedWeight = computeCollectedWeight(cps);
-        if (collectionType === "bin") {
-          const hasBinWeight =
-            (hasPointWeights && computedWeight > 0) ||
-            (row.collected_weight_kg != null &&
-              Number(row.collected_weight_kg) > 0);
-          return hasBinWeight;
-        }
-        if (collectionType === "household") {
-          return (
-            row.household_collected_weight_kg != null &&
-            Number(row.household_collected_weight_kg) > 0
-          );
-        }
-        return true;
-      });
-
-      const exportRows = buildExportRows(exportSourceRows);
+      const exportRows = buildExportRows(
+        exportRaw.filter((row) => matchesCollectionType(row, collectionType)),
+      );
       if (exportRows.length === 0) {
         Swal.fire({
           icon: "warning",
@@ -1211,35 +1300,33 @@ export default function DailyTripLogList() {
         });
         return;
       }
-      await downloadRecordsPdf({
-        title: "Daily Trip Logs",
-        filename: "daily_trip_logs.pdf",
-        rows: exportRows,
-        columns: Object.keys(exportRows[0]).map((key) => ({
-          key,
-          label: key,
-        })),
-      });
+      if (format === "excel") {
+        await exportRecordsToExcel(
+          exportRows,
+          getAdminScreenExcelFilename("all"),
+          "Daily Trip Logs",
+        );
+      } else {
+        await downloadRecordsPdf({
+          title: "Daily Trip Logs",
+          filename: "daily_trip_logs.pdf",
+          rows: exportRows,
+          columns: Object.keys(exportRows[0]).map((key) => ({
+            key,
+            label: key,
+          })),
+        });
+      }
     } catch (err: any) {
       Swal.fire({
         icon: "error",
         title: t("common.error"),
         text: extractError(err) ?? err?.message ?? String(err),
       });
+    } finally {
+      setExporting(null);
     }
   };
-
-  const renderHeader = () => (
-    <FilterBar
-      searchValue={globalFilterValue}
-      onSearchChange={(value) =>
-        onGlobalFilterChange({
-          target: { value },
-        } as React.ChangeEvent<HTMLInputElement>)
-      }
-      searchPlaceholder="Search trip logs..."
-    />
-  );
 
   const tripFiltersField = (
     <>
@@ -1272,275 +1359,292 @@ export default function DailyTripLogList() {
     </>
   );
 
-  /* ── KPI pills: computed from the CURRENT PAGE only (post-collectionType
-     filter) — the backend has no aggregate endpoint for this deep a
-     computation, so these are deliberately labeled "(page)" rather than
-     implying dataset-wide totals. ── */
-  const kpiRecordCount = data.length;
-  const kpiOverallWeight = data.reduce(
-    (sum, row) =>
-      sum +
-      (row._computed_weight ?? 0) +
-      Number(row.household_collected_weight_kg ?? 0),
-    0,
-  );
+  const statusCounts = summary.status_counts ?? {};
+  const verifiedCount = statusCounts.Verified ?? 0;
+  const unverifiedCount = statusCounts.Unverified ?? 0;
+  const verifiedShare = summary.total_logs
+    ? Math.round((verifiedCount / summary.total_logs) * 100)
+    : 0;
+  const kpiValue = (value: string | number) =>
+    summaryLoading && summary.total_logs === 0 ? "…" : value;
+
+  const changeStatusTab = (key: string) => {
+    setStatusFilter(key);
+    setFirst(0);
+  };
 
   return (
-    <div className="p-3">
-      <div className="mb-6 flex min-w-0 flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-semibold text-gray-800 mb-1">
-            Daily Trip Logs
-          </h1>
-          <p className="text-sm text-gray-500">
-            Capture and verify actual collection trip results
-          </p>
-        </div>
+    <div className="min-h-full bg-gray-50/60 p-3 sm:p-5">
+      <ListPageHeader
+        title="Daily Trip Logs"
+        subtitle="Capture and verify actual collection trip results"
+        className="mb-3 shrink-0"
+      />
+
+      {/* ── KPIs: every log matching the filters ── */}
+      <div className="mb-3 grid shrink-0 grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+        <KpiCard
+          icon="pi pi-truck"
+          tone="bg-slate-100 text-slate-600"
+          label="Trip logs"
+          value={kpiValue(summary.total_logs.toLocaleString())}
+          hint={`${summary.trips.toLocaleString()} trips`}
+        />
+        <KpiCard
+          icon="pi pi-box"
+          tone="bg-emerald-50 text-emerald-600"
+          label="Total weight"
+          value={kpiValue(formatKg(summary.total_weight_kg))}
+          hint={`Bin ${formatKg(summary.bin_weight_kg)} · HH ${formatKg(summary.household_weight_kg)}`}
+        />
+        <KpiCard
+          icon="pi pi-calendar"
+          tone="bg-cyan-50 text-cyan-600"
+          label="Today"
+          value={kpiValue(formatKg(summary.today_weight_kg))}
+          hint="collected today"
+        />
+        <KpiCard
+          icon="pi pi-verified"
+          tone="bg-green-50 text-green-600"
+          label="Verified"
+          value={kpiValue(verifiedCount.toLocaleString())}
+          hint={`${verifiedShare}% of logs`}
+        />
+        <KpiCard
+          icon="pi pi-clock"
+          tone="bg-amber-50 text-amber-600"
+          label="Unverified"
+          value={kpiValue(unverifiedCount.toLocaleString())}
+          hint="awaiting verification"
+        />
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-4 rounded-lg border border-gray-200 bg-white p-3">
-        <div>
-          <p className="text-xs text-gray-400 uppercase tracking-wide">
-            Records (page)
-          </p>
-          <p className="text-lg font-bold text-gray-900">{kpiRecordCount}</p>
-        </div>
-        <div>
-          <p className="text-xs text-gray-400 uppercase tracking-wide">
-            Overall Weight (page)
-          </p>
-          <p className="text-lg font-bold text-gray-900">
-            {kpiOverallWeight.toFixed(2)} kg
-          </p>
-        </div>
-      </div>
-
-      <DataTable
-        loadExportRows={async () => buildExportRows(rawRows)}
-        onPdfRequest={handleDownloadPdf}
-        value={data}
-        dataKey="unique_id"
-        lazy
-        paginator
-        first={first}
-        rows={rowsPerPage}
-        totalRecords={totalRecords}
-        onPage={onPage}
-        sortField={sortField}
-        sortOrder={sortOrder}
-        onSort={onSort}
-        rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={isLoading}
-        header={renderHeader()}
-        filterPanel={combineFilters(companyProject, collectionTypeFilter, {
-          ...tripFilters,
-          field: tripFiltersField,
-        })}
-        exportable={false}
-        stripedRows
-        showGridlines
-        emptyMessage="No trip logs found. Select a company and project to load data."
-        className="p-datatable-sm"
-      >
-        <Column
-          header={t("common.s_no")}
-          body={(_: any, { rowIndex }: any) => rowIndex + 1}
-          style={{ width: 60 }}
-        />
-        <Column
-          field="unique_id"
-          header="ID"
-          sortable
-          style={{ minWidth: 150 }}
-        />
-        <Column
-          field="_assignment"
-          header="Trip Assignment"
-          style={{ minWidth: 170 }}
-        />
-        <Column
-          field="_location"
-          header="Location"
-          style={{ minWidth: 170 }}
-          body={(row: DailyTripLogRecord) => {
-            const ward = wardNameOf(row);
-            const panchayat = row.panchayat?.panchayat_name ?? null;
-            const zone =
-              row.zone?.zone_name ??
-              row.trip_assignment?.zone?.zone_name ??
-              null;
-            const parentLabel = panchayat ? "Panchayat" : zone ? "Zone" : null;
-            const parentName = panchayat ?? zone ?? null;
-
-            if (!ward && !parentName) {
-              return <span className="text-sm text-gray-400">-</span>;
-            }
+      {/* Fixed table layout at 100% width: columns wrap their content
+          instead of widening the table, so there is no horizontal scroll. */}
+      <div className="overflow-x-hidden rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:p-4">
+        <div className="mb-3 flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Log status">
+          {STATUS_TABS.map((tab) => {
+            const count = tab.key ? statusCounts[tab.key] ?? 0 : summary.total_logs;
+            const active = statusFilter === tab.key;
             return (
-              <span className="text-sm text-gray-800">
-                {ward ?? parentName}
-                {ward && parentName && (
-                  <span
-                    className={`ml-1 text-xs font-medium ${
-                      parentLabel === "Panchayat"
-                        ? "text-indigo-500"
-                        : "text-teal-500"
-                    }`}
-                  >
-                    ({parentLabel}: {parentName})
-                  </span>
-                )}
-              </span>
+              <button
+                key={tab.key || "all"}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => changeStatusTab(tab.key)}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                  active
+                    ? "border-slate-800 bg-slate-800 text-white"
+                    : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${active ? "bg-white" : tab.dot}`} />
+                {tab.label}
+                <span className={`tabular-nums ${active ? "text-white/80" : "text-gray-400"}`}>
+                  {count.toLocaleString()}
+                </span>
+              </button>
             );
-          }}
-        />
-        <Column
-          field="_base_template"
-          header="Staff Template"
-          style={{ minWidth: 160 }}
-          body={(row: DailyTripLogRecord) => (
-            <span className="text-sm text-gray-800">
-              {row.staff_template?.base?.display_code ?? "-"}
-            </span>
-          )}
-        />
-        <Column
-          field="_alt_template"
-          header="Alt Staff Template"
-          style={{ minWidth: 170 }}
-          body={(row: DailyTripLogRecord) =>
-            row.staff_template?.alt ? (
-              <span className="text-sm font-medium text-orange-700">
-                {row.staff_template.alt.display_code}
-              </span>
-            ) : (
-              <span className="text-sm text-gray-400">-</span>
-            )
-          }
-        />
-        <Column
-          header="Vehicle Breakdown"
-          style={{ minWidth: 140 }}
-          body={(row: DailyTripLogRecord) => <BreakdownCell row={row} />}
-        />
-        <Column
-          field="_waste"
-          header="Waste Type"
-          style={{ minWidth: 160 }}
-          body={(row: DailyTripLogRecord & { _waste?: string }) => {
-            // One chip per waste type on the assignment, each with its own colour.
-            const names = (row._waste ?? "")
-              .split(",")
-              .map((n) => n.trim())
-              .filter(Boolean);
-            if (names.length === 0)
-              return <span className="text-sm text-gray-400">-</span>;
-            return (
-              <div className="flex flex-wrap gap-1">
-                {names.map((name) => (
-                  <span
-                    key={name}
-                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${wasteTypeColorClass(name)}`}
-                  >
-                    {name}
-                  </span>
-                ))}
-              </div>
-            );
-          }}
-        />
-        <Column
-          field="collected_weight_kg"
-          header="Bin Weight (kg)"
-          sortable
-          style={{ minWidth: 130 }}
-          body={(
-            row: DailyTripLogRecord & {
-              _computed_weight?: number;
-              _has_point_weights?: boolean;
+          })}
+        </div>
+
+        <DataTable
+          exportable={false}
+          filterPanel={combineFilters(companyProject, collectionTypeFilter, {
+            ...tripFilters,
+            field: tripFiltersField,
+          })}
+          documentActions={{
+            downloadExcel: {
+              onClick: () => void handleDownload("excel"),
+              busy: exporting === "excel",
+              disabled: exporting !== null || totalRecords === 0,
             },
-          ) => {
-            const weight = row._has_point_weights
-              ? row._computed_weight
-              : row.collected_weight_kg;
-            return weight != null ? (
-              <span className="font-semibold text-gray-800">
-                {Number(weight).toFixed(2)}
-              </span>
-            ) : (
-              "-"
-            );
+            downloadPdf: {
+              onClick: () => void handleDownload("pdf"),
+              busy: exporting === "pdf",
+              disabled: exporting !== null || totalRecords === 0,
+            },
           }}
-        />
-        <Column
-          field="household_collected_weight_kg"
-          header="HH Weight (kg)"
-          style={{ minWidth: 130 }}
-          body={(row: DailyTripLogRecord) =>
-            row.household_collected_weight_kg != null ? (
-              <span className="font-semibold text-gray-800">
-                {Number(row.household_collected_weight_kg).toFixed(2)}
-              </span>
-            ) : (
-              "-"
-            )
+          value={data}
+          dataKey="unique_id"
+          lazy
+          paginator
+          first={first}
+          rows={rowsPerPage}
+          totalRecords={totalRecords}
+          onPage={onPage}
+          sortField={sortField}
+          sortOrder={sortOrder}
+          onSort={onSort}
+          rowsPerPageOptions={[10, 25, 50]}
+          loading={isLoading}
+          header={
+            <FilterBar
+              searchValue={globalFilterValue}
+              onSearchChange={setGlobalFilterValue}
+              searchPlaceholder="Search trip logs..."
+              className="mb-4"
+            />
           }
-        />
-        <Column
-          header="Total Weight (kg)"
-          style={{ minWidth: 140 }}
-          body={(row: DailyTripLogRecord) => (
-            <span className="font-semibold text-gray-800">
-              {computeTotalWeight(row).toFixed(2)}
-            </span>
-          )}
-        />
-        <Column
-          field="actual_start_time"
-          header="Start Time"
-          style={{ minWidth: 110 }}
-          body={(row: DailyTripLogRecord) => (
-            <span className="text-sm text-gray-700">
-              {formatTimeOnly(row.actual_start_time)}
-            </span>
-          )}
-        />
-        <Column
-          field="actual_end_time"
-          header="End Time"
-          style={{ minWidth: 110 }}
-          body={(row: DailyTripLogRecord) => (
-            <span className="text-sm text-gray-700">
-              {formatTimeOnly(row.actual_end_time)}
-            </span>
-          )}
-        />
-        <Column
-          field="log_status"
-          header="Log Status"
-          body={(row: DailyTripLogRecord) => <Badge value={row.log_status} />}
-          sortable
-          style={{ minWidth: 110 }}
-        />
-        <Column
-          field="collection_status"
-          header="Collection Status"
-          body={(row: DailyTripLogRecord) => (
-            <CollectionStatusBadge value={row.collection_status} />
-          )}
-          style={{ minWidth: 145 }}
-        />
-        <Column
-          field="trip_date"
-          header="Trip Date"
-          sortable
-          style={{ minWidth: 110 }}
-        />
-        <Column
-          header={t("common.actions")}
-          body={actionTemplate}
-          style={{ minWidth: 260 }}
-        />
-      </DataTable>
+          stripedRows
+          showGridlines
+          emptyMessage="No trip logs found. Select a company and project to load data."
+          tableStyle={{ tableLayout: "fixed", width: "100%", maxWidth: "100%" }}
+          // The columns already fit the width (fixed layout, wrapping cells);
+          // only the gridline borders poke a few px past it, which was enough
+          // to show a horizontal scrollbar.
+          className="p-datatable-sm [&_.p-datatable-wrapper]:overflow-x-hidden!"
+        >
+          <Column
+            header={t("common.s_no")}
+            // In lazy mode rowIndex already counts from the page's first record.
+            body={(_: any, { rowIndex }: any) => rowIndex + 1}
+            style={{ width: "4%" }}
+          />
+          <Column
+            field="trip_date"
+            header="Trip"
+            sortable
+            style={{ width: "14%" }}
+            body={(row: EnrichedTripLog) => (
+              <div className="min-w-0">
+                <p className="break-all text-sm font-semibold text-gray-900">{row.unique_id}</p>
+                <p className="break-all text-xs text-gray-500">{row._assignment || "-"}</p>
+                <p className="mt-0.5 inline-flex items-center gap-1 text-xs text-gray-600">
+                  <i className="pi pi-calendar text-[10px] text-gray-400" />
+                  {row.trip_date ?? "-"}
+                </p>
+              </div>
+            )}
+          />
+          {locationColumn<EnrichedTripLog>({
+            header: "Location",
+            style: { width: "14%" },
+            levels: [
+              {
+                label: "Panchayat",
+                value: (row) => row.panchayat?.panchayat_name,
+              },
+              {
+                label: "Zone",
+                value: (row) =>
+                  row.zone?.zone_name ?? row.trip_assignment?.zone?.zone_name,
+              },
+              { label: "Ward", value: wardNameOf },
+            ],
+          })}
+          <Column
+            field="_driver"
+            header="Crew & Vehicle"
+            style={{ width: "16%" }}
+            body={(row: EnrichedTripLog) => (
+              <div className="min-w-0 space-y-0.5 text-xs">
+                <p className="truncate font-semibold text-gray-800">
+                  {row._base_template || "-"}
+                  {row._alt_template ? (
+                    <span className="ml-1 font-medium text-orange-600" title="Alternative (substitute) template">
+                      → {row._alt_template}
+                    </span>
+                  ) : null}
+                </p>
+                <p
+                  className="truncate text-gray-600"
+                  title={`Driver: ${row._driver || "-"} · Operator: ${row._operator || "-"}`}
+                >
+                  <i className="pi pi-user mr-1 text-[10px] text-gray-400" />
+                  {row._driver || "-"}
+                  <span className="text-gray-300"> · </span>
+                  {row._operator || "-"}
+                </p>
+                {row._vehicle ? (
+                  <p className="truncate font-mono text-[10px] font-semibold text-gray-500">{row._vehicle}</p>
+                ) : null}
+                {row.breakdown_info ? <BreakdownCell row={row} /> : null}
+              </div>
+            )}
+          />
+          <Column
+            field="_waste"
+            header="Waste Type"
+            style={{ width: "15%" }}
+            body={(row: EnrichedTripLog) => (
+              <WasteTypeChips
+                breakdown={Array.isArray(row.waste_type_breakdown) ? row.waste_type_breakdown : undefined}
+                names={row._waste && row._waste !== "-" ? row._waste.split(", ") : []}
+              />
+            )}
+          />
+          <Column
+            field="collected_weight_kg"
+            header="Weight"
+            sortable
+            style={{ width: "9%" }}
+            body={(row: EnrichedTripLog) => {
+              const bin = row._has_point_weights
+                ? row._computed_weight
+                : row.collected_weight_kg != null
+                  ? Number(row.collected_weight_kg)
+                  : null;
+              const hh =
+                row.household_collected_weight_kg != null
+                  ? Number(row.household_collected_weight_kg)
+                  : null;
+              if (bin == null && hh == null) return <span className="text-sm text-gray-400">—</span>;
+              return (
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold tabular-nums text-gray-900">{formatKg((bin ?? 0) + (hh ?? 0))}</p>
+                  <p className="text-[11px] tabular-nums text-gray-500">
+                    {bin != null ? `Bin ${Number(bin).toFixed(1)}` : null}
+                    {bin != null && hh != null ? " · " : null}
+                    {hh != null ? `HH ${hh.toFixed(1)}` : null}
+                  </p>
+                </div>
+              );
+            }}
+          />
+          <Column
+            field="actual_start_time"
+            header="Time"
+            style={{ width: "10%" }}
+            body={(row: EnrichedTripLog) =>
+              row.actual_start_time || row.actual_end_time ? (
+                <div className="text-xs tabular-nums text-gray-700">
+                  <p>
+                    <i className="pi pi-play mr-1 text-[9px] text-green-500" />
+                    {formatTimeOnly(row.actual_start_time)}
+                  </p>
+                  <p>
+                    <i className="pi pi-stop mr-1 text-[9px] text-red-400" />
+                    {formatTimeOnly(row.actual_end_time)}
+                  </p>
+                </div>
+              ) : (
+                <span className="text-xs text-gray-400">—</span>
+              )
+            }
+          />
+          <Column
+            field="log_status"
+            header="Status"
+            sortable
+            style={{ width: "10%" }}
+            body={(row: EnrichedTripLog) => (
+              <div className="flex flex-col items-start gap-1">
+                <Badge value={row.log_status} />
+                {row.collection_status ? <CollectionStatusBadge value={row.collection_status} /> : null}
+              </div>
+            )}
+          />
+          <Column
+            header={t("common.actions")}
+            body={actionTemplate}
+            style={{ width: "8%" }}
+          />
+        </DataTable>
+      </div>
 
       {modalState && (
         <TripLogModal

@@ -6,7 +6,7 @@ import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason"
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
+import { FilterBar } from "@/components/common/FilterBar";
 import type {
   DataTablePageEvent,
   DataTableSortEvent,
@@ -200,24 +200,22 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading}
         header={
-          <div className="flex justify-end">
-            <InputText
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search"
-              className="p-inputtext-sm"
-            />
-          </div>
+          <FilterBar
+            searchValue={query}
+            onSearchChange={setQuery}
+            searchPlaceholder="Search"
+          />
         }
         emptyMessage="No records found"
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
       >
         <Column
           header="S.No"
           body={(_, options) => options.rowIndex + 1}
-          style={{ width: "80px" }}
+          style={{ width: "5%" }}
         />
         {kind === "module" && (
           <Column
@@ -379,6 +377,7 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
         <Column
           header="Active"
           body={(row) => yesNo(row.is_active !== false)}
+          style={{ width: "8%" }}
         />
         <Column
           header="Actions"
@@ -390,7 +389,7 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
               />
             </div>
           )}
-          style={{ width: "100px" }}
+          style={{ width: "8%" }}
         />
       </DataTable>
     </div>

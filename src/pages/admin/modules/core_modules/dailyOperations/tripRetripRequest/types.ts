@@ -64,6 +64,9 @@ export type TripRetripRequestRecord = {
   collection_type: "bin" | "household" | "bulk" | null;
   vehicle_no: string | null;
   area_name: string | null;
+  panchayat_name?: string | null;
+  zone_name?: string | null;
+  ward_name?: string | null;
 
   reason_code: RetripReasonCode | null;
   reason_code_label: string | null;

@@ -60,6 +60,8 @@ const loadJsPdf = () => import("jspdf").then((m) => m.jsPDF);
 import { api } from "@/api";
 import { adminEndpoints } from "@/helpers/admin/endpoints";
 import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
+import { StackCell } from "@/components/common/TableCells";
 import { downloadRecordsPdf, drawQrCode } from "@/utils/exportPdf";
 import { formatCollectionTime, formatTimeOnly } from "@/utils/formatTime";
 import { downloadCustomerQrStickerPdf } from "@/pages/admin/modules/masters/customerMasters/customerCreations/customerQrStickerPdf";
@@ -145,8 +147,8 @@ const BreakdownCell = ({ row }: { row: DailyTripAssignmentRecord }) => {
 
 // Re-Trip is a separate workflow from a vehicle breakdown (closing a trip
 // early to carry leftover stops to a continuation trip, vs. swapping the
-// vehicle/crew on the same trip) — driven by unrelated events, so this is
-// its own cell/column, never merged with BreakdownCell above.
+// vehicle/crew on the same trip) — driven by unrelated events, so it gets
+// its own badge, never merged with BreakdownCell above.
 const RetripCell = ({
   retrip,
 }: {
@@ -192,6 +194,33 @@ const RetripCell = ({
           <span className="font-medium">Next:</span> {retrip.new_assignment_id}
         </div>
       )}
+    </div>
+  );
+};
+
+const DELAY_STATUS_STYLES: Record<string, string> = {
+  REPORTED: "bg-orange-100 text-orange-700",
+  ACKNOWLEDGED: "bg-blue-100 text-blue-700",
+  RESOLVED: "bg-green-100 text-green-700",
+};
+
+const DelayCell = ({ row }: { row: DailyTripAssignmentRecord }) => {
+  const delays = (row.trip_events ?? []).filter((e) => e.kind === "delay");
+  if (delays.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      {delays.map((delay, index) => (
+        <span
+          key={index}
+          title={delay.detail ?? undefined}
+          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+            DELAY_STATUS_STYLES[delay.status ?? ""] ?? "bg-gray-100 text-gray-700"
+          }`}
+        >
+          {delay.label.replace(/^Delay: /, "")}
+        </span>
+      ))}
     </div>
   );
 };
@@ -1796,6 +1825,7 @@ export default function DailyTripAssignmentList() {
         exportable={false}
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         emptyMessage="No trip assignments found. Select a company and project to load data."
         globalFilterFields={[
@@ -1844,167 +1874,164 @@ export default function DailyTripAssignmentList() {
         <Column
           header={t("common.s_no")}
           body={(_: any, { rowIndex }: any) => rowIndex + 1}
-          style={{ width: 60 }}
+          style={{ width: "4%" }}
         />
         <Column
-          field="unique_id"
-          header="ID"
-          filter
-          showFilterMatchModes={false}
-          style={{ minWidth: 160 }}
-        />
-        <Column
-          field="_trip_plan"
-          header="Trip Plan"
-          body={(row: DailyTripAssignmentRecord) =>
-            row.trip_plan?.display_code ?? row.trip_plan_id ?? "—"
-          }
-          filter
-          showFilterMatchModes={false}
+          field="trip_date"
+          header="Trip"
+          sortable={SORTABLE_FIELDS.has("trip_date")}
+          style={{ width: "17%" }}
+          body={(row: DailyTripAssignmentRecord) => (
+            <StackCell
+              primary={row.unique_id}
+              lines={[
+                {
+                  label: "Trip Plan",
+                  value: row.trip_plan?.display_code ?? row.trip_plan_id,
+                },
+                { icon: "pi-calendar", value: row.trip_date },
+                row.breakdown_info && {
+                  label: "Breakdown",
+                  value: <BreakdownCell row={row} />,
+                },
+                row.retrip_info && {
+                  label: "Re-Trip",
+                  value: <RetripCell retrip={row.retrip_info} />,
+                },
+                row.trip_events?.some((e) => e.kind === "delay") && {
+                  label: "Delay",
+                  value: <DelayCell row={row} />,
+                },
+              ]}
+            />
+          )}
         />
         <Column
           field="_staff"
-          header="Effective Staff"
-          body={(row: DailyTripAssignmentRecord) =>
-            row.effective_staff?.display_code ? (
-              <span className="font-medium text-amber-700">
-                {row.effective_staff.display_code}
-              </span>
-            ) : (
-              (row.staff_template?.display_code ?? row.staff_template_id ?? "—")
-            )
-          }
-          filter
-          showFilterMatchModes={false}
-        />
-        <Column
-          field="_zone"
-          header="Zone"
-          body={(row: any) => row._zone || "—"}
-          filter
-          showFilterMatchModes={false}
-        />
-        <Column
-          field="_ward"
-          header="Ward"
-          body={(row: any) => row._ward || "—"}
-          filter
-          showFilterMatchModes={false}
-        />
-        <Column
-          field="_location"
-          header="Location"
-          filter
-          showFilterMatchModes={false}
-          style={{ minWidth: 170 }}
-          body={(row: DailyTripAssignmentRecord) => {
-            if (row.panchayat?.panchayat_name) {
-              return (
-                <span className="text-sm text-gray-800">
-                  {row.panchayat.panchayat_name}
-                  <span className="ml-1 text-xs text-indigo-500 font-medium">
-                    (PLB)
+          header="Crew"
+          style={{ width: "15%" }}
+          body={(row: DailyTripAssignmentRecord) => (
+            <StackCell
+              primary={
+                row.effective_staff?.display_code ? (
+                  <span className="font-medium text-amber-700">
+                    {row.effective_staff.display_code}
                   </span>
-                </span>
-              );
-            }
-            if ((row.ward as any)?.ward_name) {
-              return (
-                <span className="text-sm text-gray-800">
-                  {(row.ward as any).ward_name}
-                  <span className="ml-1 text-xs text-teal-500 font-medium">
-                    (Ward)
-                  </span>
-                </span>
-              );
-            }
-            return <span className="text-sm text-gray-400">—</span>;
-          }}
+                ) : (
+                  (row.staff_template?.display_code ?? row.staff_template_id)
+                )
+              }
+              lines={[
+                {
+                  icon: "pi-user",
+                  title: "Driver",
+                  value: row.effective_staff?.driver,
+                },
+                {
+                  icon: "pi-users",
+                  title: "Operator",
+                  value: row.effective_staff?.operator,
+                },
+                row.vehicle?.vehicle_no && {
+                  icon: "pi-truck",
+                  title: row.vehicle_under_breakdown
+                    ? "Vehicle under breakdown"
+                    : "Vehicle",
+                  value: (
+                    <span
+                      className={`font-mono font-semibold ${
+                        row.vehicle_under_breakdown ? "text-red-600" : "text-gray-700"
+                      }`}
+                    >
+                      {row.vehicle.vehicle_no}
+                    </span>
+                  ),
+                },
+              ]}
+            />
+          )}
         />
+        {locationColumn<DailyTripAssignmentRecord>({
+          header: "Location",
+          style: { width: "15%" },
+          levels: [
+            {
+              label: "Panchayat",
+              value: (row) =>
+                row.panchayat?.panchayat_name ??
+                row.trip_plan?.panchayat?.panchayat_name,
+            },
+            { label: "Zone", value: zoneText },
+            { label: "Ward", value: wardText },
+          ],
+        })}
 
         <Column
           field="_collection_type_label"
           header="Collection Type"
+          filter
+          showFilterMatchModes={false}
+          style={{ width: "15%" }}
           body={(row: DailyTripAssignmentRecord) => (
-            <CollectionTypeBadge rec={row} />
+            <StackCell
+              primary={<CollectionTypeBadge rec={row} />}
+              lines={[
+                {
+                  label: "Collection Points",
+                  value: String(
+                    (Array.isArray(row.collection_points)
+                      ? row.collection_points.length
+                      : 0) +
+                      (Array.isArray(row.household_collection_points)
+                        ? row.household_collection_points.length
+                        : 0),
+                  ),
+                },
+              ]}
+            />
           )}
-          filter
-          showFilterMatchModes={false}
-          style={{ minWidth: 150 }}
-        />
-        <Column
-          field="_collection_point_count"
-          header="Collection Points"
-          body={(row: DailyTripAssignmentRecord) =>
-            (Array.isArray(row.collection_points)
-              ? row.collection_points.length
-              : 0) +
-            (Array.isArray(row.household_collection_points)
-              ? row.household_collection_points.length
-              : 0)
-          }
-          filter
-          showFilterMatchModes={false}
-          style={{ width: 150 }}
-        />
-        <Column
-          field="trip_date"
-          header="Trip Date"
-          filter
-          showFilterMatchModes={false}
-          sortable={SORTABLE_FIELDS.has("trip_date")}
-          style={{ minWidth: 110 }}
         />
         <Column
           field="scheduled_time"
-          header="Start Time"
-          filter
-          showFilterMatchModes={false}
+          header="Time"
           sortable={SORTABLE_FIELDS.has("scheduled_time")}
-          style={{ minWidth: 110 }}
+          style={{ width: "10%" }}
+          body={(row: DailyTripAssignmentRecord) => (
+            <StackCell
+              primary={row.scheduled_time}
+              lines={[
+                {
+                  icon: "pi-play",
+                  title: "Actual Start",
+                  value: formatTimeOnly(row.actual_start_time),
+                },
+                {
+                  icon: "pi-stop",
+                  title: "Actual End",
+                  value: formatTimeOnly(row.actual_end_time),
+                },
+              ]}
+            />
+          )}
         />
         <Column
           field="status"
           header="Status"
-          body={statusTemplate}
+          body={(row: DailyTripAssignmentRecord) => (
+            <div className="flex flex-col gap-1">
+              {statusTemplate(row)}
+            </div>
+          )}
           filter
           showFilterMatchModes={false}
           sortable={SORTABLE_FIELDS.has("status")}
-          style={{ minWidth: 160 }}
-        />
-        <Column
-          field="actual_start_time"
-          header="Actual Start"
-          body={(row: DailyTripAssignmentRecord) =>
-            formatTimeOnly(row.actual_start_time)
-          }
-          style={{ minWidth: 110 }}
-        />
-        <Column
-          field="actual_end_time"
-          header="Actual End"
-          body={(row: DailyTripAssignmentRecord) =>
-            formatTimeOnly(row.actual_end_time)
-          }
-          style={{ minWidth: 110 }}
-        />
-        <Column
-          header="Breakdown"
-          body={(row: DailyTripAssignmentRecord) => <BreakdownCell row={row} />}
-          style={{ minWidth: 180 }}
-        />
-        <Column
-          header="Re-Trip"
-          body={(row: DailyTripAssignmentRecord) => (
-            <RetripCell retrip={row.retrip_info} />
-          )}
-          style={{ minWidth: 150 }}
+          style={{ width: "17%" }}
         />
         <Column
           header={t("common.actions")}
           body={actionTemplate}
           exportable={false}
-          style={{ width: 170 }}
+          style={{ width: "7%" }}
         />
       </DataTable>
 

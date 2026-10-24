@@ -16,6 +16,8 @@ import { panchayatLeaderApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
+import { StackCell } from "@/components/common/TableCells";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
 import { combineFilters } from "@/components/filters/useOptionFilter";
@@ -270,54 +272,53 @@ export default function PanchayatLeaderListPage() {
         loading={isLoading && data.length === 0}
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage={t("common.no_items_found", { item: t("admin.nav.panchayat_leader") })}
         className="p-datatable-sm"
       >
-        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
-
-        <Column
-          field="username"
-          header="Username"
-          sortable
-          body={(r: PanchayatLeader) => cap(r.username)}
-        />
+        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "5%" }} />
 
         <Column
           field="leader_name"
           header="Leader Name"
           sortable
-          body={(r: PanchayatLeader) => cap(r.leader_name) || "-"}
+          style={{ width: "32%" }}
+          body={(r: PanchayatLeader) => (
+            <StackCell
+              primary={cap(r.leader_name)}
+              lines={[
+                { icon: "pi-user", title: "Username", value: cap(r.username) },
+                { icon: "pi-envelope", title: "Email", value: r.email },
+              ]}
+            />
+          )}
         />
 
-        <Column
-          field="panchayat_name"
-          header={t("admin.nav.panchayat")}
-          sortable
-          body={(r: PanchayatLeader) => cap(r.panchayat_name) || "-"}
-        />
-
-        <Column
-          field="email"
-          header="Email"
-          body={(r: PanchayatLeader) => r.email || "-"}
-        />
+        {locationColumn<PanchayatLeader>({
+          header: t("common.location"),
+          style: { width: "20%" },
+          levels: [
+            { label: t("common.panchayat"), value: (r) => cap(r.panchayat_name) },
+          ],
+        })}
 
         <Column
           field="company_name"
           header="Company"
+          style={{ width: "28%" }}
           body={(r: PanchayatLeader) => r.company_name || "-"}
         />
 
         <Column
           header={t("common.status")}
           body={statusTemplate}
-          style={{ width: "140px" }}
+          style={{ width: "8%" }}
         />
 
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ width: "150px", textAlign: "center" }}
+          style={{ width: "7%", textAlign: "center" }}
         />
       </DataTable>
       </div>

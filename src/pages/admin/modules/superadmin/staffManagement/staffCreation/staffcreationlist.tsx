@@ -13,6 +13,7 @@ import Swal from "@/lib/notify";
 import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import { StackCell } from "@/components/common/TableCells";
 import type {
   DataTablePageEvent,
   DataTableSortEvent,
@@ -555,58 +556,73 @@ export default function StaffCreationList() {
           stripedRows
           showGridlines
           className="p-datatable-sm"
+          fitWidth
         >
           <Column
             header={t("common.s_no")}
             body={indexTemplate}
-            style={{ width: 70 }}
+            style={{ width: "5%" }}
           />
 
           <Column
             field="unique_id"
             header="Unique ID"
             sortable
-            body={(row: Staff) => row.unique_id || row.staff_unique_id || "-"}
+            style={{ width: "16%" }}
+            body={(row: Staff) => (
+              <StackCell
+                primary={row.unique_id || row.staff_unique_id || "-"}
+                lines={[{ label: "Staff ID", value: row.staff_id }]}
+              />
+            )}
           />
 
-          <Column
-            field="staff_id"
-            header="Staff ID"
-            sortable
-            body={(row: Staff) => row.staff_id || "-"}
-          />
-
-          {showCol("employee_name") && (
+          {(showCol("employee_name") ||
+            showCol("designation") ||
+            showCol("contact_mobile")) && (
             <Column
               field="employee_name"
               header={t("admin.staff_creation.employee_name")}
-              sortable={SORTABLE_FIELDS.has("employee_name")}
-              body={(row: Staff) => cap(row.employee_name)}
+              sortable={
+                showCol("employee_name") && SORTABLE_FIELDS.has("employee_name")
+              }
+              style={{ width: "28%" }}
+              body={(row: Staff) => (
+                <StackCell
+                  primary={showCol("employee_name") && cap(row.employee_name)}
+                  lines={[
+                    showCol("designation") && {
+                      icon: "pi-briefcase",
+                      value: row.designation,
+                      title: t("admin.staff_creation.designation"),
+                    },
+                    showCol("contact_mobile") && {
+                      icon: "pi-phone",
+                      value: row.contact_mobile,
+                      title: t("admin.staff_creation.contact"),
+                    },
+                  ]}
+                />
+              )}
             />
           )}
 
-          {showCol("designation") && (
-            <Column
-              field="designation"
-              header={t("admin.staff_creation.designation")}
-            />
-          )}
-
-          {showCol("doj") && (
-            <Column field="doj" header={t("admin.staff_creation.doj")} />
-          )}
-
-          {showCol("site_name") && (
+          {(showCol("site_name") || showCol("doj")) && (
             <Column
               field="site_name"
               header={t("admin.staff_creation.site_name")}
-            />
-          )}
-
-          {showCol("contact_mobile") && (
-            <Column
-              header={t("admin.staff_creation.contact")}
-              body={(row: Staff) => row.contact_mobile || "-"}
+              style={{ width: "24%" }}
+              body={(row: Staff) => (
+                <StackCell
+                  primary={showCol("site_name") && row.site_name}
+                  lines={[
+                    showCol("doj") && {
+                      label: t("admin.staff_creation.doj"),
+                      value: row.doj,
+                    },
+                  ]}
+                />
+              )}
             />
           )}
 
@@ -614,7 +630,7 @@ export default function StaffCreationList() {
             <Column
               header={t("common.status")}
               body={statusTemplate}
-              style={{ width: 120 }}
+              style={{ width: "9%" }}
             />
           )}
 
@@ -622,14 +638,14 @@ export default function StaffCreationList() {
             <Column
               header={t("admin.staff_creation.qr_label")}
               body={qrTemplate}
-              style={{ width: 120 }}
+              style={{ width: "10%" }}
             />
           )}
 
           <Column
             header={t("common.actions")}
             body={actionTemplate}
-            style={{ width: 140 }}
+            style={{ width: "8%" }}
           />
         </DataTable>
       </div>

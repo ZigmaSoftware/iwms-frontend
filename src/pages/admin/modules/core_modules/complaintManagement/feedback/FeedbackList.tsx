@@ -141,35 +141,49 @@ export default function FeedbackList() {
         filterPanel={combineFilters(companyProject)}
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage="No feedback found"
         className="p-datatable-sm"
       >
         <Column
           header="S.No"
           body={(_, options) => options.rowIndex + 1}
-          style={{ width: "80px" }}
+          style={{ width: "5%" }}
         />
         <Column
           field="ticket_no"
           header="Ticket"
           body={(row) => row.ticket_no || row.ticket || "-"}
+          style={{ width: "14%" }}
         />
         <Column
           field="customer_name"
           header="Customer"
           body={(row) => row.customer_name || row.customer || "-"}
+          style={{ width: "16%" }}
         />
-        <Column field="rating" header="Rating" sortable />
+        <Column
+          field="rating"
+          header="Rating"
+          sortable
+          style={{ width: "8%" }}
+        />
         <Column
           header="Issue Solved"
           body={(row) => yesNo(row.is_issue_solved)}
+          style={{ width: "10%" }}
         />
-        <Column field="feedback_text" header="Feedback" />
+        <Column
+          field="feedback_text"
+          header="Feedback"
+          style={{ width: "31%" }}
+        />
         <Column
           field="submitted_at"
           header="Submitted"
           sortable={SORTABLE_FIELDS.has("submitted_at")}
           body={(row) => formatDateTime(row.submitted_at)}
+          style={{ width: "16%" }}
         />
       </DataTable>
     </div>

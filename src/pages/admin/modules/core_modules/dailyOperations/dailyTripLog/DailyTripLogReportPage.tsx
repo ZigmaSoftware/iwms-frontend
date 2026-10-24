@@ -473,29 +473,32 @@ export default function DailyTripLogReportPage() {
             value={hhCollections}
             dataKey="unique_id"
             className="p-datatable-sm"
+            fitWidth
             localData
             exportable={false}
             paginator
             rows={10}
             rowsPerPageOptions={[10, 25, 50]}
           >
-            <Column field="sequence" header="#" style={{ width: 50 }} />
+            <Column field="sequence" header="#" style={{ width: "5%" }} />
             <Column
               header="Customer"
+              style={{ width: "25%" }}
               body={(hh: any) => hh.customer_name ?? hh.customer_unique_id ?? "-"}
             />
             <Column
               header="Waste Type Breakdown"
+              style={{ width: "35%" }}
               body={(hh: any) => <WasteChips items={hh.waste_type_breakdown} />}
             />
             <Column
               header="Collection Time"
-              style={{ width: 140 }}
+              style={{ width: "13%" }}
               body={(hh: any) => formatCollectionTime(hh.collected_at)}
             />
             <Column
               header="Image"
-              style={{ width: 140 }}
+              style={{ width: "11%" }}
               body={(hh: any) => (
                 <CollectionImageLinks
                   images={householdImages.get(hh.unique_id) ?? hh.capture_images}
@@ -504,7 +507,7 @@ export default function DailyTripLogReportPage() {
             />
             <Column
               header="Status"
-              style={{ width: 130 }}
+              style={{ width: "11%" }}
               body={(hh: any) => <StopStatusBadge value={hh.status} />}
             />
           </DataTable>
@@ -523,6 +526,7 @@ export default function DailyTripLogReportPage() {
             value={cps}
             dataKey="unique_id"
             className="p-datatable-sm"
+            fitWidth
             localData
             exportable={false}
             emptyMessage="No collection points."
@@ -530,15 +534,20 @@ export default function DailyTripLogReportPage() {
             rows={10}
             rowsPerPageOptions={[10, 25, 50]}
           >
-            <Column field="sequence" header="#" style={{ width: 50 }} />
-            <Column field="cp_name" header="Collection Point" />
+            <Column field="sequence" header="#" style={{ width: "5%" }} />
+            <Column
+              field="cp_name"
+              header="Collection Point"
+              style={{ width: "32%" }}
+            />
             <Column
               header="Waste Type Breakdown"
+              style={{ width: "38%" }}
               body={(cp: any) => <WasteChips items={cp.waste_type_breakdown} />}
             />
             <Column
               header="Image"
-              style={{ width: 140 }}
+              style={{ width: "12%" }}
               body={(cp: any) => (
                 <CollectionImageLinks
                   images={collectionPointImages.get(cp.unique_id) ?? cp.capture_images}
@@ -547,7 +556,7 @@ export default function DailyTripLogReportPage() {
             />
             <Column
               header="Status"
-              style={{ width: 130 }}
+              style={{ width: "13%" }}
               body={(cp: any) => <StopStatusBadge value={cp.status} />}
             />
           </DataTable>

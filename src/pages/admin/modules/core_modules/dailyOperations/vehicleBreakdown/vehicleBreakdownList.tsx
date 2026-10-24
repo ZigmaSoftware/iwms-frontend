@@ -31,6 +31,8 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { api } from "@/api";
 import { vehicleBreakdownApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
+import { StackCell } from "@/components/common/TableCells";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
@@ -1304,124 +1306,101 @@ export default function VehicleBreakdownList() {
         filterPanel={combineFilters(companyProject)}
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         emptyMessage="No breakdown records found."
       >
         <Column
           header={t("common.s_no")}
           body={(_: any, { rowIndex }: any) => rowIndex + 1}
-          style={{ width: 60 }}
+          style={{ width: "4%" }}
         />
         <Column
           field="unique_id"
-          header="Breakdown ID"
-          style={{ minWidth: 150 }}
+          header="Breakdown"
+          style={{ width: "19%" }}
+          body={(r: any) => (
+            <StackCell
+              primary={r.unique_id}
+              lines={[
+                { label: "Trip", value: r.trip_assignment_id },
+                { icon: "pi-calendar", value: r._trip_date },
+                r.new_assignment_id
+                  ? {
+                      label: "New Trip",
+                      value: (
+                        <span className="font-mono text-green-700">
+                          {r.new_assignment_id}
+                        </span>
+                      ),
+                    }
+                  : null,
+              ]}
+            />
+          )}
         />
-        <Column
-          field="trip_assignment_id"
-          header="Trip ID"
-          style={{ minWidth: 150 }}
-        />
-        <Column
-          field="_trip_date"
-          header="Trip Date"
-          style={{ minWidth: 110 }}
-          body={(r: any) => r._trip_date || "-"}
-        />
-        <Column
-          field="_panchayat"
-          header="Panchayat"
-          style={{ minWidth: 140 }}
-          body={(r: any) => r._panchayat || "-"}
-        />
+        {locationColumn<(typeof rows)[number]>({
+          header: "Location",
+          style: { width: "14%" },
+          levels: [{ label: "Panchayat", value: (r) => r._panchayat }],
+        })}
         <Column
           field="_breakdown_vehicle"
-          header="Broken Vehicle"
-          style={{ minWidth: 140 }}
+          header="Vehicle & Crew"
+          style={{ width: "21%" }}
           body={(r: any) => (
-            <span className="font-semibold text-red-700">
-              {r._breakdown_vehicle}
-            </span>
+            <StackCell
+              primary={
+                <span className="text-red-700" title="Broken Vehicle">
+                  {r._breakdown_vehicle}
+                </span>
+              }
+              lines={[
+                {
+                  label: "Replacement",
+                  value: r._replacement_vehicle && (
+                    <span className="font-semibold text-green-700">
+                      {r._replacement_vehicle}
+                    </span>
+                  ),
+                },
+                { label: "Repl. Driver", value: r._repl_driver },
+                { label: "Repl. Operator", value: r._repl_operator },
+              ]}
+            />
           )}
-        />
-        <Column
-          field="_replacement_vehicle"
-          header="Replacement Vehicle"
-          style={{ minWidth: 160 }}
-          body={(r: any) => (
-            <span className="font-semibold text-green-700">
-              {r._replacement_vehicle}
-            </span>
-          )}
-        />
-        <Column
-          field="_repl_driver"
-          header="Repl. Driver"
-          style={{ minWidth: 130 }}
-          body={(r: any) => r._repl_driver || "-"}
-        />
-        <Column
-          field="_repl_operator"
-          header="Repl. Operator"
-          style={{ minWidth: 130 }}
-          body={(r: any) => r._repl_operator || "-"}
         />
         <Column
           field="_breakdown_reason"
           header="Reason"
-          style={{ minWidth: 140 }}
+          style={{ width: "18%" }}
           body={(r: any) => r._breakdown_reason}
         />
         <Column
           field="status"
           header="Status"
           sortable
-          style={{ minWidth: 170 }}
-          body={(r: VehicleBreakdownRecord) => <StatusBadge value={r.status} />}
-        />
-        <Column
-          field="approval_status"
-          header="Approval"
-          sortable
-          style={{ minWidth: 110 }}
+          style={{ width: "17%" }}
           body={(r: VehicleBreakdownRecord) => (
-            <ApprovalBadge value={r.approval_status} />
+            <div className="flex flex-col items-start gap-1">
+              <StatusBadge value={r.status} />
+              <ApprovalBadge value={r.approval_status} />
+              {r.status === "REJECTED" ? null : r.repaired_at ? (
+                <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                  Repaired
+                </span>
+              ) : (
+                <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
+                  Under Breakdown
+                </span>
+              )}
+            </div>
           )}
-        />
-        <Column
-          header="Vehicle"
-          style={{ minWidth: 120 }}
-          body={(r: VehicleBreakdownRecord) =>
-            r.status === "REJECTED" ? (
-              <span className="text-xs text-gray-300">—</span>
-            ) : r.repaired_at ? (
-              <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
-                Repaired
-              </span>
-            ) : (
-              <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
-                Under Breakdown
-              </span>
-            )
-          }
-        />
-        <Column
-          header="New Trip"
-          style={{ minWidth: 130 }}
-          body={(r: VehicleBreakdownRecord) =>
-            r.new_assignment_id ? (
-              <span className="font-mono text-xs text-green-700">
-                {r.new_assignment_id}
-              </span>
-            ) : (
-              <span className="text-xs text-gray-300">—</span>
-            )
-          }
         />
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ minWidth: 220 }}
+          style={{ width: "7%" }}
         />
       </DataTable>
 

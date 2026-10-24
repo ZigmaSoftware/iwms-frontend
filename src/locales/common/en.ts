@@ -31,6 +31,8 @@ export default {
     "city": "City",
     "district": "District",
     "state": "State",
+    "location": "Location",
+    "panchayat": "Panchayat",
     "country": "Country",
     "address": "Address",
     "owner": "Owner",
