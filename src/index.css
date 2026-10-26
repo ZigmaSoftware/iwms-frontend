@@ -363,6 +363,16 @@ html[lang="ta"] {
 }
 
 @layer utilities {
+  /* Still scrollable (wheel, touch, keyboard), just no visible bar. */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
   .bg-green-custom {
     background-color: var(--green-custom);
   }

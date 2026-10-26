@@ -29,6 +29,7 @@ import { dashboardSummaryApi, wasteTypeApi, complaintApi } from "@/helpers/admin
 import type { Grievance } from "@/features/grievances/types";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useInvisiblePageScroll } from "@/hooks/useInvisiblePageScroll";
 import Select from "@/components/form/Select";
 import { HoverCard, HoverCardContent, HoverCardPortal, HoverCardTrigger } from "@/components/ui/hover-card";
 import {
@@ -1261,6 +1262,7 @@ function CompactTable({
 export function HomeDashboard() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  useInvisiblePageScroll();
   const [dashboard, setDashboard] = useState<DashboardSummary>(emptyDashboard);
   const [loading, setLoading] = useState(true);
   const {
