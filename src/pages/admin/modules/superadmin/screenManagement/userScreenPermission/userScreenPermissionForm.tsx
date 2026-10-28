@@ -36,6 +36,7 @@ import PermissionSection, { type PermissionSectionData } from "./PermissionSecti
 import { userScreenPermissionSchema } from "@/schemas/superadmin/screenManagement/userScreenPermission.schema";
 import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
 import { FieldError } from "@/components/form/FieldError";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 const { encAdmins, encUserScreenPermission } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(
@@ -518,13 +519,7 @@ export default function UserScreenPermissionForm() {
   };
 
   if (loadingData) {
-    return (
-      <ComponentCard title={t("common.loading")}>
-        <div className="flex justify-center items-center py-12 text-gray-500">
-          {t("admin.user_screen_permission.loading_message")}
-        </div>
-      </ComponentCard>
-    );
+    return <PageLoader />;
   }
 
   return (

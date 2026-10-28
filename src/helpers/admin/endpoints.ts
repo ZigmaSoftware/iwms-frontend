@@ -184,6 +184,7 @@ export const adminEndpoints = {
   permissionAudits: "audits/permission-audit",
   staticRouteAudits: "audits/static-route-audit",
   complaintAudits: "audits/complaint-audit",
+  dbChangeAudits: "audits/db-change-audit",
   auditDashboard: "audits/audit-dashboard",
 } as const;
 

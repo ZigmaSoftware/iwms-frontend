@@ -31,12 +31,10 @@ import {
   type DashboardLayoutProps,
   type UserRole,
 } from "@/types/roles";
-import {
-  ACCESS_TOKEN_STORAGE_KEY,
-  clearAuthSession,
-} from "@/utils/authStorage";
+import { clearAuthSession } from "@/utils/authStorage";
 import { endLoginSession } from "@/utils/loginSession";
 import { hasAnyPermission } from "@/utils/permissions";
+import { sessionStore } from "@/utils/sessionStore";
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const navigate = useNavigate();
@@ -48,7 +46,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { setUser } = useUser();
   const [role] = useState<UserRole | null>(() => {
     if (typeof window === "undefined") return null;
-    return normalizeRole(localStorage.getItem(USER_ROLE_STORAGE_KEY));
+    return normalizeRole(sessionStore.getItem(USER_ROLE_STORAGE_KEY));
   });
   const [isNavigating, setIsNavigating] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -67,7 +65,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const handleSignOut = async () => {
     try {
-      await endLoginSession(ACCESS_TOKEN_STORAGE_KEY, "manual");
+      await endLoginSession("admin", "manual");
       clearAuthSession();
       setUser(null);
 

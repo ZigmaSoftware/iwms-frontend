@@ -52,6 +52,7 @@ import {
 } from "@/types/roles";
 import { adminLandingPath, hasAnyPermission } from "@/utils/permissions";
 import { useDashboardMenuItems } from "@/layouts/dashboard/dashboardMenu";
+import { sessionStore } from "@/utils/sessionStore";
 
 const ADMIN_ACCESS_ROLES: UserRole[] = [DEFAULT_ROLE, ...ADMIN_ROLES];
 
@@ -82,7 +83,7 @@ function HomeRedirect() {
     return null;
   }
 
-  const storedRole = normalizeRole(localStorage.getItem(USER_ROLE_STORAGE_KEY));
+  const storedRole = normalizeRole(sessionStore.getItem(USER_ROLE_STORAGE_KEY));
   const preference = getAdminViewPreference();
 
   if (isAdmin(storedRole, hasAnyPermission("view"))) {
@@ -113,7 +114,7 @@ function DashboardRouteGuard({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     try {
-      const storedRole = normalizeRole(localStorage.getItem(USER_ROLE_STORAGE_KEY));
+      const storedRole = normalizeRole(sessionStore.getItem(USER_ROLE_STORAGE_KEY));
       setRole(storedRole);
       setAdminViewPreferenceState(getAdminViewPreference());
     } finally {

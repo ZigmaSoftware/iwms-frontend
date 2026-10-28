@@ -458,6 +458,7 @@ export default {
     user_access_audit: "பயனர் அணுகல் ஆய்வு",
     static_route_audit: "நிலையான வழி ஆய்வு",
     complaint_audit: "புகார் ஆய்வு",
+    db_change_audit: "தரவுத்தள மாற்ற ஆய்வு",
     vehicle_trip_audit: "வாகன பயண ஆய்வு",
     trip_exception_log: "பயண விதிவிலக்கு பதிவு",
     zone_property_load_tracker: "மண்டல சொத்து சுமை கண்காணிப்பு",

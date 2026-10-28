@@ -19,6 +19,7 @@ import { AutoDetectLocationButton } from "@/components/common/AutoDetectLocation
 import { vehicleBreakdownSchema } from "@/schemas/core_modules/dailyOperations/vehicleBreakdown.schema";
 import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
 import { FieldError } from "@/components/form/FieldError";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 type SelectOption = { value: string; label: string };
 
@@ -588,12 +589,7 @@ export default function VehicleBreakdownForm() {
      RENDER
   ════════════════════════════════════════════════════════════ */
   if (loadingRecord) {
-    return (
-      <div className="flex items-center justify-center py-24 text-gray-400 gap-3">
-        <span className="animate-spin h-5 w-5 border-2 border-gray-200 border-t-orange-500 rounded-full" />
-        Loading…
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
@@ -33,6 +33,7 @@ import {
 import ZigmaLogo from "@/images/logo.png";
 import { getStoredProfile } from "@/utils/authStorage";
 import { api } from "@/api";
+import { sessionStore } from "@/utils/sessionStore";
 
 /** Resolve company logo URL from stored profile, prepending the backend origin.
  *
@@ -84,7 +85,7 @@ function useHeaderIdentity(): {
       : null;
   const rawRole =
     (typeof profile?.role === "string" && profile.role.trim()) ||
-    localStorage.getItem(USER_ROLE_STORAGE_KEY) ||
+    sessionStore.getItem(USER_ROLE_STORAGE_KEY) ||
     "";
   return { companyName, roleLabel: rawRole ? formatRole(rawRole) : "Admin" };
 }
@@ -103,6 +104,26 @@ const AppHeader: React.FC = () => {
   const { t } = useTranslation();
   // Dashboard View only for users granted at least one User Dashboard tab.
   const { items: dashboardTabs } = useDashboardMenuItems();
+
+  // Close the small-screen actions panel on an outside click or Escape.
+  const actionsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!isApplicationMenuOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!actionsRef.current?.contains(event.target as Node)) {
+        setApplicationMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setApplicationMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isApplicationMenuOpen]);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10);
@@ -172,9 +193,9 @@ const AppHeader: React.FC = () => {
           />
         </div>
 
-        <div className="flex w-full items-center justify-between gap-4">
+        <div className="flex w-full min-w-0 items-center justify-between gap-2 sm:gap-4">
           {/* ── Left Group ──────────────────────────────────────────────── */}
-          <div className="flex items-center gap-1">
+          <div className="flex min-w-0 items-center gap-1">
             {/* Sidebar Toggle */}
             <motion.button
               whileTap={{ scale: 0.92 }}
@@ -209,11 +230,11 @@ const AppHeader: React.FC = () => {
             {/* Brand */}
             <Link
               to="/admin"
-              className="ml-2 flex select-none items-center gap-3"
+              className="ml-1 flex min-w-0 select-none items-center gap-2.5 sm:ml-2 sm:gap-3"
             >
               <span
                 className={cn(
-                  "flex h-9 w-9 items-center justify-center rounded-xl bg-[#fff] ring-1",
+                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#fff] ring-1",
                   isDark
                     ? "ring-white/15"
                     : "shadow-[0_4px_12px_-4px_rgba(13,148,136,0.4)] ring-white",
@@ -224,7 +245,7 @@ const AppHeader: React.FC = () => {
               {/* Company name for company users; product name otherwise. */}
               <span
                 className={cn(
-                  "hidden max-w-[260px] truncate text-base font-semibold tracking-tight lg:block",
+                  "hidden truncate text-sm font-semibold tracking-tight sm:block sm:max-w-[160px] lg:max-w-[260px] lg:text-base",
                   isDark ? "text-white" : "text-gray-900",
                 )}
                 title={companyName ?? undefined}
@@ -234,109 +255,124 @@ const AppHeader: React.FC = () => {
             </Link>
           </div>
 
-          {/* ── Mobile quick actions toggle ──────────────────────────────── */}
-          <div className="flex items-center gap-2 lg:hidden">
-            <motion.button
-              whileTap={{ scale: 0.92 }}
-              onClick={() => setApplicationMenuOpen((p) => !p)}
-              aria-label="More actions"
-              className={iconButton}
-            >
-              <motion.div
-                animate={{ rotate: isApplicationMenuOpen ? 90 : 0 }}
-                transition={{ duration: 0.25 }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M6 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm12 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z"
-                    fill="currentColor"
-                  />
-                </svg>
-              </motion.div>
-            </motion.button>
-          </div>
-
-          {/* ── Right Group ─────────────────────────────────────────────── */}
+          {/* ── Small-screen quick actions toggle ────────────────────────── */}
           <div
-            className={cn(
-              "items-center gap-2",
-              isApplicationMenuOpen
-                ? cn(
-                    "absolute right-0 top-[calc(100%+0.5rem)] flex flex-wrap justify-end rounded-2xl border p-2 backdrop-blur-2xl lg:static lg:flex-nowrap lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none lg:backdrop-blur-none",
-                    isDark ? glassClasses.dark : glassClasses.light,
-                  )
-                : "hidden lg:flex",
-            )}
+            ref={actionsRef}
+            className="flex shrink-0 items-center md:contents"
           >
-            {/* Control dock: one capsule for view, role, language, theme */}
-            <div
-              className={cn(
-                "flex items-center gap-1 rounded-xl border p-1",
-                isDark ? glassCapsuleClasses.dark : glassCapsuleClasses.light,
-              )}
-            >
-              {dashboardTabs.length > 0 && (
-                <motion.button
-                  whileTap={{ scale: 0.96 }}
-                  onClick={handleDashboardView}
-                  title={t("common.dashboard_view")}
-                  className={cn(
-                    dockItem,
-                    isDark
-                      ? "text-gray-300 hover:bg-green-400/10 hover:text-green-300"
-                      : "text-green-700 hover:bg-green-600 hover:text-white",
-                  )}
-                >
-                  <LayoutDashboard className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">
-                    {t("common.dashboard_view")}
-                  </span>
-                </motion.button>
-              )}
-
-              {/* Role badge */}
-              <span
+            <div className="flex items-center gap-2 md:hidden">
+              <motion.button
+                whileTap={{ scale: 0.92 }}
+                onClick={() => setApplicationMenuOpen((p) => !p)}
+                aria-label="More actions"
+                aria-expanded={isApplicationMenuOpen}
                 className={cn(
-                  dockItem,
-                  "hidden cursor-default xl:flex",
-
-                  isDark
-                    ? "bg-indigo-400/10 text-indigo-300"
-                    : "bg-indigo-50/80 text-indigo-600",
+                  iconButton,
+                  isApplicationMenuOpen &&
+                    (isDark ? "bg-white/[0.06]" : "bg-white/80"),
                 )}
               >
-                <Zap className="h-3.5 w-3.5" />
-                <span className="max-w-[160px] truncate">{roleLabel}</span>
-              </span>
-
-              <span
-                className={cn(
-                  "mx-0.5 h-5 w-px",
-                  isDark ? "bg-white/10" : "bg-gray-300/60",
-                )}
-              />
-
-              <LanguageSwitcher
-                variant="select"
-                className="w-[132px]"
-                triggerClassName={cn(
-                  "h-8 rounded-lg border-0 bg-transparent px-2 text-xs font-semibold shadow-none",
-                  isDark
-                    ? "text-gray-200 hover:bg-white/[0.06] focus-visible:ring-green-400/40"
-                    : "text-gray-700 hover:bg-white/80 focus-visible:ring-green-300",
-                )}
-              />
-
-              <ThemeToggleButton
-                showLabel={false}
-                className={cn(
-                  "h-8 w-8 rounded-lg border-0 bg-transparent shadow-none",
-                  isDark ? "hover:bg-white/[0.06]" : "hover:bg-white/80",
-                )}
-              />
+                <motion.div
+                  animate={{ rotate: isApplicationMenuOpen ? 90 : 0 }}
+                  transition={{ duration: 0.25 }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M6 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm12 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </motion.div>
+              </motion.button>
             </div>
 
-            <UserDropdown />
+            {/* ── Right Group ─────────────────────────────────────────────────
+              Inline from md up; below md it opens as a solid panel under
+              the header, controls stacked full width. */}
+            <div
+              className={cn(
+                "items-center gap-2 md:flex md:shrink-0",
+                isApplicationMenuOpen
+                  ? cn(
+                      "absolute right-0 top-[calc(100%+0.5rem)] z-10 flex w-[min(20rem,calc(100vw-1rem))] flex-col items-stretch rounded-2xl border p-2 shadow-xl",
+                      "md:static md:w-auto md:flex-row md:items-center md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none",
+                      isDark
+                        ? "border-white/10 bg-[#102427]"
+                        : "border-(--admin-border) bg-white",
+                    )
+                  : "hidden",
+              )}
+            >
+              {/* Control dock: one capsule for view, role, language, theme */}
+              <div
+                className={cn(
+                  "flex flex-wrap items-center gap-1 rounded-xl border p-1 md:flex-nowrap",
+                  isDark ? glassCapsuleClasses.dark : glassCapsuleClasses.light,
+                )}
+              >
+                {dashboardTabs.length > 0 && (
+                  <motion.button
+                    whileTap={{ scale: 0.96 }}
+                    onClick={handleDashboardView}
+                    title={t("common.dashboard_view")}
+                    className={cn(
+                      dockItem,
+                      isDark
+                        ? "text-gray-300 hover:bg-green-400/10 hover:text-green-300"
+                        : "text-green-700 hover:bg-green-600 hover:text-white",
+                    )}
+                  >
+                    <LayoutDashboard className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">
+                      {t("common.dashboard_view")}
+                    </span>
+                  </motion.button>
+                )}
+
+                {/* Role badge */}
+                <span
+                  className={cn(
+                    dockItem,
+                    "hidden cursor-default xl:flex",
+
+                    isDark
+                      ? "bg-indigo-400/10 text-indigo-300"
+                      : "bg-indigo-50/80 text-indigo-600",
+                  )}
+                >
+                  <Zap className="h-3.5 w-3.5" />
+                  <span className="max-w-[160px] truncate">{roleLabel}</span>
+                </span>
+
+                <span
+                  className={cn(
+                    "mx-0.5 h-5 w-px",
+                    isDark ? "bg-white/10" : "bg-gray-300/60",
+                  )}
+                />
+
+                <LanguageSwitcher
+                  variant="select"
+                  className="w-[132px]"
+                  triggerClassName={cn(
+                    "h-8 rounded-lg border-0 bg-transparent px-2 text-xs font-semibold shadow-none",
+                    isDark
+                      ? "text-gray-200 hover:bg-white/[0.06] focus-visible:ring-green-400/40"
+                      : "text-gray-700 hover:bg-white/80 focus-visible:ring-green-300",
+                  )}
+                />
+
+                <ThemeToggleButton
+                  showLabel={false}
+                  className={cn(
+                    "h-8 w-8 rounded-lg border-0 bg-transparent shadow-none",
+                    isDark ? "hover:bg-white/[0.06]" : "hover:bg-white/80",
+                  )}
+                />
+              </div>
+
+              <UserDropdown />
+            </div>
           </div>
         </div>
       </div>

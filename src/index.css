@@ -826,3 +826,54 @@ body .p-paginator .p-paginator-current {
   padding-bottom: 0;
   font-size: 0.875rem;
 }
+
+/* DataTable loading overlay: the same "Please wait…" card as LoadingCard,
+   drawn in CSS so all ~80 tables pick it up. The spinner icon becomes the
+   ring and ::after is the card; the icon overlaps into the card's left
+   padding. */
+body .p-datatable .p-datatable-loading-overlay {
+  background: color-mix(in srgb, var(--admin-surface) 55%, transparent);
+  backdrop-filter: blur(1.5px);
+  cursor: wait;
+  border-radius: inherit;
+}
+body .p-datatable .p-datatable-loading-overlay .p-datatable-loading-icon {
+  position: relative;
+  z-index: 1;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-right: -2.75rem;
+  border-radius: 9999px;
+  border: 3px solid rgb(20 184 166 / 0.25);
+  border-top-color: #14b8a6;
+}
+body .p-datatable .p-datatable-loading-overlay .p-datatable-loading-icon > * {
+  display: none;
+}
+body .p-datatable .p-datatable-loading-overlay::after {
+  content: "Please wait…";
+  padding: 1rem 1.25rem 1rem 3.5rem;
+  border: 1px solid rgb(255 255 255 / 0.7);
+  border-radius: 1rem;
+  background: rgb(255 255 255 / 0.9);
+  box-shadow: 0 20px 50px -20px rgba(15, 60, 70, 0.45);
+  color: #1f2937;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+}
+html[lang="ta"] body .p-datatable .p-datatable-loading-overlay::after {
+  content: "தயவுசெய்து காத்திருக்கவும்…";
+}
+html[lang="hi"] body .p-datatable .p-datatable-loading-overlay::after {
+  content: "कृपया प्रतीक्षा करें…";
+}
+.dark .p-datatable .p-datatable-loading-overlay .p-datatable-loading-icon {
+  border-color: rgb(94 234 212 / 0.2);
+  border-top-color: #5eead4;
+}
+.dark .p-datatable .p-datatable-loading-overlay::after {
+  border-color: rgb(255 255 255 / 0.1);
+  background: rgb(21 48 47 / 0.95);
+  color: #fff;
+}

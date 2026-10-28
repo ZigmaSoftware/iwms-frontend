@@ -9,6 +9,7 @@ import {
   getCurrentProjectId,
 } from "@/utils/projectContext";
 import { USER_ROLE_STORAGE_KEY, normalizeRole } from "@/types/roles";
+import { sessionStore } from "@/utils/sessionStore";
 
 export type CompanyProjectScopeLevel = "company" | "project";
 
@@ -56,7 +57,7 @@ export const isPlatformSuperAdmin = (): boolean => {
 
   const profile = profileRecord();
   const role = normalizeRole(
-    localStorage.getItem(USER_ROLE_STORAGE_KEY) ??
+    sessionStore.getItem(USER_ROLE_STORAGE_KEY) ??
       nonEmptyString(profile?.role),
   );
   return role === "superadmin" || role === "super_admin";

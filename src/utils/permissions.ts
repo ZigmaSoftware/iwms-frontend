@@ -1,6 +1,7 @@
 import { decryptSegment } from "@/utils/routeCrypto";
 import { adminEndpoints } from "@/helpers/admin/endpoints";
 import { jwtDecode } from "jwt-decode";
+import { sessionStore } from "@/utils/sessionStore";
 
 // ============================================================
 // Types
@@ -456,7 +457,7 @@ const sanitizeColumnPermissions = (source: unknown): ColumnPermissionsPayload =>
 
 export const getStoredPermissions = (): PermissionsMap => {
   if (typeof window === "undefined") return {};
-  const raw = localStorage.getItem(PERMISSIONS_STORAGE_KEY);
+  const raw = sessionStore.getItem(PERMISSIONS_STORAGE_KEY);
   if (!raw) return {};
   try {
     return sanitizePermissions(JSON.parse(raw));
@@ -469,11 +470,11 @@ export const setStoredPermissions = (permissions: unknown): void => {
   if (typeof window === "undefined") return;
   const sanitized = sanitizePermissions(permissions);
   if (Object.keys(sanitized).length === 0) {
-    localStorage.removeItem(PERMISSIONS_STORAGE_KEY);
+    sessionStore.removeItem(PERMISSIONS_STORAGE_KEY);
     return;
   }
   try {
-    localStorage.setItem(PERMISSIONS_STORAGE_KEY, JSON.stringify(sanitized));
+    sessionStore.setItem(PERMISSIONS_STORAGE_KEY, JSON.stringify(sanitized));
   } catch (error) {
     console.warn("[Permissions] Unable to cache permissions:", error);
   }
@@ -481,12 +482,12 @@ export const setStoredPermissions = (permissions: unknown): void => {
 
 export const clearStoredPermissions = (): void => {
   if (typeof window === "undefined") return;
-  localStorage.removeItem(PERMISSIONS_STORAGE_KEY);
+  sessionStore.removeItem(PERMISSIONS_STORAGE_KEY);
 };
 
 export const getStoredPermissionDetails = (): PermissionDetailsMap => {
   if (typeof window === "undefined") return {};
-  const raw = localStorage.getItem(PERMISSION_DETAILS_STORAGE_KEY);
+  const raw = sessionStore.getItem(PERMISSION_DETAILS_STORAGE_KEY);
   if (!raw) return {};
   try {
     return sanitizePermissionDetails(JSON.parse(raw));
@@ -499,20 +500,20 @@ export const setStoredPermissionDetails = (permissionDetails: unknown): void => 
   if (typeof window === "undefined") return;
   const sanitized = sanitizePermissionDetails(permissionDetails);
   if (Object.keys(sanitized).length === 0) {
-    localStorage.removeItem(PERMISSION_DETAILS_STORAGE_KEY);
+    sessionStore.removeItem(PERMISSION_DETAILS_STORAGE_KEY);
     return;
   }
   try {
-    localStorage.setItem(PERMISSION_DETAILS_STORAGE_KEY, JSON.stringify(sanitized));
+    sessionStore.setItem(PERMISSION_DETAILS_STORAGE_KEY, JSON.stringify(sanitized));
   } catch (error) {
-    localStorage.removeItem(PERMISSION_DETAILS_STORAGE_KEY);
+    sessionStore.removeItem(PERMISSION_DETAILS_STORAGE_KEY);
     console.warn("[Permissions] Permission details are too large to cache:", error);
   }
 };
 
 export const getStoredColumnPermissions = (): ColumnPermissionsPayload => {
   if (typeof window === "undefined") return { grouped: {}, flat: [], simple: {} };
-  const raw = localStorage.getItem(COLUMN_PERMISSIONS_STORAGE_KEY);
+  const raw = sessionStore.getItem(COLUMN_PERMISSIONS_STORAGE_KEY);
   if (!raw) return { grouped: {}, flat: [], simple: {} };
   try {
     return sanitizeColumnPermissions(JSON.parse(raw));
@@ -529,13 +530,13 @@ export const setStoredColumnPermissions = (columnPermissions: unknown): void => 
     Object.keys(sanitized.grouped).length === 0 &&
     Object.keys(sanitized.simple).length === 0
   ) {
-    localStorage.removeItem(COLUMN_PERMISSIONS_STORAGE_KEY);
+    sessionStore.removeItem(COLUMN_PERMISSIONS_STORAGE_KEY);
     return;
   }
   try {
-    localStorage.setItem(COLUMN_PERMISSIONS_STORAGE_KEY, JSON.stringify(sanitized));
+    sessionStore.setItem(COLUMN_PERMISSIONS_STORAGE_KEY, JSON.stringify(sanitized));
   } catch (error) {
-    localStorage.removeItem(COLUMN_PERMISSIONS_STORAGE_KEY);
+    sessionStore.removeItem(COLUMN_PERMISSIONS_STORAGE_KEY);
     console.warn("[Permissions] Column permissions are too large to cache:", error);
   }
 };
@@ -584,7 +585,7 @@ const resolveScreenActions = (
 
 export const isStoredSuperAdmin = (): boolean => {
   if (typeof window === "undefined") return false;
-  const role = String(localStorage.getItem("user_role") ?? "").trim().toLowerCase();
+  const role = String(sessionStore.getItem("user_role") ?? "").trim().toLowerCase();
   return role === "superadmin" || role === "super_admin";
 };
 

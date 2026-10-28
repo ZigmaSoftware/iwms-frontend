@@ -1,14 +1,14 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { api } from "@/api";
+import { lbApi } from "@/api";
 import { useToast } from "@/hooks/use-toast";
-import { startLoginSession } from "@/utils/loginSession";
 import { Eye, EyeOff, Lock, User, Building2, Leaf, AlertCircle } from "lucide-react";
 import ZigmaLogo from "../images/logo.png";
 import AnimatedLoginScene from "@/components/auth/AnimatedLoginScene";
 import LoginFeatureChain from "@/components/auth/LoginFeatureChain";
 import "@/components/auth/animated-login.css";
 import {
+  persistLocalBodySession,
   unwrapLoginPayload,
   type LoginEnvelope,
 } from "@/utils/authStorage";
@@ -62,31 +62,16 @@ export default function LocalBodyAuth() {
     setLoading(true);
 
     try {
-      const res = await api.post<LoginEnvelope>("/login/login-user/", {
+      const res = await lbApi.post<LoginEnvelope>("/login/login-user/", {
         username,
         password,
         login_type: "panchayat_leader",
         client: "web",
       });
 
-      const payload = unwrapLoginPayload(res.data);
-      // DO NOT call persistLoginSession here — that would overwrite the
-      // admin's access_token in localStorage and break the admin session.
-      // Instead, store the localbody token under its own dedicated key.
-      const lbToken = (payload as any).access_token ?? (payload as any).access ?? "";
-      if (lbToken) {
-        localStorage.setItem("lb_access_token", lbToken);
-        startLoginSession("lb_access_token");
-      }
-
-      // Store panchayat context for the dashboard
-      const profile = (payload as any).profile ?? {};
-      if (profile.panchayat_unique_id) {
-        localStorage.setItem("lb_panchayat_unique_id", profile.panchayat_unique_id);
-        localStorage.setItem("lb_panchayat_name", profile.panchayat_name ?? "");
-      }
-      localStorage.setItem("lb_leader_name", profile.leader_name ?? profile.name ?? username);
-      localStorage.setItem("lb_role", "panchayat_leader");
+      // Uses the local body portal's own cookie and session, so the admin
+      // session in the same browser is left untouched.
+      persistLocalBodySession(unwrapLoginPayload(res.data));
 
       navigate("/localbody", { replace: true });
     } catch (error: any) {

@@ -483,6 +483,7 @@ export default {
     user_access_audit: "User Access Audit",
     static_route_audit: "Static Route Audit",
     complaint_audit: "Complaint Audit",
+    db_change_audit: "DB Change Audit",
     vehicle_trip_audit: "Vehicle Trip Audit",
     trip_exception_log: "Trip Exception Log",
     bin_load_log: "Bin Load Log",

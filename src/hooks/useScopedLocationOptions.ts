@@ -14,6 +14,7 @@ import {
   type LocationConfig,
 } from "@/utils/authStorage";
 import type { CrudHelpers } from "@/helpers/admin/crudHelpers";
+import { sessionStore } from "@/utils/sessionStore";
 
 export type LocationOption = {
   value: string;
@@ -28,7 +29,7 @@ const toOption = (entry: LocationConfig): LocationOption => ({
 
 const readIsSuperAdmin = (): boolean => {
   if (typeof window === "undefined") return false;
-  return normalizeRole(localStorage.getItem(USER_ROLE_STORAGE_KEY)) === "superadmin";
+  return normalizeRole(sessionStore.getItem(USER_ROLE_STORAGE_KEY)) === "superadmin";
 };
 
 /**

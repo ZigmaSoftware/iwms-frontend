@@ -68,6 +68,7 @@ import {
 import { FieldError } from "@/components/form/FieldError";
 import { TriStateCheckbox } from "@/components/form/TriStateCheckbox";
 import { groupActionState, groupScreens } from "@/utils/screenGroups";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 const { encAdmins, encStaffAccessConfiguration } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(
@@ -1597,13 +1598,7 @@ export default function StaffAccessConfigForm() {
   );
 
   if (fetching) {
-    return (
-      <ComponentCard title="Staff Access Configuration">
-        <div className="flex justify-center items-center py-12 text-gray-500">
-          Loading
-        </div>
-      </ComponentCard>
-    );
+    return <PageLoader />;
   }
 
   return (

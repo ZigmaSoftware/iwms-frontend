@@ -101,42 +101,32 @@ const withDuplicateGuard = (api: AxiosInstance) => {
 
 /* --------------------------------------------------------
    CREATE INSTANCE
+   The access token never reaches JS: login sets it in an HttpOnly cookie
+   and the browser sends it back (withCredentials). Each portal has its own
+   cookie, picked by the X-IWMS-Portal header — a custom header the backend
+   also relies on as its CSRF guard, so every call must go through these
+   instances rather than a bare axios/fetch.
 -------------------------------------------------------- */
-type CreateApiOptions = {
-  tokenStorageKey: string;
-  loginPathIncludes: string[];
-};
+export type Portal = "admin" | "district" | "localbody";
 
-const createApi = (opts: CreateApiOptions): AxiosInstance => {
+const createApi = (portal: Portal): AxiosInstance => {
   const api = axios.create({
     baseURL: API_ROOT,
+    withCredentials: true,
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
+      "X-IWMS-Portal": portal,
     },
   });
 
   withDuplicateGuard(api);
 
-  api.interceptors.request.use((config) => {
-    const token = localStorage.getItem(opts.tokenStorageKey);
-
-    const isLogin = opts.loginPathIncludes.some((p) =>
-      config.url?.includes(p)
-    );
-
-    if (token && !isLogin) {
-      config.headers = config.headers ?? {};
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  });
-
   // Let the idle-logout guard confirm with the server whether the session
   // was ended (logged out elsewhere / idle timeout) — see useIdleLogout.
   api.interceptors.response.use(undefined, (error) => {
     if (error?.response?.status === 401 && typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("auth:unauthorized"));
+      window.dispatchEvent(new CustomEvent("auth:unauthorized", { detail: { portal } }));
     }
     return Promise.reject(error);
   });
@@ -145,12 +135,14 @@ const createApi = (opts: CreateApiOptions): AxiosInstance => {
 };
 
 /* --------------------------------------------------------
-   EXPORT SINGLE API
+   EXPORT ONE API PER PORTAL
 -------------------------------------------------------- */
-export const api = createApi({
-  tokenStorageKey: "access_token",
-  loginPathIncludes: ["/login/"],
-});
+export const api = createApi("admin");
+export const districtApi = createApi("district");
+export const lbApi = createApi("localbody");
+
+export const apiForPortal = (portal: Portal): AxiosInstance =>
+  portal === "district" ? districtApi : portal === "localbody" ? lbApi : api;
 
 // Debug: expose base URL for troubleshooting (prints once on module load)
 // eslint-disable-next-line no-console

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { fetchAllRoles, extractRoleValues, getAdminRoles, getDefaultRole, type RoleOption } from "@/utils/roleLoader";
+import { isAuthSessionActive } from "@/utils/authStorage";
 
 type RolesContextValue = {
   /**
@@ -35,7 +36,7 @@ export const RolesProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!localStorage.getItem("access_token")) {
+    if (!isAuthSessionActive()) {
       setIsLoading(false);
       return;
     }

@@ -136,6 +136,7 @@ const LoginAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audit
 const PermissionAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/permissionAudit/permissionAuditList"));
 const StaticRouteAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/staticRouteAudit/StaticRouteAuditList"));
 const ComplaintAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/complaintAudit/ComplaintAuditList"));
+const DbChangeAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/dbChangeAudit/DbChangeAuditList"));
 const AuditDashboard = lazy(() => import("@/pages/admin/modules/superadmin/audits/auditDashboard/AuditDashboard"));
 const CompanyList = lazy(() => import("@/pages/admin/modules/superadminMasters/company/companyListPage"));
 const CompanyListForm = lazy(() => import("@/pages/admin/modules/superadminMasters/company/companyForm"));
@@ -372,6 +373,7 @@ export const ROUTES: RouteMap = {
     "permission-audit": { list: PermissionAuditList },
     "static-route-audit": { list: StaticRouteAuditList },
     "complaint-audit": { list: ComplaintAuditList },
+    "db-change-audit": { list: DbChangeAuditList },
   },
   reports: {
     "trip-summary": { component: TripSummary },

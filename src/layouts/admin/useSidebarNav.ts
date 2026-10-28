@@ -17,13 +17,14 @@ import {
   type NavPermission,
   type SidebarSectionKey,
 } from "@/layouts/admin/sidebarMenu";
+import { sessionStore } from "@/utils/sessionStore";
 
 export type SidebarSection = { key: SidebarSectionKey; items: NavItem[] };
 export type RailSelection = { type: SidebarSectionKey; index: number };
 
 // Helper: Check if user is superadmin
 const isSuperAdminUser = (): boolean => {
-  const roleFromStorage = localStorage.getItem("user_role");
+  const roleFromStorage = sessionStore.getItem("user_role");
   return roleFromStorage === "superadmin" || roleFromStorage === "super_admin";
 };
 
