@@ -48,15 +48,17 @@ import {
    TOKENS — civic sanitation ledger palette, layered onto shadcn primitives
 ══════════════════════════════════════════════════════════════════ */
 const C = {
-  bg: "#F5F7FB",
-  surface: "#FFFFFF",
-  surfaceSunk: "#F1F5F9",
-  ink: "#0F172A",
-  inkSoft: "#475569",
-  inkFaint: "#94A3B8",
-  line: "#E2E8F0",
-  primary: "#0F766E",
-  primaryDeep: "#0F2744",
+  // Neutrals and brand follow the admin theme (light/dark) via CSS vars;
+  // the status colours below stay fixed hex (they take alpha suffixes).
+  bg: "transparent",
+  surface: "var(--admin-surfaceAlt)",
+  surfaceSunk: "var(--admin-surfaceMuted)",
+  ink: "var(--admin-text)",
+  inkSoft: "var(--admin-mutedText)",
+  inkFaint: "color-mix(in srgb, var(--admin-mutedText) 72%, transparent)",
+  line: "var(--admin-border)",
+  primary: "var(--admin-primary)",
+  primaryDeep: "var(--admin-primaryGradient)",
   leaf: "#10B981",
   teal: "#0EA5E9",
   ochre: "#F59E0B",
@@ -69,6 +71,7 @@ const OTHER_SLICE_COLOR = "#9CA3AF";
 
 const FONTS = `
 .dwcr{font-family:var(--app-font-family),system-ui,sans-serif;color:${C.ink};background:${C.bg};}
+.dark .dwcr{color-scheme:dark;}
 .dwcr .font-display{font-family:var(--app-font-family),system-ui,sans-serif;}
 .dwcr .font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
 .dwcr ::-webkit-scrollbar{height:6px;width:6px;}
@@ -590,9 +593,9 @@ export default function DailyWasteComparisonList({
           <div className="shrink-0">
             <span className={label} style={{ color: C.inkFaint }}>Date range</span>
             <div className={`${fieldCls} flex items-center gap-1`} style={fieldStyle}>
-              <input type="date" value={dateFrom} className="w-[104px] bg-transparent outline-none" max={dateTo || todayValue()} onChange={(e) => setDateFrom(e.target.value)} style={{ colorScheme: "light" }} aria-label="From date" />
+              <input type="date" value={dateFrom} className="w-[104px] bg-transparent outline-none" max={dateTo || todayValue()} onChange={(e) => setDateFrom(e.target.value)} aria-label="From date" />
               <span style={{ color: C.inkFaint }}>–</span>
-              <input type="date" value={dateTo} className="w-[104px] bg-transparent outline-none" min={dateFrom || undefined} max={todayValue()} onChange={(e) => setDateTo(e.target.value)} style={{ colorScheme: "light" }} aria-label="To date" />
+              <input type="date" value={dateTo} className="w-[104px] bg-transparent outline-none" min={dateFrom || undefined} max={todayValue()} onChange={(e) => setDateTo(e.target.value)} aria-label="To date" />
             </div>
           </div>
 
@@ -785,7 +788,7 @@ export default function DailyWasteComparisonList({
                       <span className="shrink-0 font-semibold tabular-nums">{sortMode === "trips" ? fmtKg(v) : `${fmtKg(v)} kg`}</span>
                     </div>
                     <div className="mt-1 h-1.5 overflow-hidden rounded-full" style={{ background: C.surfaceSunk }}>
-                      <div className="h-full rounded-full" style={{ width: `${(v / topMax) * 100}%`, background: "#4f46e5" }} />
+                      <div className="h-full rounded-full" style={{ width: `${(v / topMax) * 100}%`, background: C.primary }} />
                     </div>
                   </div>
                 );
@@ -917,7 +920,7 @@ export default function DailyWasteComparisonList({
                         }}
                         aria-pressed={detailPageSize === size}
                         className="h-6 rounded-md border px-1.5 text-[11px] font-semibold tabular-nums"
-                        style={detailPageSize === size ? { background: C.ink, borderColor: C.ink, color: "#fff" } : { borderColor: C.line, color: C.inkSoft }}
+                        style={detailPageSize === size ? { background: C.primary, borderColor: C.primary, color: "var(--admin-onPrimary)" } : { borderColor: C.line, color: C.inkSoft }}
                       >
                         {size}
                       </button>
@@ -935,7 +938,7 @@ export default function DailyWasteComparisonList({
                       type="button"
                       onClick={() => setDetailPage(page)}
                       className="h-6 min-w-6 rounded-md border px-1.5 text-[11px] font-semibold tabular-nums"
-                      style={page === safeDetailPage ? { background: "#4f46e5", borderColor: "#4f46e5", color: "#fff" } : { borderColor: C.line, color: C.inkSoft }}
+                      style={page === safeDetailPage ? { background: C.primary, borderColor: C.primary, color: "var(--admin-onPrimary)" } : { borderColor: C.line, color: C.inkSoft }}
                     >
                       {page}
                     </button>

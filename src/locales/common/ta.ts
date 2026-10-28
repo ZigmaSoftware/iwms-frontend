@@ -10,6 +10,7 @@ export default {
     "logout": "லாக் அவுட்",
     "admin_view": "நிர்வாக பார்வை",
     "dashboard_view": "டாஷ்போர்டு பார்வை",
+    "please_wait": "தயவுசெய்து காத்திருக்கவும்…",
     "loading_dashboard": "டாஷ்போர்டு ஏற்றப்படுகிறது...",
     "logout_failed_title": "வெளியேறு தோல்வியடைந்தது",
     "logout_failed_desc": "செஷன் தரவை நீக்க முடியவில்லை.",

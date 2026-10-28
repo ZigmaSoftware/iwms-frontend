@@ -14,7 +14,7 @@ import type {
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 

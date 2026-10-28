@@ -8,6 +8,11 @@ declare module "axios" {
   interface AxiosRequestConfig {
     /** Opt out of the duplicate-submit guard for this request. */
     allowDuplicate?: boolean;
+    /** Background call: don't show the global "Please wait" overlay. */
+    silent?: boolean;
+    /** Show the "Please wait" overlay for a non-mutating request too, e.g.
+     *  a slow GET behind a button (Generate, Refresh, Download). */
+    blocking?: boolean;
   }
 }
 
@@ -46,11 +51,33 @@ const requestKey = (config: InternalAxiosRequestConfig): string | null => {
   ].join(" ");
 };
 
+/* --------------------------------------------------------
+   PENDING-SAVE TRACKER
+   Counts Save/Update/Delete requests in flight so GlobalRequestLoader can
+   block the screen until the server answers (no repeat clicks meanwhile).
+-------------------------------------------------------- */
+let pendingMutations = 0;
+const pendingListeners = new Set<() => void>();
+
+const changePending = (delta: number) => {
+  pendingMutations += delta;
+  pendingListeners.forEach((listener) => listener());
+};
+
+export const subscribePendingMutations = (listener: () => void) => {
+  pendingListeners.add(listener);
+  return () => {
+    pendingListeners.delete(listener);
+  };
+};
+
+export const getPendingMutations = () => pendingMutations;
+
 const withDuplicateGuard = (api: AxiosInstance) => {
   const sendRequest = axios.getAdapter(api.defaults.adapter);
   const inFlight = new Map<string, Promise<AxiosResponse>>();
 
-  api.defaults.adapter = (config) => {
+  const send = (config: InternalAxiosRequestConfig) => {
     const key = requestKey(config);
     if (!key) return sendRequest(config);
 
@@ -60,6 +87,15 @@ const withDuplicateGuard = (api: AxiosInstance) => {
     const request = sendRequest(config).finally(() => inFlight.delete(key));
     inFlight.set(key, request);
     return request;
+  };
+
+  api.defaults.adapter = (config) => {
+    const method = (config.method ?? "get").toLowerCase();
+    const blocks = config.blocking || MUTATING_METHODS.has(method);
+    if (config.silent || !blocks) return send(config);
+
+    changePending(1);
+    return send(config).finally(() => changePending(-1));
   };
 };
 

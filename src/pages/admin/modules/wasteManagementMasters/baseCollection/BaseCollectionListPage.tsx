@@ -26,7 +26,7 @@ import {
 } from "@/utils/exportExcel";
 import Swal from "@/lib/notify";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 

@@ -999,7 +999,7 @@ export function DataTable<T>({
           </thead>
           <tbody>
             {filtered.slice((current - 1) * size, current * size).map((row) => (
-              <tr key={rowKey(row)} className="hover:bg-[#f6faf7] dark:hover:bg-[#1c2a21]">
+              <tr key={rowKey(row)} className="hover:bg-[#f1f9f7] dark:hover:bg-[#173232]">
                 {shown.map((c) => (
                   <td
                     key={c.key}
@@ -1255,7 +1255,7 @@ export function MasterCounts({
                   {items.map((row) => (
                     <div
                       key={row.key}
-                      className={`rounded-lg bg-[#f6f8f7] px-3 py-2 dark:bg-[#1c2a21] ${row.total ? "" : "opacity-60"}`}
+                      className={`rounded-lg bg-[#f6f8f7] px-3 py-2 dark:bg-[#173232] ${row.total ? "" : "opacity-60"}`}
                     >
                       <div className={`flex items-center gap-1 text-xs ${mutedClass}`}>
                         <span className="truncate">{row.label}</span>
@@ -1289,8 +1289,8 @@ export function MasterCounts({
         <div className="max-h-[560px] overflow-auto rounded-lg border border-[#e8eee9] dark:border-[#26352b]">
           <table className="w-full min-w-[640px] border-collapse text-[13px]">
             <thead className="sticky top-0 z-20">
-              <tr className="bg-[#f6f8f7] dark:bg-[#1c2a21]">
-                <th className="sticky left-0 z-10 border-b border-[#e8eee9] bg-[#f6f8f7] px-3 py-2.5 text-left text-xs font-medium text-muted-foreground dark:border-[#26352b] dark:bg-[#1c2a21]">
+              <tr className="bg-[#f6f8f7] dark:bg-[#173232]">
+                <th className="sticky left-0 z-10 border-b border-[#e8eee9] bg-[#f6f8f7] px-3 py-2.5 text-left text-xs font-medium text-muted-foreground dark:border-[#26352b] dark:bg-[#173232]">
                   {t("admin.dashboards.masters.master", "Master")}
                 </th>
                 {columns.map((c) => (
@@ -1322,8 +1322,8 @@ export function MasterCounts({
                       </td>
                     </tr>
                     {items.map((row) => (
-                      <tr key={row.key} className="group hover:bg-[#f6faf7] dark:hover:bg-[#1c2a21]">
-                        <td className="sticky left-0 border-b border-[#f0f4f1] bg-white px-3 py-2 group-hover:bg-[#f6faf7] dark:border-[#22302a] dark:bg-[#17221b] dark:group-hover:bg-[#1c2a21]">
+                      <tr key={row.key} className="group hover:bg-[#f1f9f7] dark:hover:bg-[#173232]">
+                        <td className="sticky left-0 border-b border-[#f0f4f1] bg-white px-3 py-2 group-hover:bg-[#f1f9f7] dark:border-[#22302a] dark:bg-[#17221b] dark:group-hover:bg-[#173232]">
                           {row.label}
                         </td>
                         {columns.map((c) => {

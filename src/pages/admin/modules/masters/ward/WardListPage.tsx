@@ -12,7 +12,7 @@ import { FilterMatchMode } from "primereact/api";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 

@@ -105,7 +105,7 @@ export const endLoginSession = async (
         reason,
         last_activity_at: lastActivity ? new Date(lastActivity).toISOString() : null,
       },
-      { headers: authHeaders(token), timeout: LOGOUT_REQUEST_TIMEOUT_MS },
+      { headers: authHeaders(token), timeout: LOGOUT_REQUEST_TIMEOUT_MS, silent: true },
     );
   } catch (error) {
     console.warn("[Session] Logout audit request failed:", error);
@@ -125,7 +125,8 @@ export const sendSessionHeartbeat = async (tokenKey: string): Promise<boolean> =
     await api.post(
       "/login/heartbeat/",
       { last_activity_at: lastActivity ? new Date(lastActivity).toISOString() : null },
-      { headers: authHeaders(token) },
+      // Background ping: never block the screen for it.
+      { headers: authHeaders(token), silent: true },
     );
     return true;
   } catch (error) {

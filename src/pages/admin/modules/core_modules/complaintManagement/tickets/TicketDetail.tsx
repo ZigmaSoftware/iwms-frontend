@@ -19,7 +19,7 @@ const Field = ({ label, value }: { label: string; value: unknown }) => (
 const ACTION_TAB_BUTTON_CLASS = (isActive: boolean) =>
   `flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition ${
     isActive
-      ? "!bg-[#22a855] !text-white shadow-sm"
+      ? "!bg-[#0d9488] !text-white shadow-sm"
       : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-900 dark:text-gray-400"
   }`;
 

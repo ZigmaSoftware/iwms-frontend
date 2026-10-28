@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { NotificationDialog } from "@/components/ui/notification-dialog";
+import { GlobalRequestLoader } from "@/components/common/GlobalRequestLoader";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ModuleProvider } from "@/contexts/ModuleContext";
 import { UserProvider } from "@/contexts/UserContext";
@@ -28,6 +29,7 @@ export function AppProviders({ children }: Props) {
                 <BrowserRouter>
                   {children}
                   <NotificationDialog />
+                  <GlobalRequestLoader />
                   <Toaster />
                   <Sonner />
                 </BrowserRouter>

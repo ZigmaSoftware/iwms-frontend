@@ -10,6 +10,7 @@ export default {
     "logout": "Logout",
     "admin_view": "Admin View",
     "dashboard_view": "Dashboard View",
+    "please_wait": "Please wait…",
     "loading_dashboard": "Loading dashboard...",
     "logout_failed_title": "Logout Failed",
     "logout_failed_desc": "Unable to clear session data.",

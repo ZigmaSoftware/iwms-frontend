@@ -22,7 +22,7 @@ import {
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 import type { ContinentRecord } from "./types";

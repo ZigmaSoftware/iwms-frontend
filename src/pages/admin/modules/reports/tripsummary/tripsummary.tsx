@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { applyTableFilters } from "@/utils/tableFilterMatch";
 import "./tripsummary.css";
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 import { DataTable } from "@/components/common/SafeDataTable";

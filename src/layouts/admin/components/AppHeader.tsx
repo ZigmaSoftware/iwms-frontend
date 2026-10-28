@@ -1,18 +1,33 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
-import { LayoutDashboard, Zap } from "lucide-react";
+import {
+  LayoutDashboard,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Search,
+  Zap,
+} from "lucide-react";
 
 import { ThemeToggleButton } from "@/components/common/ThemeToggleButton";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import UserDropdown from "@/components/header/UserDropdown";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useSidebar } from "@/contexts/SideBarContext";
+import MenuSearchDialog from "@/layouts/admin/components/MenuSearchDialog";
 import { useDashboardMenuItems } from "@/layouts/dashboard/dashboardMenu";
 import { cn } from "@/lib/utils";
 import {
+  glassCapsuleClasses,
+  glassClasses,
+  glassSheenClasses,
+  glassIconButtonClasses,
+  glassScrolledClasses,
+} from "@/layouts/glassStyles";
+import {
   ADMIN_VIEW_MODE_DASHBOARD,
+  USER_ROLE_STORAGE_KEY,
   setAdminViewPreference,
 } from "@/types/roles";
 import ZigmaLogo from "@/images/logo.png";
@@ -42,16 +57,48 @@ function useCompanyLogo(): string {
   return `${origin}${relativePath}`;
 }
 
-const PRIMARY = "#22a855";
-const SECONDARY = "#f97316";
+/** "company_supervisor" / "super-admin" / "Company Supervisor" → title case. */
+function formatRole(role: string): string {
+  const compact = role.toLowerCase().replace(/[\s_-]+/g, "");
+  if (compact === "superadmin") return "Super Admin";
+  return role
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Who is signed in, for the header brand and role badge.
+ *  Company users see their company name; the platform super admin keeps the
+ *  product title. The role comes from the login profile, else the stored
+ *  role key. */
+function useHeaderIdentity(): {
+  companyName: string | null;
+  roleLabel: string;
+} {
+  const profile = getStoredProfile() as Record<string, unknown> | null;
+  const isPlatform = !profile || profile.user_type === "platform";
+  const companyName =
+    !isPlatform && typeof profile?.company_name === "string"
+      ? profile.company_name.trim() || null
+      : null;
+  const rawRole =
+    (typeof profile?.role === "string" && profile.role.trim()) ||
+    localStorage.getItem(USER_ROLE_STORAGE_KEY) ||
+    "";
+  return { companyName, roleLabel: rawRole ? formatRole(rawRole) : "Admin" };
+}
 
 const AppHeader: React.FC = () => {
   const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
+  const { isExpanded, isMobileOpen, toggleSidebar, toggleMobileSidebar } =
+    useSidebar();
+  const isSidebarOpen = isExpanded || isMobileOpen;
+  const [isMenuSearchOpen, setIsMenuSearchOpen] = useState(false);
   const companyLogo = useCompanyLogo();
+  const { companyName, roleLabel } = useHeaderIdentity();
   const { theme } = useTheme();
-  const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { t } = useTranslation();
   // Dashboard View only for users granted at least one User Dashboard tab.
@@ -63,11 +110,12 @@ const AppHeader: React.FC = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Ctrl/Cmd + K opens the menu search.
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        inputRef.current?.focus();
+        setIsMenuSearchOpen(true);
       }
     };
     document.addEventListener("keydown", handleKeyDown);
@@ -85,232 +133,211 @@ const AppHeader: React.FC = () => {
   };
 
   const isDark = theme === "dark";
+  const iconButton = cn(
+    "flex h-9 w-9 items-center justify-center rounded-xl transition-colors duration-200",
+    isDark ? glassIconButtonClasses.dark : glassIconButtonClasses.light,
+  );
+  const dockItem = cn(
+    "flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold transition-colors duration-200",
+  );
+  const logoImg = (size: string) => (
+    <img
+      src={companyLogo}
+      className={cn(size, "object-contain")}
+      alt="Logo"
+      onError={(e) => {
+        (e.currentTarget as HTMLImageElement).src = ZigmaLogo;
+      }}
+    />
+  );
 
   return (
-    <header
-      className={cn(
-        "sticky top-0 z-60 w-full transition-all duration-300",
-        isDark
-          ? "bg-slate-950/95 backdrop-blur-xl"
-          : "bg-white",
-        scrolled && (isDark ? "shadow-xl shadow-black/30" : "shadow-md shadow-green-900/8")
-      )}
-    >
-      {/* ── Bottom accent bar ─────────────────────────────────────────── */}
-      <div className="absolute bottom-0 left-0 right-0 h-[2.5px] overflow-hidden">
-        <motion.div
-          className="h-full w-[200%]"
-          style={{
-            background: `linear-gradient(90deg, transparent 0%, ${PRIMARY} 20%, ${SECONDARY} 50%, ${PRIMARY} 80%, transparent 100%)`,
-          }}
-          animate={{ x: ["-50%", "0%"] }}
-          transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-        />
-      </div>
-
-      {/* ── Left green accent border ──────────────────────────────────── */}
-      <div
-        className="absolute left-0 top-0 bottom-0 w-[3px]"
-        style={{ background: `linear-gradient(to bottom, ${PRIMARY}, ${SECONDARY}, ${PRIMARY})` }}
-      />
-
+    // Transparent band; the glass island floats inside it.
+    <header className="app-header sticky top-0 z-60 w-full px-2 pt-2 pb-2">
       <div
         className={cn(
-          "relative h-(--admin-header-h) pl-5 pr-4 lg:pl-7 lg:pr-6 transition-all duration-300"
+          "relative flex h-14 items-center rounded-2xl border pl-[9px] pr-2 backdrop-blur-2xl transition-shadow duration-300 lg:pr-2.5",
+          isDark ? glassClasses.dark : glassClasses.light,
+          scrolled &&
+            (isDark ? glassScrolledClasses.dark : glassScrolledClasses.light),
         )}
       >
-        <div className="flex h-full items-center justify-between gap-4">
+        {/* Soft sheen across the top of the glass. */}
+        <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-2xl">
+          <div
+            className={cn(
+              "absolute inset-x-0 top-0 h-1/2 bg-linear-to-b to-transparent",
+              isDark ? glassSheenClasses.dark : glassSheenClasses.light,
+            )}
+          />
+        </div>
+
+        <div className="flex w-full items-center justify-between gap-4">
           {/* ── Left Group ──────────────────────────────────────────────── */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1">
             {/* Sidebar Toggle */}
             <motion.button
-              whileHover={{ scale: 1.06 }}
-              whileTap={{ scale: 0.94 }}
+              whileTap={{ scale: 0.92 }}
               onClick={handleSidebarToggle}
-              className={cn(
-                "flex h-9 w-9 items-center justify-center rounded-xl transition-colors duration-200",
-                isDark
-                  ? "text-slate-400 hover:bg-slate-800 hover:text-white"
-                  : "text-gray-500 hover:bg-green-50 hover:text-[#22a855]"
-              )}
+              aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+              title={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+              className={iconButton}
             >
-              <motion.div animate={{ rotate: isMobileOpen ? 90 : 0 }} transition={{ duration: 0.25 }}>
-                {isMobileOpen ? (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                    <path d="M6.22 7.28a.75.75 0 0 1 1.06-1.06L12 10.94l4.72-4.72a.75.75 0 1 1 1.06 1.06L13.06 12l4.72 4.72a.75.75 0 1 1-1.06 1.06L12 13.06l-4.72 4.72a.75.75 0 0 1-1.06-1.06L10.94 12 6.22 7.28Z" fill="currentColor" />
-                  </svg>
-                ) : (
-                  <svg width="18" height="13" viewBox="0 0 16 12" fill="none">
-                    <path d="M1.33.25h13.33a.75.75 0 0 1 0 1.5H1.33a.75.75 0 0 1 0-1.5Zm0 10h13.33a.75.75 0 0 1 0 1.5H1.33a.75.75 0 0 1 0-1.5Zm0-5h6.67a.75.75 0 0 1 0 1.5H1.33a.75.75 0 0 1 0-1.5Z" fill="currentColor" />
-                  </svg>
-                )}
-              </motion.div>
+              {/* Open/close panel icon reflecting the sidebar state. */}
+              {isSidebarOpen ? (
+                <PanelLeftClose className="h-[19px] w-[19px]" />
+              ) : (
+                <PanelLeftOpen className="h-[19px] w-[19px]" />
+              )}
             </motion.button>
 
-            {/* Brand — desktop */}
-            <motion.div
-              className="hidden lg:flex items-center gap-3 select-none"
-              whileHover={{ scale: 1.01 }}
-              transition={{ duration: 0.15 }}
+            {/* Menu search */}
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              onClick={() => setIsMenuSearchOpen(true)}
+              aria-label="Search menu"
+              title="Search menu (Ctrl + K)"
+              className={iconButton}
             >
-              {/* Logo box */}
-              <div
-                className="relative flex h-9 w-9 items-center justify-center rounded-xl shadow-md"
-                style={{ background: '#ffff', boxShadow: `0 4px 14px ${PRIMARY}40` }}
-              >
-                <img src={companyLogo} className="h-6 w-6 object-contain" alt="Logo" onError={(e) => { (e.currentTarget as HTMLImageElement).src = ZigmaLogo; }} />
-              </div>
+              <Search className="h-[18px] w-[18px]" />
+            </motion.button>
+            <MenuSearchDialog
+              open={isMenuSearchOpen}
+              onOpenChange={setIsMenuSearchOpen}
+            />
 
-              {/* Text stack */}
-              <div className="flex flex-col leading-none">
-                <span
-                  className="text-[10px] font-bold uppercase tracking-[0.18em]"
-                  style={{ color: PRIMARY }}
-                >
-                  IWMS
-                </span>
-                <span
-                  className={cn(
-                    "text-base font-bold tracking-tight mt-0.5",
-                    isDark ? "text-white" : "text-gray-900"
-                  )}
-                >
-                  {t("admin.panel_title")}
-                </span>
-              </div>
-
-              {/* LIVE pill */}
-              {/* <div
-                className="hidden xl:flex items-center gap-1.5 rounded-full border px-2.5 py-0.5"
-                style={{ borderColor: `${PRIMARY}30`, backgroundColor: `${PRIMARY}10` }}
+            {/* Brand */}
+            <Link
+              to="/admin"
+              className="ml-2 flex select-none items-center gap-3"
+            >
+              <span
+                className={cn(
+                  "flex h-9 w-9 items-center justify-center rounded-xl bg-[#fff] ring-1",
+                  isDark
+                    ? "ring-white/15"
+                    : "shadow-[0_4px_12px_-4px_rgba(13,148,136,0.4)] ring-white",
+                )}
               >
-                <span
-                  className="h-1.5 w-1.5 rounded-full animate-pulse"
-                  style={{ backgroundColor: PRIMARY }}
-                />
-                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: PRIMARY }}>
-                  Live
-                </span>
-              </div> */}
-            </motion.div>
-
-            {/* Brand — mobile */}
-            <Link to="/admin" className="lg:hidden">
-              <div
-                className="flex h-8 w-8 items-center justify-center rounded-lg"
-                style={{ background: `linear-gradient(135deg, ${PRIMARY}, #16a34a)` }}
+                {logoImg("h-6 w-6")}
+              </span>
+              {/* Company name for company users; product name otherwise. */}
+              <span
+                className={cn(
+                  "hidden max-w-[260px] truncate text-base font-semibold tracking-tight lg:block",
+                  isDark ? "text-white" : "text-gray-900",
+                )}
+                title={companyName ?? undefined}
               >
-                <img src={companyLogo} className="h-5 w-5 object-contain" alt="Logo" onError={(e) => { (e.currentTarget as HTMLImageElement).src = ZigmaLogo; }} />
-              </div>
+                {companyName ?? "IWMS"}
+              </span>
             </Link>
           </div>
 
           {/* ── Mobile quick actions toggle ──────────────────────────────── */}
           <div className="flex items-center gap-2 lg:hidden">
             <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              whileTap={{ scale: 0.92 }}
               onClick={() => setApplicationMenuOpen((p) => !p)}
-              className={cn(
-                "flex h-9 w-9 items-center justify-center rounded-xl transition-colors",
-                isDark
-                  ? "bg-slate-800 text-slate-300 hover:bg-slate-700"
-                  : "bg-green-50 text-[#22a855] hover:bg-green-100"
-              )}
+              aria-label="More actions"
+              className={iconButton}
             >
-              <motion.div animate={{ rotate: isApplicationMenuOpen ? 90 : 0 }} transition={{ duration: 0.25 }}>
+              <motion.div
+                animate={{ rotate: isApplicationMenuOpen ? 90 : 0 }}
+                transition={{ duration: 0.25 }}
+              >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                  <path d="M6 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm12 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z" fill="currentColor" />
+                  <path
+                    d="M6 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm12 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z"
+                    fill="currentColor"
+                  />
                 </svg>
               </motion.div>
             </motion.button>
           </div>
 
           {/* ── Right Group ─────────────────────────────────────────────── */}
-          <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
+          <div
             className={cn(
-              "flex w-full flex-row items-center justify-end gap-2 pt-2 lg:w-auto lg:pt-0",
-              isApplicationMenuOpen ? "flex" : "hidden lg:flex",
-              isDark
-                ? "border-t border-slate-800 lg:border-none"
-                : "border-t border-gray-100 lg:border-none"
+              "items-center gap-2",
+              isApplicationMenuOpen
+                ? cn(
+                    "absolute right-0 top-[calc(100%+0.5rem)] flex flex-wrap justify-end rounded-2xl border p-2 backdrop-blur-2xl lg:static lg:flex-nowrap lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none lg:backdrop-blur-none",
+                    isDark ? glassClasses.dark : glassClasses.light,
+                  )
+                : "hidden lg:flex",
             )}
           >
-            {/* Dashboard view button */}
-            {dashboardTabs.length > 0 && (
-            <motion.button
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.96 }}
-              onClick={handleDashboardView}
-              title={t("common.dashboard_view")}
-              className={cn(
-                "flex items-center gap-1.5 rounded-xl px-3 h-9 text-xs font-semibold transition-all duration-200",
-                isDark
-                  ? "border border-slate-700 bg-slate-800/70 text-slate-300 hover:bg-slate-700 hover:text-white"
-                  : "border text-[#22a855] hover:text-white hover:shadow-md"
-              )}
-              style={
-                isDark
-                  ? {}
-                  : {
-                      borderColor: `${PRIMARY}30`,
-                      backgroundColor: `${PRIMARY}08`,
-                    }
-              }
-              onMouseEnter={(e) => {
-                if (!isDark) {
-                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = PRIMARY;
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = PRIMARY;
-                  (e.currentTarget as HTMLButtonElement).style.color = "#fff";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isDark) {
-                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = `${PRIMARY}08`;
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = `${PRIMARY}30`;
-                  (e.currentTarget as HTMLButtonElement).style.color = PRIMARY;
-                }
-              }}
-            >
-              <LayoutDashboard className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{t("common.dashboard_view")}</span>
-            </motion.button>
-            )}
-
-            {/* Secondary CTA badge */}
+            {/* Control dock: one capsule for view, role, language, theme */}
             <div
-              className="hidden xl:flex items-center gap-1.5 rounded-xl px-3 h-9"
-              style={{ backgroundColor: `${SECONDARY}12`, borderColor: `${SECONDARY}30` }}
+              className={cn(
+                "flex items-center gap-1 rounded-xl border p-1",
+                isDark ? glassCapsuleClasses.dark : glassCapsuleClasses.light,
+              )}
             >
-              <Zap className="h-3.5 w-3.5" style={{ color: SECONDARY }} />
-              <span className="text-xs font-semibold" style={{ color: SECONDARY }}>
-                Admin
+              {dashboardTabs.length > 0 && (
+                <motion.button
+                  whileTap={{ scale: 0.96 }}
+                  onClick={handleDashboardView}
+                  title={t("common.dashboard_view")}
+                  className={cn(
+                    dockItem,
+                    isDark
+                      ? "text-gray-300 hover:bg-green-400/10 hover:text-green-300"
+                      : "text-green-700 hover:bg-green-600 hover:text-white",
+                  )}
+                >
+                  <LayoutDashboard className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">
+                    {t("common.dashboard_view")}
+                  </span>
+                </motion.button>
+              )}
+
+              {/* Role badge */}
+              <span
+                className={cn(
+                  dockItem,
+                  "hidden cursor-default xl:flex",
+
+                  isDark
+                    ? "bg-indigo-400/10 text-indigo-300"
+                    : "bg-indigo-50/80 text-indigo-600",
+                )}
+              >
+                <Zap className="h-3.5 w-3.5" />
+                <span className="max-w-[160px] truncate">{roleLabel}</span>
               </span>
+
+              <span
+                className={cn(
+                  "mx-0.5 h-5 w-px",
+                  isDark ? "bg-white/10" : "bg-gray-300/60",
+                )}
+              />
+
+              <LanguageSwitcher
+                variant="select"
+                className="w-[132px]"
+                triggerClassName={cn(
+                  "h-8 rounded-lg border-0 bg-transparent px-2 text-xs font-semibold shadow-none",
+                  isDark
+                    ? "text-gray-200 hover:bg-white/[0.06] focus-visible:ring-green-400/40"
+                    : "text-gray-700 hover:bg-white/80 focus-visible:ring-green-300",
+                )}
+              />
+
+              <ThemeToggleButton
+                showLabel={false}
+                className={cn(
+                  "h-8 w-8 rounded-lg border-0 bg-transparent shadow-none",
+                  isDark ? "hover:bg-white/[0.06]" : "hover:bg-white/80",
+                )}
+              />
             </div>
 
-            {/* Divider */}
-            <div className={cn("hidden lg:block h-5 w-px mx-1", isDark ? "bg-slate-700" : "bg-gray-200")} />
-
-            <LanguageSwitcher
-              variant="select"
-              className="w-[140px]"
-              triggerClassName={cn(
-                "h-9 rounded-xl px-3 text-xs font-semibold border",
-                isDark
-                  ? "border-slate-700 bg-slate-800/70 text-slate-300 focus-visible:ring-slate-600"
-                  : "border-gray-200 bg-white text-gray-700 shadow-sm hover:border-green-300 focus-visible:ring-green-300"
-              )}
-            />
-
-            <ThemeToggleButton showLabel={false} />
-
-            <div className={cn("hidden lg:block h-12 w-px mx-1", isDark ? "bg-slate-700" : "bg-gray-200")} />
-
             <UserDropdown />
-          </motion.div>
+          </div>
         </div>
       </div>
     </header>

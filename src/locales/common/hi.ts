@@ -10,6 +10,7 @@ export default {
     "logout": "लॉग आउट",
     "admin_view": "एडमिन व्यू",
     "dashboard_view": "डैशबोर्ड व्यू",
+    "please_wait": "कृपया प्रतीक्षा करें…",
     "loading_dashboard": "डैशबोर्ड लोड हो रहा है...",
     "logout_failed_title": "लॉगआउट विफल",
     "logout_failed_desc": "सेशन डेटा साफ़ नहीं हो सका।",

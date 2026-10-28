@@ -3,6 +3,48 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* IWMS palette: teal brand on cool slate neutrals. Tailwind's green and
+   emerald scales are pointed at teal and gray at slate, so every existing
+   green, emerald and gray class follows the brand without per-page edits.
+   Orange/amber/red/blue keep their defaults: pages use them for statuses. */
+@theme {
+  --color-green-50: #f0fdfa;
+  --color-green-100: #ccfbf1;
+  --color-green-200: #99f6e4;
+  --color-green-300: #5eead4;
+  --color-green-400: #2dd4bf;
+  --color-green-500: #14b8a6;
+  --color-green-600: #0d9488;
+  --color-green-700: #0f766e;
+  --color-green-800: #115e59;
+  --color-green-900: #134e4a;
+  --color-green-950: #042f2e;
+
+  --color-emerald-50: #f0fdfa;
+  --color-emerald-100: #ccfbf1;
+  --color-emerald-200: #99f6e4;
+  --color-emerald-300: #5eead4;
+  --color-emerald-400: #2dd4bf;
+  --color-emerald-500: #14b8a6;
+  --color-emerald-600: #0d9488;
+  --color-emerald-700: #0f766e;
+  --color-emerald-800: #115e59;
+  --color-emerald-900: #134e4a;
+  --color-emerald-950: #042f2e;
+
+  --color-gray-50: #f8fafc;
+  --color-gray-100: #f1f5f9;
+  --color-gray-200: #e2e8f0;
+  --color-gray-300: #cbd5e1;
+  --color-gray-400: #94a3b8;
+  --color-gray-500: #64748b;
+  --color-gray-600: #475569;
+  --color-gray-700: #334155;
+  --color-gray-800: #1e293b;
+  --color-gray-900: #0f172a;
+  --color-gray-950: #020617;
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -55,56 +97,57 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.640 0.188 148);
+  --primary: oklch(0.600 0.118 184.7);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.978 0.022 75);
-  --accent-foreground: oklch(0.553 0.156 48);
+  --accent: oklch(0.962 0.018 272.3);
+  --accent-foreground: oklch(0.511 0.230 277);
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.640 0.188 148);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  --ring: oklch(0.600 0.118 184.7);
+  --chart-1: oklch(0.600 0.118 184.7);
+  --chart-2: oklch(0.585 0.233 277.1);
+  --chart-3: oklch(0.685 0.169 237.3);
+  --chart-4: oklch(0.769 0.188 70.08);
+  --chart-5: oklch(0.645 0.246 16.439);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.640 0.188 148);
+  --sidebar-primary: oklch(0.600 0.118 184.7);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.978 0.022 75);
-  --sidebar-accent-foreground: oklch(0.553 0.156 48);
+  --sidebar-accent: oklch(0.962 0.018 272.3);
+  --sidebar-accent-foreground: oklch(0.511 0.230 277);
   --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.640 0.188 148);
-  --green-custom: #22a855;
-  --green-custom-hover: #1a8a44;
-  /* Brand palette */
-  --brand-primary: #22a855;
-  --brand-primary-hover: #1a8a44;
-  --brand-primary-soft: #e8f8ee;
-  --brand-secondary: #f97316;
-  --brand-secondary-hover: #ea6c0a;
-  --brand-secondary-soft: #fff7ed;
+  --sidebar-ring: oklch(0.600 0.118 184.7);
+  --green-custom: #0d9488;
+  --green-custom-hover: #0f766e;
+  /* Brand palette: teal primary, indigo secondary */
+  --brand-primary: #0d9488;
+  --brand-primary-hover: #0f766e;
+  --brand-primary-soft: #f0fdfa;
+  --brand-secondary: #6366f1;
+  --brand-secondary-hover: #4f46e5;
+  --brand-secondary-soft: #eef2ff;
   --brand-blue: #2563eb;
   --brand-blue-soft: #dbeafe;
-  /* Admin palette defaults (light) */
-  --admin-primary: #22a855;
-  --admin-primaryHover: #1a8a44;
-  --admin-primarySoft: #e8f8ee;
-  --admin-accent: #2563eb;
-  --admin-accentHover: #1d4ed8;
-  --admin-accentSoft: #dbeafe;
-  --admin-surface: #f6faf7;
-  --admin-surfaceMuted: #edf5ef;
+  /* Admin palette defaults (light); ThemeContext sets the same at runtime */
+  --admin-primary: #0d9488;
+  --admin-primaryHover: #0f766e;
+  --admin-primarySoft: #e6f6f4;
+  --admin-accent: #6366f1;
+  --admin-accentHover: #4f46e5;
+  --admin-accentSoft: #eef2ff;
+  --admin-surface: #dcefea;
+  --admin-surfaceMuted: #e7f4f1;
   --admin-surfaceAlt: #ffffff;
-  --admin-border: #d1fae5;
-  --admin-text: #14281a;
-  --admin-mutedText: #4b7a55;
-  --admin-cardShadow: 0 15px 40px rgba(34, 168, 85, 0.12);
+  --admin-border: #c6e3dc;
+  --admin-text: #0f2422;
+  --admin-mutedText: #557a74;
+  --admin-cardShadow: 0 15px 40px rgba(15, 60, 70, 0.08);
+  --admin-onPrimary: #ffffff;
 }
 
 html[lang="ta"] {
@@ -116,53 +159,54 @@ html[lang="ta"] {
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.723 0.190 145);
+  --background: #0a1416;
+  --foreground: #e6f2f1;
+  --card: #15302f;
+  --card-foreground: #e6f2f1;
+  --popover: #15302f;
+  --popover-foreground: #e6f2f1;
+  --primary: oklch(0.777 0.152 181.9);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.300 0.035 48);
-  --accent-foreground: oklch(0.750 0.183 48);
+  --secondary: #173232;
+  --secondary-foreground: #e6f2f1;
+  --muted: #173232;
+  --muted-foreground: #8fb0ab;
+  --accent: oklch(0.300 0.060 277);
+  --accent-foreground: oklch(0.785 0.115 274.7);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.723 0.190 145);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
+  --border: #1d3a3a;
+  --input: #244644;
+  --ring: oklch(0.777 0.152 181.9);
+  --chart-1: oklch(0.777 0.152 181.9);
+  --chart-2: oklch(0.673 0.182 276.9);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar: #0a1416;
+  --sidebar-foreground: #e6f2f1;
+  --sidebar-primary: oklch(0.777 0.152 181.9);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.300 0.035 48);
-  --sidebar-accent-foreground: oklch(0.750 0.183 48);
+  --sidebar-accent: oklch(0.300 0.060 277);
+  --sidebar-accent-foreground: oklch(0.785 0.115 274.7);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.723 0.190 145);
-  --green-custom: #22a855;
-  --green-custom-hover: #1a8a44;
+  --sidebar-ring: oklch(0.777 0.152 181.9);
+  --green-custom: #0d9488;
+  --green-custom-hover: #0f766e;
   /* Admin palette overrides (dark) */
-  --admin-primary: #34c46a;
-  --admin-primaryHover: #22a855;
-  --admin-primarySoft: rgba(34, 168, 85, 0.18);
-  --admin-accent: #3b82f6;
-  --admin-accentHover: #60a5fa;
-  --admin-accentSoft: rgba(37, 99, 235, 0.2);
-  --admin-surface: #071209;
-  --admin-surfaceMuted: #0d1e10;
-  --admin-surfaceAlt: #0f2314;
-  --admin-border: #1a3d22;
-  --admin-text: #f0faf3;
-  --admin-mutedText: #7fc992;
-  --admin-cardShadow: 0 25px 45px rgba(0, 10, 3, 0.85);
+  --admin-primary: #2dd4bf;
+  --admin-primaryHover: #5eead4;
+  --admin-primarySoft: rgba(45, 212, 191, 0.14);
+  --admin-accent: #818cf8;
+  --admin-accentHover: #a5b4fc;
+  --admin-accentSoft: rgba(129, 140, 248, 0.16);
+  --admin-surface: #0a1416;
+  --admin-surfaceMuted: #0f1d20;
+  --admin-surfaceAlt: #15302f;
+  --admin-border: #1d3a3a;
+  --admin-text: #e6f2f1;
+  --admin-mutedText: #8fb0ab;
+  --admin-cardShadow: 0 10px 30px -12px rgba(0, 0, 0, 0.6);
+  --admin-onPrimary: #042f2e;
 }
 
 
@@ -318,14 +362,11 @@ html[lang="ta"] {
   padding: 2px;
   background: linear-gradient(
     90deg,
-    #ff4b4b,
-    #ff9f1c,
-    #fff35a,
-    #4cd964,
-    #38d9ff,
-    #4c6ef5,
-    #b36bff,
-    #ff4b4b
+    #14b8a6,
+    #38bdf8,
+    #6366f1,
+    #a78bfa,
+    #14b8a6
   );
   background-size: 300% 300%;
   animation: rainbow-border-flow 14s linear infinite;
@@ -398,9 +439,39 @@ html[lang="ta"] {
 
 .dark body,
 .dark .app-shell,
-.dark .admin-shell {
+/* Plain theme surface behind every admin and dashboard page. */
+.app-surface-bg {
   background: var(--admin-surface) !important;
+}
+
+/* The page card holding each list/table: a solid soft-teal fill (the
+   strongest tone of the old header glow). */
+.app-card-bg {
+  background: #e2f8f5 !important;
+}
+
+.dark .app-card-bg {
+  background: #102427 !important;
+}
+
+/* Some pages wrap their content in a light grey tint; inside the card that
+   showed as a second, lighter band. Let the card colour show through. */
+.app-card-bg > [class*="bg-gray-50"],
+.app-card-bg > [class*="bg-gray-100"],
+.app-card-bg > [class*="bg-slate-50"],
+.dark .app-card-bg > [class*="bg-gray-50"],
+.dark .app-card-bg > [class*="bg-gray-100"],
+.dark .app-card-bg > [class*="bg-slate-50"] {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.dark .admin-shell {
   color: var(--admin-text) !important;
+}
+
+.dark .p-component:not(.p-card):not(.p-dialog):not(.p-sidebar):not(.p-panel):not(.p-toast) {
+  box-shadow: none !important;
 }
 
 .dark .themed-card,
@@ -413,7 +484,7 @@ html[lang="ta"] {
 .dark .bg-white\/90,
 .dark .bg-white\/80,
 .dark .bg-white\/70,
-.dark .p-component,
+.dark .p-component:not(.p-button),
 .dark .p-card,
 .dark .p-dialog,
 .dark .p-sidebar,
@@ -427,6 +498,11 @@ html[lang="ta"] {
 
 .dark .text-gray-700,
 .dark .text-gray-800,
+.dark .text-gray-900,
+.dark .text-gray-950,
+.dark .text-neutral-800,
+.dark .text-neutral-900,
+.dark .text-zinc-900,
 .dark .text-black,
 .dark .text-slate-700,
 .dark .text-slate-800,
@@ -499,27 +575,59 @@ html[lang="ta"] {
   border-color: var(--admin-border) !important;
 }
 
-.dark .p-datatable .p-datatable-tbody > tr:nth-child(even) {
+.dark .p-datatable .p-datatable-thead > tr > th {
   background: var(--admin-surfaceMuted) !important;
+  color: var(--admin-text) !important;
+  border-color: var(--admin-border) !important;
 }
 
-.dark .p-button,
-.dark .bg-green-custom,
-.dark .btn-primary,
+.dark .p-datatable .p-datatable-tbody > tr > td {
+  border-color: var(--admin-border) !important;
+}
+
+.dark .p-datatable .p-datatable-tbody > tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.018) !important;
+}
+
+.dark .p-datatable .p-datatable-tbody > tr:hover {
+  background: var(--admin-primarySoft) !important;
+}
+
+/* Primary actions (Add / Save, PrimeReact default and success buttons)
+   follow the theme's brand colour in both modes. */
+body .p-button:not(.p-button-text):not(.p-button-outlined):not(.p-button-link):not(.p-button-secondary):not(.p-button-danger):not(.p-button-warning):not(.p-button-help):not(.p-button-info):not(.p-button-contrast),
+body .bg-green-custom,
+body .btn-primary {
+  background: var(--admin-primary) !important;
+  border-color: var(--admin-primary) !important;
+  color: var(--admin-onPrimary) !important;
+  transition:
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+body .p-button:not(.p-button-text):not(.p-button-outlined):not(.p-button-link):not(.p-button-secondary):not(.p-button-danger):not(.p-button-warning):not(.p-button-help):not(.p-button-info):not(.p-button-contrast):not(:disabled):hover,
+body .bg-green-custom:not(:disabled):hover,
+body .btn-primary:not(:disabled):hover {
+  background: var(--admin-primaryHover) !important;
+  border-color: var(--admin-primaryHover) !important;
+  box-shadow: 0 6px 16px -6px rgba(13, 148, 136, 0.55);
+}
+
+body .p-button:not(.p-button-text):not(.p-button-outlined):not(.p-button-link) .p-button-icon,
+body .p-button:not(.p-button-text):not(.p-button-outlined):not(.p-button-link) .p-button-label {
+  color: inherit !important;
+}
+
 .dark .p-chip {
-  background-image: linear-gradient(135deg, var(--admin-primary), var(--admin-accent));
-  border: none;
-  color: #fff !important;
+  background: var(--admin-primarySoft) !important;
+  color: var(--admin-primary) !important;
 }
 
 .dark .p-button.p-button-text,
 .dark .p-button.p-button-outlined,
 .dark .btn-outline,
-.dark .fuel-outline-btn,
-.dark .text-blue-600,
-.dark .text-red-600,
-.dark .bg-red-400,
-.dark .bg-red-500 {
+.dark .fuel-outline-btn {
   color: var(--admin-text) !important;
   border-color: var(--admin-border) !important;
   background: transparent !important;
@@ -542,6 +650,131 @@ html[lang="ta"] {
   color: var(--admin-text) !important;
 }
 
+/* Header controls sit inside one glass capsule; their standalone rainbow
+   borders would clash with it. */
+.app-header .rainbow-border::before {
+  display: none;
+}
+
+/* ─── Rounded tables ────────────────────────────────────────────────
+   The table frame is drawn once by the container with rounded corners
+   (row action menus are portalled, so clipping is safe). The cells' own
+   outer-edge lines are removed so nothing doubles up or gets cut at the
+   corners. */
+body .p-datatable {
+  border: 1px solid var(--admin-border);
+  border-radius: 0.875rem;
+  overflow: hidden;
+}
+
+body .p-datatable.p-datatable-gridlines .p-datatable-header {
+  border-width: 0;
+}
+
+body .p-datatable.p-datatable-gridlines .p-datatable-thead > tr > th:first-child,
+body .p-datatable.p-datatable-gridlines .p-datatable-tbody > tr > td:first-child,
+body .p-datatable.p-datatable-gridlines .p-datatable-tfoot > tr > td:first-child {
+  border-left-width: 0;
+}
+
+body .p-datatable.p-datatable-gridlines .p-datatable-thead > tr > th:last-child,
+body .p-datatable.p-datatable-gridlines .p-datatable-tbody > tr > td:last-child,
+body .p-datatable.p-datatable-gridlines .p-datatable-tfoot > tr > td:last-child {
+  border-right-width: 0;
+}
+
+/* No header bar: the first header row would repeat the frame's top line. */
+body .p-datatable > .p-datatable-wrapper:first-child .p-datatable-thead > tr:first-child > th {
+  border-top-width: 0;
+}
+
+body .p-datatable.p-datatable-gridlines .p-paginator {
+  border-width: 1px 0 0 0;
+}
+
+body .p-datatable:not(.p-datatable-gridlines) .p-paginator {
+  border-width: 0;
+}
+
+/* Navigation progress bar (RouteProgress): a segment sweeping across. */
+@keyframes route-progress-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.route-progress-bar {
+  animation: route-progress-sweep 1.1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-progress-bar {
+    animation: none;
+    width: 100%;
+    opacity: 0.6;
+  }
+}
+
+/* ─── Paginator ─────────────────────────────────────────────────────── */
+body .p-paginator {
+  gap: 0.25rem;
+}
+
+body .p-paginator .p-paginator-pages .p-paginator-page,
+body .p-paginator .p-paginator-first,
+body .p-paginator .p-paginator-prev,
+body .p-paginator .p-paginator-next,
+body .p-paginator .p-paginator-last {
+  min-width: 2.25rem;
+  height: 2.25rem;
+  margin: 0 0.0625rem;
+  border: 1px solid transparent;
+  border-radius: 0.75rem;
+  background: transparent !important;
+  color: var(--admin-mutedText) !important;
+  font-weight: 500;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+body .p-paginator .p-paginator-pages .p-paginator-page:not(.p-highlight):hover,
+body .p-paginator .p-paginator-first:not(.p-disabled):hover,
+body .p-paginator .p-paginator-prev:not(.p-disabled):hover,
+body .p-paginator .p-paginator-next:not(.p-disabled):hover,
+body .p-paginator .p-paginator-last:not(.p-disabled):hover {
+  background: var(--admin-primarySoft) !important;
+  color: var(--admin-primary) !important;
+}
+
+body .p-paginator .p-paginator-pages .p-paginator-page.p-highlight {
+  background: var(--admin-primary) !important;
+  border-color: var(--admin-primary);
+  color: #fff !important;
+  font-weight: 600;
+  box-shadow: 0 6px 16px -6px rgba(13, 148, 136, 0.6);
+}
+
+.dark .p-paginator .p-paginator-pages .p-paginator-page.p-highlight {
+  color: #042f2e !important;
+  box-shadow: 0 0 0 4px rgba(45, 212, 191, 0.12);
+}
+
+body .p-paginator .p-paginator-first.p-disabled,
+body .p-paginator .p-paginator-prev.p-disabled,
+body .p-paginator .p-paginator-next.p-disabled,
+body .p-paginator .p-paginator-last.p-disabled {
+  opacity: 0.35;
+}
+
+body .p-paginator .p-paginator-current {
+  color: var(--admin-mutedText);
+}
+
 /* Admin form save buttons */
 .admin-shell form button[type="submit"] {
   background-image: none;
@@ -559,7 +792,7 @@ html[lang="ta"] {
   background-image: none;
   background-color: #ef4444;
   border: 1px solid #ef4444;
-  color: #fff;
+  color: #fff !important;
 }
 
 .admin-shell form .justify-end button[type="button"]:hover:not(:disabled) {
