@@ -15,13 +15,21 @@ import { FilterMatchMode } from "primereact/api";
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { Switch } from "@/components/ui/switch";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { adminApi } from "@/helpers/admin/registry";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
+import { StackCell } from "@/components/common/TableCells";
+import { KpiCard } from "@/pages/admin/modules/core_modules/dailyOperations/dailyTripLog/tripLogDisplay";
+import { formatKg } from "@/pages/admin/modules/core_modules/dailyOperations/dailyTripLog/tripLogSummary";
+import { FilterSection } from "@/components/common/ListToolbar";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { useDraftFilter } from "@/components/filters/useDraftFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { formatTimeOnly } from "@/utils/formatTime";
 import { WASTE_TYPE_COLORS } from "@/utils/wasteTypeColors";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,6 +60,7 @@ const isFilterableField = (field: string): field is FilterableField =>
 export default function WasteCollectedDataList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { canAdd, canEdit } = useScreenAccess();
   const location = useLocation();
   const restoredState = location.state as {
     companyUniqueId?: string;
@@ -62,34 +71,29 @@ export default function WasteCollectedDataList() {
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } =
     createCrudRoutePaths(encScheduleOperations, encWasteCollectedData);
 
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  const companyProject = useCompanyProjectFilter(undefined, {
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
+  const companyUniqueId = companyProject.companyId;
+  const projectId = companyProject.projectId;
+  const { companies, isSuperAdmin } = companyProject.selection;
 
   const [wasteCollections, setWasteCollections] = useState<WasteCollection[]>(
     [],
   );
   const [loading, setLoading] = useState(false);
-  const [collectionDateFilter, setCollectionDateFilter] = useState("");
+  const collectionDate = useDraftFilter({
+    empty: { collection_date: "" },
+    chips: { collection_date: { label: "Collection date" } },
+  });
+  const collectionDateFilter = collectionDate.applied.collection_date;
   const {
     filters,
     onFilter,
     globalFilterValue,
     onGlobalFilterChange,
-    statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters({
     initialFilters: {
       customer_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -147,10 +151,20 @@ export default function WasteCollectedDataList() {
      PrimeReact filters internally but doesn't expose the result. We replicate
      the same CONTAINS/EQUALS logic so the summary pills and export always
      match what's on screen — same pattern as Bin Collection Event. */
+  // The date filter isn't a PrimeReact column filter, so the table has to be
+  // handed rows that are already narrowed to the selected date.
+  const dateFilteredRows = useMemo(
+    () =>
+      collectionDateFilter
+        ? wasteCollections.filter(
+            (row) => row.collection_date === collectionDateFilter,
+          )
+        : wasteCollections,
+    [wasteCollections, collectionDateFilter],
+  );
+
   const filteredRows = useMemo(() => {
-    return wasteCollections.filter((row) => {
-      if (collectionDateFilter && row.collection_date !== collectionDateFilter)
-        return false;
+    return dateFilteredRows.filter((row) => {
       for (const [field, filter] of Object.entries(filters)) {
         const val = (filter as { value: unknown })?.value;
         if (val === null || val === undefined || val === "") continue;
@@ -176,21 +190,26 @@ export default function WasteCollectedDataList() {
       }
       return true;
     });
-  }, [wasteCollections, filters, collectionDateFilter]);
+  }, [dateFilteredRows, filters]);
 
   /* ── summary stats — computed from filtered rows only, same pattern as
      Bin Collection Event's Daily / Overall / Records pills ── */
-  const { dailyWeight, overallWeight, totalRecords } = useMemo(() => {
+  const { dailyWeight, dailyCount, overallWeight, totalRecords } = useMemo(() => {
     let daily = 0;
+    let dailyRecords = 0;
     let overall = 0;
     filteredRows.forEach((row) => {
       const qty = Number(row.total_quantity ?? 0);
       overall += qty;
-      if (row.collection_date === today) daily += qty;
+      if (row.collection_date === today) {
+        daily += qty;
+        dailyRecords += 1;
+      }
     });
     return {
-      dailyWeight: daily.toFixed(2),
-      overallWeight: overall.toFixed(2),
+      dailyWeight: daily,
+      dailyCount: dailyRecords,
+      overallWeight: overall,
       totalRecords: filteredRows.length,
     };
   }, [filteredRows]);
@@ -251,7 +270,13 @@ export default function WasteCollectedDataList() {
         Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
       }
     };
-    return <Switch checked={!!row.is_active} onCheckedChange={updateStatus} />;
+    return (
+      <Switch
+        checked={!!row.is_active}
+        disabled={!canEdit}
+        onCheckedChange={updateStatus}
+      />
+    );
   };
 
   const handleDelete = async (id: string) => {
@@ -317,79 +342,71 @@ export default function WasteCollectedDataList() {
         </p>
       </div>
 
-      {/* Daily / Overall / Records — same pattern as Bin Collection Event */}
-      <div className="flex flex-wrap gap-3 text-sm mb-4">
-        <span className="bg-slate-100 px-4 py-2 rounded-full">
-          Daily: {dailyWeight}
-        </span>
-        <span className="bg-slate-100 px-4 py-2 rounded-full">
-          Overall: {overallWeight}
-        </span>
-        <span className="bg-slate-100 px-4 py-2 rounded-full">
-          Records: {totalRecords}
-        </span>
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard
+          icon="pi pi-box"
+          tone="bg-emerald-50 text-emerald-600"
+          label="Overall weight"
+          value={formatKg(overallWeight)}
+          hint={`${totalRecords.toLocaleString()} collections`}
+        />
+        <KpiCard
+          icon="pi pi-calendar"
+          tone="bg-cyan-50 text-cyan-600"
+          label="Today's weight"
+          value={formatKg(dailyWeight)}
+          hint={`${dailyCount.toLocaleString()} collections today`}
+        />
       </div>
 
-      {/* All filter dropdowns in a single line */}
-      <FilterBar
-        hideSearch
-        searchValue=""
-        onSearchChange={() => {}}
-        statusValue={statusValue}
-        onStatusChange={onStatusFilterChange}
-        className="mb-3"
-      >
-        <FilterBarSelect
-          value={companyUniqueId || ""}
-          onChange={onCompanyChange}
-          options={companies}
-          placeholder="All Companies"
-          disabled={!isSuperAdmin || companies.length === 0}
-        />
-        <FilterBarSelect
-          value={projectId || ""}
-          onChange={setProjectId}
-          options={projects}
-          placeholder={showAllProjectsOption ? "All Projects" : undefined}
-          disabled={
-            (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-          }
-        />
-        <input
-          type="date"
-          value={collectionDateFilter}
-          onChange={(e) => setCollectionDateFilter(e.target.value)}
-          className="h-10 rounded-md border border-gray-300 px-3 text-sm text-gray-700"
-          title="Filter by collection date"
-        />
-      </FilterBar>
-
-      {/* Global search + Add button + export actions */}
-      <FilterBar
-        searchValue={globalFilterValue}
-        onSearchChange={onGlobalFilterChange}
-        searchPlaceholder={t("admin.waste_collected_data.search_placeholder")}
-        className="mb-4"
-        trailing={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              label={t("admin.waste_collected_data.add_new")}
-              icon="pi pi-plus"
-              className="p-button-success"
-              onClick={() =>
-                navigate(ENC_NEW_PATH, {
-                  state: { companyUniqueId, projectId },
-                })
-              }
-            />
-          </div>
-        }
-      />
-
       <DataTable
+        header={
+          /* Global search + Add button */
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={onGlobalFilterChange}
+            searchPlaceholder={t("admin.waste_collected_data.search_placeholder")}
+            trailing={
+              canAdd ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    label={t("admin.waste_collected_data.add_new")}
+                    icon="pi pi-plus"
+                    className="p-button-success"
+                    onClick={() =>
+                      navigate(ENC_NEW_PATH, {
+                        state: { companyUniqueId, projectId },
+                      })
+                    }
+                  />
+                </div>
+              ) : undefined
+            }
+          />
+        }
+        filterPanel={combineFilters(
+          companyProject,
+          {
+            ...collectionDate,
+            field: (
+              <FilterSection label="Collection date">
+                <input
+                  type="date"
+                  value={collectionDate.draft.collection_date}
+                  onChange={(e) =>
+                    collectionDate.setField("collection_date", e.target.value)
+                  }
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  aria-label="Collection date"
+                />
+              </FilterSection>
+            ),
+          },
+          statusFilter,
+        )}
         loadExportRows={async () => buildExportRows()}
         onPdfRequest={handleDownloadPdf}
-        value={wasteCollections}
+        value={dateFilteredRows}
         dataKey="unique_id"
         paginator
         rows={10}
@@ -400,6 +417,7 @@ export default function WasteCollectedDataList() {
         exportable={false}
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage={t("admin.waste_collected_data.empty_message")}
         className="p-datatable-sm"
         globalFilterFields={[
@@ -415,7 +433,7 @@ export default function WasteCollectedDataList() {
         <Column
           header={t("common.s_no")}
           body={indexTemplate}
-          style={{ width: "60px" }}
+          style={{ width: "5%" }}
         />
         <Column
           field="customer_name"
@@ -424,46 +442,7 @@ export default function WasteCollectedDataList() {
           sortable
           filter
           showFilterMatchModes={false}
-        />
-        <Column
-          field="dry_waste"
-          header={t("admin.waste_collected_data.dry_waste")}
-          sortable
-          body={(row: WasteCollection) =>
-            wasteBadge(row.dry_waste, WASTE_TYPE_COLORS.dry)
-          }
-        />
-        <Column
-          field="wet_waste"
-          header={t("admin.waste_collected_data.wet_waste")}
-          sortable
-          body={(row: WasteCollection) =>
-            wasteBadge(row.wet_waste, WASTE_TYPE_COLORS.wet)
-          }
-        />
-        <Column
-          field="mixed_waste"
-          header={t("admin.waste_collected_data.mixed_waste")}
-          sortable
-          body={(row: WasteCollection) =>
-            wasteBadge(row.mixed_waste, WASTE_TYPE_COLORS.mixed)
-          }
-        />
-        <Column
-          field="sanitary_waste"
-          header={t(
-            "admin.waste_collected_data.sanitary_waste",
-            "Sanitary Waste",
-          )}
-          sortable
-          body={(row: WasteCollection) =>
-            wasteBadge(row.sanitary_waste, WASTE_TYPE_COLORS.sanitary)
-          }
-        />
-        <Column
-          field="total_quantity"
-          header={t("admin.waste_collected_data.quantity")}
-          sortable
+          style={{ width: "20%" }}
         />
         <Column
           field="collection_date"
@@ -472,16 +451,61 @@ export default function WasteCollectedDataList() {
             "Collection Date",
           )}
           sortable
-          body={(row: WasteCollection) => row.collection_date || "-"}
+          style={{ width: "12%" }}
+          body={(row: WasteCollection) => (
+            <StackCell
+              primary={row.collection_date}
+              lines={[
+                {
+                  icon: "pi-clock",
+                  title: t(
+                    "admin.waste_collected_data.collection_time",
+                    "Collection Time",
+                  ),
+                  value: formatTimeOnly(row.collection_time),
+                },
+              ]}
+            />
+          )}
         />
         <Column
-          field="collection_time"
-          header={t(
-            "admin.waste_collected_data.collection_time",
-            "Collection Time",
-          )}
+          field="total_quantity"
+          header={t("admin.waste_collected_data.quantity")}
           sortable
-          body={(row: WasteCollection) => formatTimeOnly(row.collection_time)}
+          style={{ width: "23%" }}
+          body={(row: WasteCollection) => (
+            <StackCell
+              primary={
+                row.total_quantity == null
+                  ? null
+                  : Number(Number(row.total_quantity).toFixed(2))
+              }
+              lines={[
+                {
+                  label: t("admin.waste_collected_data.dry_waste"),
+                  value: wasteBadge(row.dry_waste, WASTE_TYPE_COLORS.dry),
+                },
+                {
+                  label: t("admin.waste_collected_data.wet_waste"),
+                  value: wasteBadge(row.wet_waste, WASTE_TYPE_COLORS.wet),
+                },
+                {
+                  label: t("admin.waste_collected_data.mixed_waste"),
+                  value: wasteBadge(row.mixed_waste, WASTE_TYPE_COLORS.mixed),
+                },
+                {
+                  label: t(
+                    "admin.waste_collected_data.sanitary_waste",
+                    "Sanitary Waste",
+                  ),
+                  value: wasteBadge(
+                    row.sanitary_waste,
+                    WASTE_TYPE_COLORS.sanitary,
+                  ),
+                },
+              ]}
+            />
+          )}
         />
         <Column
           field="status"
@@ -489,50 +513,32 @@ export default function WasteCollectedDataList() {
           sortable
           filter
           showFilterMatchModes={false}
+          style={{ width: "10%" }}
           body={(row: WasteCollection) => row.status || "Pending"}
         />
-        <Column
-          field="zone_name"
-          header={t("common.zone")}
-          body={(row: WasteCollection) => cap(row.zone_name) || "-"}
-          sortable
-          filter
-          showFilterMatchModes={false}
-        />
-        <Column
-          field="ward_name"
-          header={t("common.ward")}
-          body={(row: WasteCollection) => cap(row.ward_name) || "-"}
-          sortable
-          filter
-          showFilterMatchModes={false}
-        />
-        <Column
-          field="panchayat_name"
-          header={t("admin.nav.panchayat")}
-          body={(row: WasteCollection) => cap(row.panchayat_name) || "-"}
-          sortable
-          filter
-          showFilterMatchModes={false}
-        />
-        <Column
-          field="city_name"
-          header={t("common.city")}
-          body={(row: WasteCollection) => cap(row.city_name) || "-"}
-          sortable
-          filter
-          showFilterMatchModes={false}
-        />
+        {locationColumn<WasteCollection>({
+          header: t("common.location"),
+          style: { width: "15%" },
+          levels: [
+            { label: t("common.city"), value: (row) => cap(row.city_name) },
+            {
+              label: t("common.panchayat"),
+              value: (row) => cap(row.panchayat_name),
+            },
+            { label: t("common.zone"), value: (row) => cap(row.zone_name) },
+            { label: t("common.ward"), value: (row) => cap(row.ward_name) },
+          ],
+        })}
         <Column
           field="is_active"
           header={t("common.status")}
           body={statusTemplate}
-          style={{ width: "120px" }}
+          style={{ width: "8%" }}
         />
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ width: "120px", textAlign: "center" }}
+          style={{ width: "7%", textAlign: "center" }}
         />
       </DataTable>
     </div>

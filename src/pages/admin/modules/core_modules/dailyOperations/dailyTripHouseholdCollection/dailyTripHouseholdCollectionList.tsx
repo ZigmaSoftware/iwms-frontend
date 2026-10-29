@@ -1,17 +1,22 @@
 import type { DailyTripHouseholdCollectionRecord, NamedRef } from "./types";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
+import { useLocation } from "react-router-dom";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { Column } from "primereact/column";
 
 import { customerCreationApi, dailyTripHouseholdCollectionApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { KpiCard } from "../dailyTripLog/tripLogDisplay";
+import { formatKg } from "../dailyTripLog/tripLogSummary";
+import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
+import { StackCell } from "@/components/common/TableCells";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters, useOptionFilter } from "@/components/filters/useOptionFilter";
 import { Button } from "primereact/button";
 import { downloadCustomerQrStickerPdf } from "@/pages/admin/modules/masters/customerMasters/customerCreations/customerQrStickerPdf";
 import type { Customer } from "@/pages/admin/modules/masters/customerMasters/customerCreations/types";
@@ -42,6 +47,14 @@ const STATUS_STYLES: Record<string, string> = {
 const COLLECTION_TYPE_LABELS: Record<string, string> = {
   household_collection: "Household",
   bulk_waste_collection: "Bulk Waste",
+};
+
+/* GET daily-trip-household-collections/summary/ */
+type HouseholdSummary = {
+  total_weight_kg: number;
+  total_count: number;
+  today_weight_kg: number;
+  today_count: number;
 };
 
 // The viewset's `ordering_fields` allowlist (see
@@ -125,28 +138,6 @@ const toRecordList = (value: unknown): DailyTripHouseholdCollectionRecord[] => {
 
 export default function DailyTripHouseholdCollectionList() {
   const { t } = useTranslation();
-  const location = useLocation();
-  const restoredState = location.state as {
-    companyUniqueId?: string;
-    projectId?: string;
-  } | null;
-
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
-    initialCompanyId: restoredState?.companyUniqueId,
-    initialProjectId: restoredState?.projectId,
-  });
-
   const [rawRows, setRawRows] = useState<DailyTripHouseholdCollectionRecord[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [first, setFirst] = useState(0);
@@ -156,13 +147,41 @@ export default function DailyTripHouseholdCollectionList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
-  const [statusFilter, setStatusFilter] = useState<string>("");
   // unique_id of the stop whose QR is being prepared, so only that row's
   // button shows a spinner.
   const [qrDownloadingId, setQrDownloadingId] = useState<string | null>(null);
-  const [collectionTypeFilter, setCollectionTypeFilter] = useState<string>("");
   const [filteredRows, setFilteredRows] = useState<DailyTripHouseholdCollectionRecord[]>([]);
   const requestIdRef = useRef(0);
+
+  const resetPage = () => setFirst(0);
+  const location = useLocation();
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
+  const companyProject = useCompanyProjectFilter(resetPage, {
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { companies, isSuperAdmin } = companyProject.selection;
+  const statusPart = useOptionFilter({
+    param: "status",
+    label: "Status",
+    options: STATUS_OPTIONS,
+    onAppliedChange: resetPage,
+  });
+  const collectionTypePart = useOptionFilter({
+    param: "collection_type",
+    label: "Collection type",
+    options: Object.entries(COLLECTION_TYPE_LABELS).map(([value, label]) => ({
+      value,
+      label,
+    })),
+    onAppliedChange: resetPage,
+  });
+  const statusFilter = statusPart.value;
+  const collectionTypeFilter = collectionTypePart.value;
 
   const ordering = sortField && SORTABLE_FIELDS.has(sortField)
     ? `${sortOrder === -1 ? "-" : ""}${sortField}`
@@ -214,6 +233,34 @@ export default function DailyTripHouseholdCollectionList() {
     }
   };
 
+  // Overall / today's weight over every row matching the filters (the table
+  // only holds one page), from GET .../summary/.
+  const [summary, setSummary] = useState<HouseholdSummary | null>(null);
+  useEffect(() => {
+    if ((isSuperAdmin && companies.length === 0) || (!companyUniqueId && !isSuperAdmin)) {
+      setSummary(null);
+      return;
+    }
+    const params: Record<string, string> = {};
+    if (companyUniqueId) params.company_id = companyUniqueId;
+    if (projectId) params.project_id = projectId;
+    if (statusFilter) params.status = statusFilter;
+    if (collectionTypeFilter) params.collection_type = collectionTypeFilter;
+    if (searchTerm) params.search = searchTerm;
+    let cancelled = false;
+    dailyTripHouseholdCollectionApi
+      .action<HouseholdSummary>("summary", undefined, { params })
+      .then((data) => {
+        if (!cancelled) setSummary(data);
+      })
+      .catch(() => {
+        if (!cancelled) setSummary(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, statusFilter, collectionTypeFilter, searchTerm]);
+
   // Reset to first page whenever a non-pagination filter changes.
   useEffect(() => {
     setFirst(0);
@@ -250,47 +297,21 @@ export default function DailyTripHouseholdCollectionList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  // Keeps exported Excel rows in sync with the currently applied
-  // (filtered/searched) query rather than only the rows on the visible
-  // page — fetches the full filtered dataset fresh from the server,
-  // independent of pagination, whenever the filters/search change.
-  useEffect(() => {
-    if (isSuperAdmin && companies.length === 0) {
-      setFilteredRows([]);
-      return;
-    }
-    if (!companyUniqueId && !isSuperAdmin) {
-      setFilteredRows([]);
-      return;
-    }
-    let mounted = true;
+  // "All data" is exported on the server with the currently applied
+  // filters/search (independent of pagination).
+  const serverExport = (filename: string, sheetName: string) => {
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
     if (statusFilter) params.status = statusFilter;
     if (collectionTypeFilter) params.collection_type = collectionTypeFilter;
     if (searchTerm) params.search = searchTerm;
-
-    dailyTripHouseholdCollectionApi
-      .readAllForExport({ params })
-      .then((data) => {
-        if (mounted) setFilteredRows(toRecordList(data));
-      })
-      .catch(() => {
-        /* export sync failure is non-fatal; button will just show stale rows */
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [
-    companyUniqueId,
-    projectId,
-    isSuperAdmin,
-    companies.length,
-    statusFilter,
-    collectionTypeFilter,
-    searchTerm,
-  ]);
+    return dailyTripHouseholdCollectionApi.exportToExcel(
+      { params },
+      filename,
+      sheetName,
+    );
+  };
 
   const rows = rawRows.map((rec) => ({
     ...rec,
@@ -392,38 +413,7 @@ export default function DailyTripHouseholdCollectionList() {
         onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
       }
       searchPlaceholder="Search household collections..."
-    >
-      <FilterBarSelect
-        value={companyUniqueId || ""}
-        onChange={onCompanyChange}
-        placeholder="All Companies"
-        options={companies}
-        disabled={!isSuperAdmin || companies.length === 0}
-      />
-      <FilterBarSelect
-        value={projectId || ""}
-        onChange={setProjectId}
-        placeholder={showAllProjectsOption ? "All Projects" : undefined}
-        options={projects}
-        disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-      />
-      <FilterBarSelect
-        value={statusFilter}
-        onChange={(value) => setStatusFilter(value)}
-        options={STATUS_OPTIONS}
-        placeholder={"All Statuses"}
-      />
-      <FilterBarSelect
-        value={collectionTypeFilter}
-        onChange={(value) => setCollectionTypeFilter(value)}
-        options={Object.entries(COLLECTION_TYPE_LABELS).map(([value, label]) => ({
-          value,
-          label,
-        }))}
-        placeholder="All Collection Types"
-        aria-label="Collection type filter"
-      />
-    </FilterBar>
+    />
   );
 
   return (
@@ -439,9 +429,27 @@ export default function DailyTripHouseholdCollectionList() {
         </div>
       </div>
 
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard
+          icon="pi pi-box"
+          tone="bg-emerald-50 text-emerald-600"
+          label="Overall weight"
+          value={summary ? formatKg(summary.total_weight_kg) : "…"}
+          hint={summary ? `${summary.total_count.toLocaleString()} collections` : undefined}
+        />
+        <KpiCard
+          icon="pi pi-calendar"
+          tone="bg-cyan-50 text-cyan-600"
+          label="Today's weight"
+          value={summary ? formatKg(summary.today_weight_kg) : "…"}
+          hint={summary ? `${summary.today_count.toLocaleString()} collections today` : undefined}
+        />
+      </div>
+
       <DataTable
         value={rows}
         exportRows={filteredRows}
+        onServerExport={serverExport}
         onValueChange={(value) => setFilteredRows(value as typeof filteredRows)}
         dataKey="unique_id"
         lazy
@@ -456,181 +464,151 @@ export default function DailyTripHouseholdCollectionList() {
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading}
         header={renderHeader()}
+        filterPanel={combineFilters(companyProject, statusPart, collectionTypePart)}
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage="No household collection records found."
         className="p-datatable-sm"
       >
         <Column
           header={t("common.s_no")}
           body={(_: any, { rowIndex }: any) => rowIndex + 1}
-          style={{ width: 60 }}
+          style={{ width: "4%" }}
         />
         <Column
           field="unique_id"
-          header="ID"
-          style={{ minWidth: 150 }}
-        />
-        <Column
-          field="company_name"
-          header="Company"
-          style={{ minWidth: 140 }}
-        />
-        <Column
-          field="project_name"
-          header="Project"
-          style={{ minWidth: 140 }}
-        />
-        <Column
-          field="_assignment"
-          header="Trip Assignment"
-          style={{ minWidth: 170 }}
-          body={(row) =>
-            nestedText(row.trip_assignment as NamedRef, [
-              "trip_plan_display_code",
-              "unique_id",
-            ])
-          }
+          header="Collection"
+          style={{ width: "16%" }}
+          body={(row: DailyTripHouseholdCollectionRecord) => (
+            <StackCell
+              primary={row.unique_id}
+              lines={[
+                {
+                  label: "Trip",
+                  value: nestedText(row.trip_assignment as NamedRef, [
+                    "trip_plan_display_code",
+                    "unique_id",
+                  ]),
+                },
+                { icon: "pi-building", value: text(row.company_name), title: "Company" },
+                { icon: "pi-briefcase", value: text(row.project_name), title: "Project" },
+                row.waste_collection_id ? {
+                  label: "Waste Collection",
+                  value: (
+                    <span className="font-mono">{String(row.waste_collection_id)}</span>
+                  ),
+                } : null,
+              ]}
+            />
+          )}
         />
         <Column
           field="_customer"
           header="Customer"
-          style={{ minWidth: 160 }}
-          body={(row) =>
-            nestedText(row.customer as NamedRef, ["customer_name"])
-          }
+          style={{ width: "16%" }}
+          body={(row: DailyTripHouseholdCollectionRecord) => (
+            <StackCell
+              primary={nestedText(row.customer as NamedRef, ["customer_name"])}
+              lines={[
+                {
+                  label: "Type",
+                  value:
+                    COLLECTION_TYPE_LABELS[String(row.collection_type ?? "")] ??
+                    text(row.collection_type),
+                },
+                row.customer_available_at ? <CustomerAvailable row={row} /> : null,
+              ]}
+            />
+          )}
         />
-        <Column
-          field="collection_type"
-          header="Collection Type"
-          style={{ minWidth: 140 }}
-          body={(row: DailyTripHouseholdCollectionRecord) =>
-            COLLECTION_TYPE_LABELS[String(row.collection_type ?? "")] ?? text(row.collection_type)
-          }
-        />
-        <Column
-          field="_location"
-          header="Location (PLB / Ward)"
-          style={{ minWidth: 180 }}
-          body={(row: DailyTripHouseholdCollectionRecord) => {
-            if (row.panchayat && (row.panchayat as any).panchayat_name) {
-              return (
-                <span className="text-sm text-gray-800">
-                  {String((row.panchayat as any).panchayat_name)}
-                  <span className="ml-1 text-xs text-indigo-500 font-medium">
-                    (PLB)
-                  </span>
-                </span>
-              );
-            }
-            if (row.ward && (row.ward as any).ward_name) {
-              return (
-                <span className="text-sm text-gray-800">
-                  {String((row.ward as any).ward_name)}
-                  <span className="ml-1 text-xs text-teal-500 font-medium">
-                    (Ward)
-                  </span>
-                </span>
-              );
-            }
-            return <span className="text-sm text-gray-400">-</span>;
-          }}
-        />
+        {locationColumn<DailyTripHouseholdCollectionRecord>({
+          header: "Location",
+          style: { width: "12%" },
+          levels: [
+            {
+              label: "Panchayat",
+              value: (row) =>
+                (row.panchayat as { panchayat_name?: string } | null)
+                  ?.panchayat_name,
+            },
+            {
+              label: "Ward",
+              value: (row) =>
+                (row.ward as { ward_name?: string } | null)?.ward_name,
+            },
+          ],
+        })}
         <Column
           field="sequence"
           header="Seq"
           sortable={SORTABLE_FIELDS.has("sequence")}
-          style={{ width: 70 }}
+          style={{ width: "5%" }}
           body={(row) => text(row.sequence)}
         />
         <Column
           field="collected_weight_kg"
           header="Weight (kg)"
-          style={{ minWidth: 110 }}
-          body={(row: DailyTripHouseholdCollectionRecord) =>
-            row.collected_weight_kg != null ? (
-              <span className="font-semibold text-gray-800">
-                {Number(row.collected_weight_kg).toFixed(2)}
-              </span>
-            ) : (
-              <span className="text-gray-400">-</span>
-            )
-          }
+          style={{ width: "13%" }}
+          body={(row: DailyTripHouseholdCollectionRecord) => {
+            const wb = row.waste_breakdown;
+            const fmt = (v: unknown) => (v === null || v === undefined ? "0" : Number(v).toFixed(2));
+            return (
+              <StackCell
+                primary={
+                  row.collected_weight_kg != null
+                    ? Number(row.collected_weight_kg).toFixed(2)
+                    : null
+                }
+                lines={[
+                  wb ? {
+                    title: "Waste Breakdown (Wet/Dry/Mixed/Sanitary/Total)",
+                    value: (
+                      <span>
+                        W:{fmt(wb.wet_waste)} / D:{fmt(wb.dry_waste)} / M:{fmt(wb.mixed_waste)} / S:{fmt(wb.sanitary_waste)} / T:
+                        <span className="font-semibold">{fmt(wb.total_quantity)}</span>
+                      </span>
+                    ),
+                  } : null,
+                ]}
+              />
+            );
+          }}
         />
         <Column
           field="status"
           header="Status"
           sortable={SORTABLE_FIELDS.has("status")}
-          style={{ minWidth: 110 }}
+          style={{ width: "13%" }}
           body={(row: DailyTripHouseholdCollectionRecord) => (
-            <Badge value={row.status} />
-          )}
-        />
-        <Column
-          field="status_reason"
-          header="Status Reason"
-          style={{ minWidth: 160 }}
-          body={(row: DailyTripHouseholdCollectionRecord) => text(row.status_reason)}
-        />
-        <Column
-          field="customer_available_at"
-          header="Customer Home"
-          style={{ minWidth: 170 }}
-          body={(row: DailyTripHouseholdCollectionRecord) => <CustomerAvailable row={row} />}
-        />
-        <Column
-          header="Evidence"
-          style={{ width: 100 }}
-          body={(row: DailyTripHouseholdCollectionRecord) => (
-            <EvidenceImagePreview
-              url={row.status_evidence_image_url}
-              label={`Household status evidence ${row.unique_id}`}
+            <StackCell
+              primary={<Badge value={row.status} />}
+              lines={[
+                { label: "Reason", value: text(row.status_reason) },
+                row.status_evidence_image_url ? (
+                  <EvidenceImagePreview
+                    url={row.status_evidence_image_url}
+                    label={`Household status evidence ${row.unique_id}`}
+                  />
+                ) : null,
+              ]}
             />
           )}
-        />
-        <Column
-          header="Waste Breakdown (Wet/Dry/Mixed/Sanitary/Total)"
-          style={{ minWidth: 220 }}
-          body={(row: DailyTripHouseholdCollectionRecord) => {
-            const wb = row.waste_breakdown;
-            if (!wb) return <span className="text-gray-400">-</span>;
-            const fmt = (v: unknown) => (v === null || v === undefined ? "0" : Number(v).toFixed(2));
-            return (
-              <span className="text-xs text-gray-700">
-                W:{fmt(wb.wet_waste)} / D:{fmt(wb.dry_waste)} / M:{fmt(wb.mixed_waste)} / S:{fmt(wb.sanitary_waste)} / T:
-                <span className="font-semibold">{fmt(wb.total_quantity)}</span>
-              </span>
-            );
-          }}
         />
         <Column
           field="collected_at"
           header="Collected At"
           sortable={SORTABLE_FIELDS.has("collected_at")}
-          style={{ minWidth: 150 }}
+          style={{ width: "10%" }}
           body={(row: DailyTripHouseholdCollectionRecord) =>
             text(row.collected_at)
-          }
-        />
-        <Column
-          field="waste_collection_id"
-          header="Waste Collection"
-          style={{ minWidth: 160 }}
-          body={(row: DailyTripHouseholdCollectionRecord) =>
-            row.waste_collection_id ? (
-              <span className="text-xs font-mono text-gray-600">
-                {String(row.waste_collection_id)}
-              </span>
-            ) : (
-              <span className="text-gray-400">-</span>
-            )
           }
         />
         <Column
           field="_qr"
           header="Download QR"
           exportable={false}
-          style={{ minWidth: 140 }}
+          style={{ width: "11%" }}
           body={(row: DailyTripHouseholdCollectionRecord) => {
             const isBusy = qrDownloadingId === String(row.unique_id);
             const hasCustomer = Boolean(
@@ -642,7 +620,7 @@ export default function DailyTripHouseholdCollectionList() {
                 type="button"
                 label={isBusy ? "Preparing..." : "Download QR"}
                 icon={isBusy ? "pi pi-spin pi-spinner" : "pi pi-qrcode"}
-                className="p-button-sm p-button-outlined"
+                className="p-button-sm p-button-outlined max-w-full whitespace-normal"
                 disabled={isBusy || !hasCustomer}
                 tooltip={hasCustomer ? undefined : "No customer linked to this stop"}
                 onClick={() => void handleDownloadQr(row)}

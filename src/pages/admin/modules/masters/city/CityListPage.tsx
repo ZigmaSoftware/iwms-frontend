@@ -11,7 +11,7 @@ import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -19,10 +19,14 @@ import { ActionMenu } from "@/components/ui/ActionMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { cityApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
@@ -38,6 +42,7 @@ const CITY_COLUMN_FIELDS: Record<string, string[]> = {
 
 export default function CityList() {
   const { t } = useTranslation();
+  const { canEdit } = useScreenAccess();
   const { showColumn: showCol } = useFieldVisibility(
     "masters",
     "cities",
@@ -56,7 +61,7 @@ export default function CityList() {
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters({
     initialFilters: {
       country_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -70,21 +75,12 @@ export default function CityList() {
     companyUniqueId?: string;
     projectId?: string;
   } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  const companyProject = useCompanyProjectFilter(undefined, {
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { companies, isSuperAdmin } = companyProject.selection;
 
   const navigate = useNavigate();
 
@@ -191,7 +187,9 @@ export default function CityList() {
   const statusTemplate = (city: CityRecord) => (
     <Switch
       checked={city.is_active}
-      disabled={isUpdating && pendingStatusId === String(city.unique_id)}
+      disabled={
+        !canEdit || (isUpdating && pendingStatusId === String(city.unique_id))
+      }
       onCheckedChange={(checked) => void updateStatus(city, checked)}
     />
   );
@@ -253,19 +251,21 @@ export default function CityList() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.city") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() =>
-              navigate(ENC_NEW_PATH(companyUniqueId, projectId), {
-                state: {
-                  companyUniqueId,
-                  projectId,
-                },
-              })
-            }
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", { item: t("admin.nav.city") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() =>
+                navigate(ENC_NEW_PATH(companyUniqueId, projectId), {
+                  state: {
+                    companyUniqueId,
+                    projectId,
+                  },
+                })
+              }
+            />
+          </Can>
         </div>
       </div>
 
@@ -277,27 +277,9 @@ export default function CityList() {
             searchPlaceholder={t("common.search_placeholder", {
               item: t("admin.nav.city"),
             })}
-            statusValue={statusValue}
-            onStatusChange={onStatusFilterChange}
-          >
-            <FilterBarSelect
-              value={companyUniqueId || ""}
-              onChange={onCompanyChange}
-              options={companies}
-              placeholder="All Companies"
-              disabled={!isSuperAdmin || companies.length === 0}
-            />
-            <FilterBarSelect
-              value={projectId || ""}
-              onChange={setProjectId}
-              options={projects}
-              placeholder={showAllProjectsOption ? "All Projects" : undefined}
-              disabled={
-                (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-              }
-            />
-          </FilterBar>
+          />
         }
+        filterPanel={combineFilters(companyProject, statusFilter)}
         loadExportRows={async () => getFilteredExportRows()}
         value={cities}
         dataKey="unique_id"
@@ -327,36 +309,23 @@ export default function CityList() {
           body={indexTemplate}
           style={{ width: "80px" }}
         />
-        {showCol("country_name") && (
-          <Column
-            field="country_name"
-            header={t("admin.nav.country")}
-            body={(r) => cap(r.country_name)}
-            sortable
-            filter
-            showFilterMatchModes={false}
-          />
-        )}
-        {showCol("state_name") && (
-          <Column
-            field="state_name"
-            header={t("admin.nav.state")}
-            body={(r) => cap(r.state_name)}
-            sortable
-            filter
-            showFilterMatchModes={false}
-          />
-        )}
-        {showCol("district_name") && (
-          <Column
-            field="district_name"
-            header={t("admin.nav.district")}
-            body={(r) => cap(r.district_name)}
-            sortable
-            filter
-            showFilterMatchModes={false}
-          />
-        )}
+        {locationColumn<CityWithRelations>({
+          header: t("common.location"),
+          levels: [
+            showCol("country_name") && {
+              label: t("admin.nav.country"),
+              value: (row) => cap(row.country_name ?? undefined),
+            },
+            showCol("state_name") && {
+              label: t("admin.nav.state"),
+              value: (row) => cap(row.state_name ?? undefined),
+            },
+            showCol("district_name") && {
+              label: t("admin.nav.district"),
+              value: (row) => cap(row.district_name ?? undefined),
+            },
+          ],
+        })}
         {showCol("name") && (
           <Column
             field="name"

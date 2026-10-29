@@ -1,16 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import { StackCell } from "@/components/common/TableCells";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { useTranslation } from "react-i18next";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -18,11 +19,13 @@ import { ActionMenu } from "@/components/ui/ActionMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { appendRouteQuery, createCrudRoutePaths } from "@/utils/routePaths";
 import { staffAccessConfigurationApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
+import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 
 import type { StaffAccessConfigRecord } from "./types";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 type ListRow = StaffAccessConfigRecord;
 
@@ -64,7 +67,6 @@ export default function StaffAccessConfigList() {
   const navigate = useNavigate();
 
   const [rows, setRows] = useState<StaffAccessConfigRecord[]>([]);
-  const [exportRows, setExportRows] = useState<StaffAccessConfigRecord[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -76,45 +78,44 @@ export default function StaffAccessConfigList() {
 
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    projectsLoaded,
-    projectsCompanyId,
-    companies,
-    companiesLoaded,
-    onCompanyChange,
-    setProjectId,
-    isSuperAdmin,
-    showAllProjectsOption,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  const companyProject = useCompanyProjectFilter(() => setFirst(0), {
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { projectsLoaded, projectsCompanyId, companiesLoaded } =
+    companyProject.selection;
 
   // The company/project selection resolves asynchronously after mount. Firing
   // the list + export fetches before it settles sends duplicate unscoped
   // requests that are immediately re-fired with the real scope, so gate both
   // effects until the hook reports the scope as settled. `projectsCompanyId`
   // also guards the company-switch gap (project list still from the previous
-  // company for one render).
-  const scopeReady =
-    companiesLoaded && projectsLoaded && projectsCompanyId === companyUniqueId;
+  // company for one render). Once settled it stays settled: later company
+  // edits are a Filters-panel draft and only reach the list when applied.
+  const [scopeReady, setScopeReady] = useState(false);
+  if (
+    !scopeReady &&
+    companiesLoaded &&
+    projectsLoaded &&
+    projectsCompanyId === companyProject.selection.companyUniqueId
+  ) {
+    setScopeReady(true);
+  }
 
   const {
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange: setStatusValueFilter,
+    statusFilter,
   } = useFilterBarFilters({ statusField: "is_active" });
 
-  const onStatusFilterChange = (value: Parameters<typeof setStatusValueFilter>[0]) => {
+  // A newly applied status starts again from page 1.
+  const [pagedStatus, setPagedStatus] = useState(statusValue);
+  if (pagedStatus !== statusValue) {
+    setPagedStatus(statusValue);
     setFirst(0);
-    setStatusValueFilter(value);
-  };
+  }
 
   const { encAdmins, encStaffAccessConfiguration } = getEncryptedRoute();
   const { newPath, editPath } = createCrudRoutePaths(encAdmins, encStaffAccessConfiguration);
@@ -170,30 +171,16 @@ export default function StaffAccessConfigList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  // SafeDataTable's built-in "Download All Excel" button reads `exportRows`
-  // synchronously, so keep it refreshed with the full (unpaginated),
-  // currently-filtered result set whenever filters/company/project change.
-  useEffect(() => {
-    if (!scopeReady) return;
-    let mounted = true;
+  // "All data" is built server-side with the list's current scope and
+  // filters; "Current page" uses the rows already on screen.
+  const onServerExport = (filename: string, sheetName: string) => {
     const params: Record<string, string | number> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
     if (searchTerm) params.search = searchTerm;
     if (statusValue !== "all") params.is_active = statusValue === "active" ? "true" : "false";
-
-    staffAccessConfigurationApi
-      .readAllForExport({ params })
-      .then((data: unknown) => {
-        if (mounted) setExportRows(toRecordList(data));
-      })
-      .catch(() => {
-        if (mounted) setExportRows([]);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [scopeReady, companyUniqueId, projectId, searchTerm, statusValue]);
+    return staffAccessConfigurationApi.exportToExcel({ params }, filename, sheetName);
+  };
 
   const records = rows;
 
@@ -264,7 +251,8 @@ export default function StaffAccessConfigList() {
     setSortOrder(event.sortOrder);
   };
 
-  const header = (
+  // Title row, then the search with the Filters button + Documents menu.
+  const renderHeader = (actions: ReactNode) => (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -275,39 +263,28 @@ export default function StaffAccessConfigList() {
             {t("admin.staff_access_configuration.subtitle")}
           </p>
         </div>
-        <Button
-          label={t("common.add_item", {
-            item: t("admin.staff_access_configuration.item_label"),
-          })}
-          icon="pi pi-plus"
-          className="p-button-success p-button-sm"
-          onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
-        />
+        <Can action="add">
+          <Button
+            label={t("common.add_item", {
+              item: t("admin.staff_access_configuration.item_label"),
+            })}
+            icon="pi pi-plus"
+            className="p-button-success p-button-sm"
+            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+          />
+        </Can>
       </div>
 
-      <FilterBar
-        searchValue={globalFilterValue}
-        onSearchChange={onGlobalFilterChange}
-        searchPlaceholder={t("common.search_placeholder")}
-        statusValue={statusValue}
-        onStatusChange={onStatusFilterChange}
-      >
-        <FilterBarSelect
-          value={companyUniqueId || ""}
-          onChange={onCompanyChange}
-          placeholder={t("common.all_companies") || "All Companies"}
-          disabled={!isSuperAdmin || companies.length === 0}
-          options={companies}
-        />
-
-        <FilterBarSelect
-          value={projectId || ""}
-          onChange={setProjectId}
-          placeholder={showAllProjectsOption ? (t("common.all_projects") || "All Projects") : undefined}
-          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-          options={projects}
-        />
-      </FilterBar>
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={onGlobalFilterChange}
+            searchPlaceholder={t("common.search_placeholder")}
+          />
+        </div>
+        <div className="ml-auto shrink-0">{actions}</div>
+      </div>
     </div>
   );
 
@@ -315,7 +292,7 @@ export default function StaffAccessConfigList() {
     <ComponentCard title="">
       <DataTable
         value={records}
-        exportRows={exportRows}
+        onServerExport={onServerExport}
         dataKey="unique_id"
         lazy
         paginator
@@ -328,30 +305,52 @@ export default function StaffAccessConfigList() {
         onSort={onSort}
         loading={isLoading}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        header={header}
+        renderHeaderWithActions={renderHeader}
+        filterPanel={combineFilters(companyProject, statusFilter)}
         stripedRows
         emptyMessage={t("common.no_items_found", {
           item: t("admin.staff_access_configuration.item_label"),
         })}
         className="p-datatable-sm"
+        fitWidth
       >
-        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: 80 }} />
-        <Column field="staff_id" header="ID" sortable={Boolean(SORTABLE_FIELD_ORDERING.staff_id)} />
+        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "5%" }} />
+        <Column
+          field="staff_id"
+          header="ID"
+          sortable={Boolean(SORTABLE_FIELD_ORDERING.staff_id)}
+          style={{ width: "12%" }}
+        />
         <Column
           field="staff_name"
           header={t("admin.staff_access_configuration.staff_name")}
           sortable={Boolean(SORTABLE_FIELD_ORDERING.staff_name)}
+          style={{ width: "24%" }}
+          body={(row: ListRow) => (
+            <StackCell
+              primary={row.staff_name}
+              lines={[{ label: "Role", value: roleTemplate(row) }]}
+            />
+          )}
         />
-        <Column header="Role" body={roleTemplate} />
-        <Column header={t("admin.nav.project")} body={projectTemplate} />
-        <Column field="company_name" header={t("admin.nav.company")} />
+        <Column
+          field="company_name"
+          header={t("admin.nav.company")}
+          style={{ width: "31%" }}
+          body={(row: ListRow) => (
+            <StackCell
+              primary={row.company_name}
+              lines={[{ label: t("admin.nav.project"), value: projectTemplate(row) }]}
+            />
+          )}
+        />
         <Column
           header="Permissions"
           body={(row: ListRow) => row.screen_count ?? row.main_screen_count ?? "-"}
-          style={{ width: 120 }}
+          style={{ width: "10%" }}
         />
-        <Column header="Status" body={statusTemplate} style={{ width: 120 }} />
-        <Column header={t("common.actions")} body={actionTemplate} style={{ width: 100, textAlign: "center" }} />
+        <Column header="Status" body={statusTemplate} style={{ width: "10%" }} />
+        <Column header={t("common.actions")} body={actionTemplate} style={{ width: "8%", textAlign: "center" }} />
       </DataTable>
     </ComponentCard>
   );

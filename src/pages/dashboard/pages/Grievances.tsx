@@ -1,655 +1,739 @@
-import { useCallback, useEffect, useState } from "react";
-
+import { useEffect, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  AlertTriangle,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Inbox,
+  MapPin,
+  MessageSquare,
+  RefreshCw,
+  Search,
+  Sparkles,
+  X,
+} from "lucide-react";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
-  MessageSquare,
-  Search,
-  Clock,
-  CheckCircle2,
-  Sparkles,
-  ShieldAlert,
-} from "lucide-react";
-
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { fetchGrievances } from "@/features/grievances/api";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  fetchGrievanceCount,
+  fetchGrievancePage,
+  fetchGrievancePriorities,
+  type GrievanceParams,
+} from "@/features/grievances/api";
 import { AttachmentPreview } from "@/features/grievances/components/AttachmentPreview";
-import { InfoField } from "@/features/grievances/components/InfoField";
-import type { Grievance } from "@/features/grievances/types";
-import { useTranslation } from "react-i18next";
-import { useTheme } from "@/contexts/ThemeContext";
+import { GrievanceAnalytics } from "@/features/grievances/components/GrievanceAnalytics";
+import type { ComplaintPriority, ComplaintTicket } from "@/features/complaintTicketing/types";
 import { cn } from "@/lib/utils";
-import type { SummaryCard, SummaryFilter, SummaryTab } from "./types/Grievances/types";
+import type { GrievanceFilter, SummaryCard } from "./types/Grievances/types";
+
+// P1 = Emergency, P2 = High (see ticket_priority_seeder).
+const HIGH_PRIORITIES = ["P1", "P2"];
+const PAGE_SIZES = [10, 25, 50, 100];
+const SEARCH_DEBOUNCE_MS = 400;
+
+// Each KPI tile maps to server-side filters on the ticket list / counts
+// endpoints. Status buckets are defined in ticket_viewset._status_bucket_q.
+const FILTER_PARAMS: Record<GrievanceFilter, GrievanceParams> = {
+  all: {},
+  new: { created_on: "today" },
+  open: { status: "open" },
+  in_progress: { status: "in_progress" },
+  priority_high: { status: "open", priority: HIGH_PRIORITIES.join(",") },
+  resolved: { status: "resolved" },
+};
+const FILTERS = Object.keys(FILTER_PARAMS) as GrievanceFilter[];
+const EMPTY_COUNTS = Object.fromEntries(FILTERS.map((f) => [f, 0])) as Record<GrievanceFilter, number>;
+
+const STATUS_BADGE: Record<string, string> = {
+  SUBMITTED: "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/40 dark:bg-sky-950/40 dark:text-sky-200",
+  ASSIGNED: "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-500/40 dark:bg-indigo-950/40 dark:text-indigo-200",
+  IN_PROGRESS: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200",
+  ESCALATED: "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-200",
+  REOPENED: "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-500/40 dark:bg-orange-950/40 dark:text-orange-200",
+  RESOLVED: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-200",
+  CLOSED: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-200",
+  default: "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300",
+};
+
+const PRIORITY_DOT: Record<string, string> = {
+  P1: "bg-rose-500",
+  P2: "bg-orange-500",
+  P3: "bg-sky-500",
+  P4: "bg-slate-400",
+};
+
+const statusCode = (g: ComplaintTicket) => (g.status_code ?? "").toUpperCase();
+const priorityCode = (g: ComplaintTicket) => (g.priority_code ?? "").toUpperCase();
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
+const formatDuration = (seconds: number) => {
+  const mins = Math.round(Math.abs(seconds) / 60);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ${mins % 60}m`;
+  return `${Math.floor(hrs / 24)}d ${hrs % 24}h`;
+};
+
+// The tile filter and the priority dropdown both narrow `priority`; combine
+// them so "High priority" + "Normal" correctly yields nothing.
+const buildListParams = (filter: GrievanceFilter, priority: string, search: string): GrievanceParams => {
+  const params = { ...FILTER_PARAMS[filter] };
+  if (priority !== "all") {
+    const allowed = params.priority?.split(",");
+    params.priority = !allowed || allowed.includes(priority) ? priority : "__none__";
+  }
+  if (search) params.search = search;
+  return params;
+};
+
+const locationLabel = (g: ComplaintTicket) =>
+  [g.ward_name, g.zone_name, g.panchayat_name].filter(Boolean).join(", ") ||
+  g.district_name ||
+  "-";
 
 export default function Grievances() {
-  const { t, i18n } = useTranslation();
-  const [complaints, setComplaints] = useState<Grievance[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { t } = useTranslation();
+  const [priorities, setPriorities] = useState<ComplaintPriority[]>([]);
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<SummaryTab>("all");
-  const [summaryFilter, setSummaryFilter] = useState<SummaryFilter>("none");
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<GrievanceFilter>("all");
+  const [priority, setPriority] = useState("all");
+  const [selected, setSelected] = useState<ComplaintTicket | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZES[0]);
+  // Bumped by Refresh to re-run both fetches with unchanged filters.
+  const [reloadKey, setReloadKey] = useState(0);
 
-  const [openDialog, setOpenDialog] = useState(false);
-  const [selectedComplaint, setSelectedComplaint] = useState<Grievance | null>(null);
+  // Each result remembers which request produced it; a mismatch with the
+  // current request key means that fetch is still in flight.
+  const listKey = JSON.stringify([page, pageSize, filter, priority, search, reloadKey]);
+  const [list, setList] = useState<{ key: string; rows: ComplaintTicket[]; total: number; error: boolean }>({
+    key: "",
+    rows: [],
+    total: 0,
+    error: false,
+  });
+  const [countsResult, setCountsResult] = useState({ key: -1, counts: EMPTY_COUNTS });
 
-  const loadComplaints = useCallback(
-    async (signal?: AbortSignal) => {
-      try {
-        setError(null);
-        setLoading(true);
-        const data = await fetchGrievances(signal);
-        console.log("data", data)
-        setComplaints(data);
-      } catch (err) {
-        if (signal?.aborted) return;
+  // Any change to what's listed starts back at the first page.
+  const changeFilter = (next: GrievanceFilter) => {
+    setFilter(next);
+    setPage(1);
+  };
+  const changePriority = (next: string) => {
+    setPriority(next);
+    setPage(1);
+  };
+  const changePageSize = (next: number) => {
+    setPageSize(next);
+    setPage(1);
+  };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(1);
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timeout);
+  }, [searchInput]);
+
+  // One page of the table, fetched from the server.
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchGrievancePage(page, pageSize, buildListParams(filter, priority, search), controller.signal)
+      .then(({ rows, total }) => setList({ key: listKey, rows, total, error: false }))
+      .catch((err) => {
+        if (controller.signal.aborted) return;
         console.error("Unable to load complaints", err);
-        setError(t("dashboard.grievances.error_load_failed"));
-      } finally {
-        if (!signal?.aborted) {
-          setLoading(false);
-        }
-      }
-    },
-    [t],
-  );
+        setList((prev) => ({ ...prev, key: listKey, error: true }));
+      });
+    return () => controller.abort();
+  }, [listKey, page, pageSize, filter, priority, search]);
+
+  // KPI totals — independent of the table's search/priority/page.
+  useEffect(() => {
+    const controller = new AbortController();
+    Promise.all(FILTERS.map((f) => fetchGrievanceCount(FILTER_PARAMS[f], controller.signal)))
+      .then((values) =>
+        setCountsResult({
+          key: reloadKey,
+          counts: Object.fromEntries(FILTERS.map((f, i) => [f, values[i]])) as Record<GrievanceFilter, number>,
+        }),
+      )
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        console.error("Unable to load complaint counts", err);
+        setCountsResult((prev) => ({ ...prev, key: reloadKey }));
+      });
+    return () => controller.abort();
+  }, [reloadKey]);
+
+  const { rows, total } = list;
+  const listLoading = list.key !== listKey;
+  const error = !listLoading && list.error ? t("dashboard.grievances.error_load_failed") : null;
+  const counts = countsResult.counts;
+  const countsLoading = countsResult.key !== reloadKey;
 
   useEffect(() => {
     const controller = new AbortController();
-    loadComplaints(controller.signal);
+    fetchGrievancePriorities(controller.signal)
+      .then(setPriorities)
+      .catch(() => {});
     return () => controller.abort();
-  }, [loadComplaints]);
+  }, []);
 
-  const cap = (str?: string) =>
-    str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
+  // The layout scrolls the window; hide its scrollbar on this page only.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.add("scrollbar-none");
+    return () => root.classList.remove("scrollbar-none");
+  }, []);
 
-  const formatDateTime = (d?: string | null) => {
-    if (!d) return "-";
-    const dt = new Date(d);
-
-    const dd = String(dt.getDate()).padStart(2, "0");
-    const mm = String(dt.getMonth() + 1).padStart(2, "0");
-    const yyyy = dt.getFullYear();
-
-    let h = dt.getHours();
-    const m = String(dt.getMinutes()).padStart(2, "0");
-    const ampm = h >= 12 ? "PM" : "AM";
-    h = h % 12 || 12;
-
-    return `${dd}-${mm}-${yyyy} ${h}.${m} ${ampm}`;
-  };
-
-  const normalizeStatus = (raw?: string | null) =>
-    (raw ?? "").toLowerCase().trim();
-
-  const normalizePriority = (raw?: unknown) => {
-    const value = String(raw ?? "").toLowerCase();
-    if (value.includes("high") || value.includes("critical")) return "High";
-    if (value.includes("low")) return "Low";
-    return "Medium";
-  };
-
-  const getDateOnly = (value?: string | null) =>
-    value ? value.split("T")[0] : null;
-
-  const formatDateForSearch = (value?: string) =>
-    value
-      ? new Date(value).toLocaleDateString(i18n.language).replace(/\//g, "-")
-      : "";
-
-  // SEARCH
-  const filtered = complaints.filter((g) => {
-    const s = searchQuery.toLowerCase();
-    const created = formatDateForSearch(g.created);
-
-    return (
-      g.title?.toLowerCase().includes(s) ||
-      g.category?.toLowerCase().includes(s) ||
-      g.zone_name?.toLowerCase().includes(s) ||
-      g.description?.toLowerCase().includes(s) ||
-      g.unique_id?.toLowerCase().includes(s) ||
-      created.toLowerCase().includes(s)
-    );
-  });
-
-  // KPI LOGIC
-  const todayISO = new Date().toISOString().split("T")[0];
-
-  const todayNewCount = complaints.filter(
-    (g) => (getDateOnly(g.created) ?? "") === todayISO,
-  ).length;
-
-  const openCount = complaints.filter((g) => {
-    const st = normalizeStatus(g.status);
-    const created = getDateOnly(g.created) ?? "";
-    if (st === "open") return true;
-
-    if (
-      ["processing", "progressing", "in-progress"].includes(st) &&
-      created < todayISO
-    )
-      return true;
-
-    return false;
-  }).length;
-
-  const inProgressCount = complaints.filter((g) => {
-    const st = normalizeStatus(g.status);
-    const created = getDateOnly(g.created) ?? "";
-
-    return (
-      ["processing", "progressing", "in-progress"].includes(st) &&
-      created === todayISO
-    );
-  }).length;
-
-  const resolvedCount = complaints.filter((g) =>
-    ["resolved", "closed"].includes(normalizeStatus(g.status))
-  ).length;
-
-  const highPriorityCount = complaints.filter((g) => {
-    const st = normalizeStatus(g.status);
-    if (["resolved", "closed"].includes(st)) return false;
-    const priority = normalizePriority(
-      (g as any).priority ?? (g as any).risk ?? (g as any).severity
-    );
-    return priority === "High";
-  }).length;
-
-  // TAB FILTERING
-  const tabFiltered = (tab: string) => {
-    return filtered.filter((g) => {
-      const st = normalizeStatus(g.status);
-      const created = getDateOnly(g.created) ?? "";
-
-      if (tab === "new") return created === todayISO;
-
-      if (tab === "open") {
-        return (
-          st === "open" ||
-          (["processing", "progressing", "in-progress"].includes(st) &&
-            created < todayISO)
-        );
-      }
-
-      if (tab === "resolved") return ["resolved", "closed"].includes(st);
-
-      return true;
-    });
-  };
-
-  const applySummaryFilter = (rows: Grievance[]) => {
-    if (summaryFilter === "priority_high") {
-      return rows.filter((g) => {
-        const st = normalizeStatus(g.status);
-        if (["resolved", "closed"].includes(st)) return false;
-        const priority = normalizePriority(
-          (g as any).priority ?? (g as any).risk ?? (g as any).severity
-        );
-        return priority === "High";
-      });
-    }
-
-    if (summaryFilter === "in_progress") {
-      return rows.filter((g) => {
-        const st = normalizeStatus(g.status);
-        const created = getDateOnly(g.created) ?? "";
-        return (
-          ["processing", "progressing", "in-progress"].includes(st) &&
-          created === todayISO
-        );
-      });
-    }
-
-    return rows;
-  };
-
-  const statusTokens: Record<
-    string,
-    {
-      badge: string;
-      chip: string;
-      ring: string;
-      glow: string;
-      icon: string;
-    }
-  > = {
-    open: {
-      badge: "border-rose-300 text-rose-600 bg-rose-50 dark:border-rose-500/50 dark:text-rose-200 dark:bg-rose-950/40",
-      chip: "bg-gradient-to-br from-white via-rose-50 to-rose-100 dark:from-rose-950/40 dark:to-rose-900/50",
-      ring: "ring-1 ring-offset-2 ring-offset-white dark:ring-offset-slate-950 ring-rose-200/60 dark:ring-rose-500/40",
-      glow: "bg-gradient-to-r from-rose-400/50 via-transparent to-transparent",
-      icon: "text-rose-600 dark:text-rose-200",
-    },
-    processing: {
-      badge: "border-amber-300 text-amber-600 bg-amber-50 dark:border-amber-500/50 dark:text-amber-200 dark:bg-amber-950/40",
-      chip: "bg-gradient-to-br from-white via-amber-50 to-amber-100 dark:from-amber-950/40 dark:to-amber-900/50",
-      ring: "ring-1 ring-offset-2 ring-offset-white dark:ring-offset-slate-950 ring-amber-200/60 dark:ring-amber-500/40",
-      glow: "bg-gradient-to-r from-amber-400/40 via-transparent to-transparent",
-      icon: "text-amber-600 dark:text-amber-200",
-    },
-    "in-progress": {
-      badge: "border-amber-300 text-amber-600 bg-amber-50 dark:border-amber-500/50 dark:text-amber-200 dark:bg-amber-950/40",
-      chip: "bg-gradient-to-br from-white via-amber-50 to-amber-100 dark:from-amber-950/40 dark:to-amber-900/50",
-      ring: "ring-1 ring-offset-2 ring-offset-white dark:ring-offset-slate-950 ring-amber-200/60 dark:ring-amber-500/40",
-      glow: "bg-gradient-to-r from-amber-400/40 via-transparent to-transparent",
-      icon: "text-amber-600 dark:text-amber-200",
-    },
-    progressing: {
-      badge: "border-amber-300 text-amber-600 bg-amber-50 dark:border-amber-500/50 dark:text-amber-200 dark:bg-amber-950/40",
-      chip: "bg-gradient-to-br from-white via-amber-50 to-amber-100 dark:from-amber-950/40 dark:to-amber-900/50",
-      ring: "ring-1 ring-offset-2 ring-offset-white dark:ring-offset-slate-950 ring-amber-200/60 dark:ring-amber-500/40",
-      glow: "bg-gradient-to-r from-amber-400/40 via-transparent to-transparent",
-      icon: "text-amber-600 dark:text-amber-200",
-    },
-    resolved: {
-      badge: "border-emerald-300 text-emerald-600 bg-emerald-50 dark:border-emerald-500/50 dark:text-emerald-200 dark:bg-emerald-950/40",
-      chip: "bg-gradient-to-br from-white via-emerald-50 to-emerald-100 dark:from-emerald-950/40 dark:to-emerald-900/50",
-      ring: "ring-1 ring-offset-2 ring-offset-white dark:ring-offset-slate-950 ring-emerald-200/60 dark:ring-emerald-500/40",
-      glow: "bg-gradient-to-r from-emerald-400/40 via-transparent to-transparent",
-      icon: "text-emerald-600 dark:text-emerald-200",
-    },
-    closed: {
-      badge: "border-emerald-300 text-emerald-600 bg-emerald-50 dark:border-emerald-500/50 dark:text-emerald-200 dark:bg-emerald-950/40",
-      chip: "bg-gradient-to-br from-white via-emerald-50 to-emerald-100 dark:from-emerald-950/40 dark:to-emerald-900/50",
-      ring: "ring-1 ring-offset-2 ring-offset-white dark:ring-offset-slate-950 ring-emerald-200/60 dark:ring-emerald-500/40",
-      glow: "bg-gradient-to-r from-emerald-400/40 via-transparent to-transparent",
-      icon: "text-emerald-600 dark:text-emerald-200",
-    },
-    default: {
-      badge: "border-slate-300 text-slate-600 bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:bg-slate-900/50",
-      chip: "bg-gradient-to-br from-white via-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950",
-      ring: "ring-1 ring-offset-2 ring-offset-white dark:ring-offset-slate-950 ring-slate-200/50 dark:ring-slate-700/50",
-      glow: "bg-gradient-to-r from-slate-300/30 via-transparent to-transparent",
-      icon: "text-slate-500 dark:text-slate-300",
-    },
-  };
-
-  const getStatusStyles = (status?: string) =>
-    statusTokens[status?.toLowerCase() ?? ""] ?? statusTokens.default;
-
-  const statusLabels: Record<string, string> = {
-    open: t("common.status_open"),
-    processing: t("common.status_in_progress"),
-    progressing: t("common.status_in_progress"),
-    "in-progress": t("common.status_in_progress"),
-    resolved: t("common.status_resolved"),
-    closed: t("dashboard.grievances.status_closed"),
-  };
-
-  const tabLabels: Record<string, string> = {
-    all: t("dashboard.grievances.tabs.all"),
-    new: t("dashboard.grievances.tabs.new"),
-    open: t("dashboard.grievances.tabs.open"),
-    resolved: t("dashboard.grievances.tabs.resolved"),
-  };
-
-  const formatStatusLabel = (status?: string) => {
-    if (!status) return t("dashboard.grievances.status_unknown");
-    const normalized = status.toLowerCase();
-    return statusLabels[normalized] ?? status;
-  };
-
-  const handleRefresh = () => loadComplaints();
-
-  const { theme } = useTheme();
-  const isDarkMode = theme === "dark";
-
-  const pageBgClass = cn(
-    "min-h-screen p-6 transition-colors duration-300",
-    isDarkMode
-      ? "bg-gradient-to-br from-slate-950 via-slate-900 to-slate-900 text-slate-100"
-      : "bg-white text-slate-900"
-  );
-
-  const heroPanelClass = cn(
-    "flex flex-wrap gap-4 items-center justify-between rounded-2xl p-6 border shadow-sm",
-    isDarkMode
-      ? "bg-slate-900/80 backdrop-blur border-slate-800"
-      : "bg-gradient-to-r from-white via-sky-50 to-slate-100 backdrop-blur border-slate-200"
-  );
-
-  const surfaceCardClass = cn(
-    "relative overflow-hidden rounded-2xl border backdrop-blur transition-all duration-500",
-    isDarkMode
-      ? "bg-slate-900/70 border-slate-800 shadow-2xl shadow-black/30"
-      : "bg-white/90 border-slate-200 shadow-lg"
-  );
-
-  const tabsListClass = cn(
-    "grid w-full grid-cols-4 rounded-xl p-1",
-    isDarkMode ? "bg-slate-900/70 border border-slate-800" : "bg-slate-100"
-  );
+  const loading = listLoading || countsLoading;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const currentPage = Math.min(page, pageCount);
 
   const summaryCards: SummaryCard[] = [
     {
       label: t("dashboard.grievances.summary_total"),
-      value: complaints.length,
       subtext: t("dashboard.grievances.summary_total_subtext"),
-      gradient: "bg-gradient-to-br from-white via-sky-50 to-indigo-100 dark:from-slate-950 dark:via-slate-900/30 dark:to-slate-900",
-      border: "border-sky-200/80 dark:border-sky-500/40",
-      iconColor: "text-sky-600 dark:text-sky-200",
-      iconBg: "bg-white/70 dark:bg-slate-900/60",
+      value: counts.all,
       Icon: MessageSquare,
-      tab: "all",
-      filter: "none",
-    },
-    {
-      label: t("dashboard.grievances.summary_open"),
-      value: openCount,
-      subtext: t("dashboard.grievances.summary_open_subtext"),
-      gradient: "bg-gradient-to-br from-white via-rose-50 to-rose-100 dark:from-slate-950 dark:via-rose-950/20 dark:to-slate-900",
-      border: "border-rose-200/80 dark:border-rose-500/40",
-      iconColor: "text-rose-600 dark:text-rose-200",
-      iconBg: "bg-white/70 dark:bg-slate-900/60",
-      Icon: ShieldAlert,
-      tab: "open",
-      filter: "none",
-    },
-    {
-      label: t("dashboard.grievances.summary_priority"),
-      value: highPriorityCount,
-      subtext: t("dashboard.grievances.summary_priority_subtext"),
-      gradient: "bg-gradient-to-br from-white via-fuchsia-50 to-fuchsia-100 dark:from-slate-950 dark:via-fuchsia-950/20 dark:to-slate-900",
-      border: "border-fuchsia-200/80 dark:border-fuchsia-500/40",
-      iconColor: "text-fuchsia-600 dark:text-fuchsia-200",
-      iconBg: "bg-white/70 dark:bg-slate-900/60",
-      Icon: ShieldAlert,
-      tab: "all",
-      filter: "priority_high",
-    },
-    {
-      label: t("dashboard.grievances.summary_resolved"),
-      value: resolvedCount,
-      subtext: t("dashboard.grievances.summary_resolved_subtext"),
-      gradient: "bg-gradient-to-br from-white via-emerald-50 to-emerald-100 dark:from-slate-950 dark:via-emerald-950/20 dark:to-slate-900",
-      border: "border-emerald-200/80 dark:border-emerald-500/40",
-      iconColor: "text-emerald-600 dark:text-emerald-200",
-      iconBg: "bg-white/70 dark:bg-slate-900/60",
-      Icon: CheckCircle2,
-      tab: "resolved",
-      filter: "none",
+      filter: "all",
+      tone: { icon: "bg-sky-100 text-sky-600 dark:bg-sky-500/15 dark:text-sky-300", active: "ring-sky-500" },
     },
     {
       label: t("dashboard.grievances.summary_new"),
-      value: todayNewCount,
       subtext: t("dashboard.grievances.summary_new_subtext"),
-      gradient: "bg-gradient-to-br from-white via-blue-50 to-blue-100 dark:from-slate-950 dark:via-blue-950/20 dark:to-slate-900",
-      border: "border-blue-200/80 dark:border-blue-500/40",
-      iconColor: "text-blue-600 dark:text-blue-200",
-      iconBg: "bg-white/70 dark:bg-slate-900/60",
+      value: counts.new,
       Icon: Sparkles,
-      tab: "new",
-      filter: "none",
+      filter: "new",
+      tone: { icon: "bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-300", active: "ring-violet-500" },
+    },
+    {
+      label: t("dashboard.grievances.summary_open"),
+      subtext: t("dashboard.grievances.summary_open_subtext"),
+      value: counts.open,
+      Icon: Inbox,
+      filter: "open",
+      tone: { icon: "bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300", active: "ring-rose-500" },
     },
     {
       label: t("dashboard.grievances.summary_in_progress"),
-      value: inProgressCount,
       subtext: t("dashboard.grievances.summary_in_progress_subtext"),
-      gradient: "bg-gradient-to-br from-white via-amber-50 to-amber-100 dark:from-slate-950 dark:via-amber-950/20 dark:to-slate-900",
-      border: "border-amber-200/80 dark:border-amber-500/40",
-      iconColor: "text-amber-600 dark:text-amber-200",
-      iconBg: "bg-white/70 dark:bg-slate-900/60",
+      value: counts.in_progress,
       Icon: Clock,
-      tab: "all",
       filter: "in_progress",
+      tone: { icon: "bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300", active: "ring-amber-500" },
+    },
+    {
+      label: t("dashboard.grievances.summary_priority"),
+      subtext: t("dashboard.grievances.summary_priority_subtext"),
+      value: counts.priority_high,
+      Icon: AlertTriangle,
+      filter: "priority_high",
+      tone: { icon: "bg-orange-100 text-orange-600 dark:bg-orange-500/15 dark:text-orange-300", active: "ring-orange-500" },
+    },
+    {
+      label: t("dashboard.grievances.summary_resolved"),
+      subtext: t("dashboard.grievances.summary_resolved_subtext"),
+      value: counts.resolved,
+      Icon: CheckCircle2,
+      filter: "resolved",
+      tone: { icon: "bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300", active: "ring-emerald-500" },
     },
   ];
 
-  const handleTabChange = (tab: string) => {
-    setActiveTab(tab as SummaryTab);
-    setSummaryFilter("none");
-  };
+  const statusBadge = (g: ComplaintTicket) => (
+    <Badge variant="outline" className={cn("whitespace-nowrap font-medium", STATUS_BADGE[statusCode(g)] ?? STATUS_BADGE.default)}>
+      {g.status_name || g.status_code || t("dashboard.grievances.status_unknown")}
+    </Badge>
+  );
 
-  const handleSummaryClick = (tab: SummaryTab, filter: SummaryFilter) => {
-    setActiveTab(tab);
-    setSummaryFilter(filter);
-  };
+  const priorityTag = (g: ComplaintTicket) =>
+    g.priority_code ? (
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium text-slate-600 dark:text-slate-300">
+        <span className={cn("h-2 w-2 rounded-full", PRIORITY_DOT[priorityCode(g)] ?? "bg-slate-400")} />
+        {g.priority_name || g.priority_code}
+      </span>
+    ) : (
+      <span className="text-xs text-muted-foreground">-</span>
+    );
 
-  // MAIN UI --------------------------------------------------------
+  const filtersActive = filter !== "all" || priority !== "all" || searchInput !== "";
+
   return (
-    <div className={pageBgClass}>
-      <div className="space-y-6 h-[calc(100vh-80px)] overflow-y-auto pr-2 pb-10">
-        <div className={heroPanelClass}>
+    <div className="text-slate-900 dark:text-slate-100">
+      <div className="space-y-5 pb-10">
+        {/* HEADER */}
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-3xl font-bold bg-gradient-to-r from-sky-500 via-blue-500 to-indigo-500 bg-clip-text text-transparent">
-              {t("dashboard.grievances.title")}
-            </h2>
-            <p className="text-muted-foreground">{t("dashboard.grievances.subtitle")}</p>
+            <h2 className="text-2xl font-bold tracking-tight md:text-3xl">{t("dashboard.grievances.title")}</h2>
+            <p className="text-sm text-muted-foreground">{t("dashboard.grievances.subtitle")}</p>
           </div>
-          <Button
-            variant="outline"
-            onClick={handleRefresh}
-            disabled={loading}
-            className="border-sky-200 text-sky-600 hover:bg-sky-50 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-900/70"
-          >
+          <Button variant="outline" onClick={() => setReloadKey((k) => k + 1)} disabled={loading} className="gap-2 bg-white dark:bg-slate-900">
+            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
             {t("dashboard.grievances.refresh")}
           </Button>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
-          {summaryCards.map((card) => {
-            const Icon = card.Icon;
+        {/* KPI TILES — double as the list filter */}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+          {summaryCards.map(({ label, subtext, value, Icon, filter: f, tone }) => {
+            const active = filter === f;
             return (
               <button
-                key={card.label}
+                key={f}
                 type="button"
-                onClick={() => handleSummaryClick(card.tab, card.filter)}
-                className="text-left"
+                onClick={() => changeFilter(active && f !== "all" ? "all" : f)}
+                aria-pressed={active}
+                className={cn(
+                  "group rounded-xl border bg-white p-4 text-left shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900",
+                  active ? cn("ring-2", tone.active) : "border-slate-200",
+                )}
               >
-                <Card
-                  className={cn(
-                    surfaceCardClass,
-                    card.gradient,
-                    card.border,
-                    "text-slate-900 dark:text-slate-100 hover:-translate-y-1"
-                  )}
-                >
-                  <div className="pointer-events-none absolute inset-0">
-                    <div className="card-shimmer absolute -right-10 top-10 h-24 w-24 rounded-full bg-white/40 dark:bg-white/5 blur-3xl" />
-                  </div>
-                  <CardHeader className="relative z-10 flex flex-row items-start justify-between space-y-0 pb-2">
-                    <div>
-                      <CardTitle className="text-base font-semibold">{card.label}</CardTitle>
-                      <CardDescription className="text-xs text-muted-foreground">
-                        {card.subtext}
-                      </CardDescription>
-                    </div>
-                    <div className={cn("p-2 rounded-xl shadow-inner", card.iconBg)}>
-                      <Icon className={cn("h-5 w-5", card.iconColor)} />
-                    </div>
-                  </CardHeader>
-                  <CardContent className="relative z-10">
-                    <p className="text-4xl font-bold">{card.value}</p>
-                  </CardContent>
-                </Card>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-300">{label}</p>
+                  <span className={cn("rounded-lg p-1.5", tone.icon)}>
+                    <Icon className="h-4 w-4" />
+                  </span>
+                </div>
+                <p className="mt-2 text-3xl font-bold tabular-nums">{countsLoading ? "–" : value}</p>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">{subtext}</p>
               </button>
             );
           })}
         </div>
 
-        <Card className={cn(surfaceCardClass, "p-4 flex flex-col gap-3 lg:flex-row lg:items-center")}>
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder={t("dashboard.grievances.search_placeholder")}
-              className={cn(
-                "pl-10",
-                isDarkMode ? "bg-slate-900/60 border-slate-800" : "bg-white/90"
-              )}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <Button
-            variant="secondary"
-            onClick={handleRefresh}
-            disabled={loading}
-            className="w-full lg:w-auto bg-gradient-to-r from-sky-400 to-indigo-500 text-white hover:from-sky-500 hover:to-indigo-600"
-          >
-            {t("dashboard.grievances.reload")}
-          </Button>
-        </Card>
+        <GrievanceAnalytics reloadKey={reloadKey} />
 
         {error && (
-          <Card className={cn(surfaceCardClass, "border-rose-200/70 dark:border-rose-500/40")}>
-            <CardContent className="py-4 text-rose-600 dark:text-rose-200">
-              {error}
-            </CardContent>
-          </Card>
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-200">
+            {error}
+          </div>
         )}
 
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-          <TabsList className={tabsListClass}>
-            {["all", "new", "open", "resolved"].map((tab) => (
-              <TabsTrigger
-                key={tab}
-                value={tab}
-                className="text-sm font-semibold rounded-lg data-[state=active]:bg-white data-[state=active]:text-slate-900 dark:data-[state=active]:bg-slate-950/70 dark:data-[state=active]:text-slate-100 transition"
-              >
-                {tabLabels[tab] ?? cap(tab)}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+        {/* LIST */}
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex flex-col gap-3 border-b border-slate-200 p-3 dark:border-slate-800 md:flex-row md:items-center">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder={t("dashboard.grievances.search_placeholder")}
+                className="pl-9"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+              />
+            </div>
+            <Select value={priority} onValueChange={changePriority}>
+              <SelectTrigger className="md:w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("dashboard.grievances.all_priorities")}</SelectItem>
+                {priorities.map((p) => (
+                  <SelectItem key={p.priority_code} value={p.priority_code}>{p.priority_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex items-center justify-end gap-3">
+              {filtersActive && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1 text-xs"
+                  onClick={() => {
+                    setFilter("all");
+                    setPriority("all");
+                    setSearchInput("");
+                    setSearch("");
+                    setPage(1);
+                  }}
+                >
+                  <X className="h-3.5 w-3.5" />
+                  {t("dashboard.grievances.clear_filter")}
+                </Button>
+              )}
+            </div>
+          </div>
 
-          {["all", "new", "open", "resolved"].map((tab) => {
-            const tabItems = applySummaryFilter(tabFiltered(tab));
-            return (
-              <TabsContent key={tab} value={tab} className="space-y-4">
-                {tabItems.length === 0 ? (
-                  <Card className={cn(surfaceCardClass, "border-dashed text-center text-sm text-muted-foreground")}>
-                    <CardContent className="py-6">
-                      {t("dashboard.grievances.empty")}
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="grid gap-4">
-                    {tabItems.map((g, index) => {
-                      console.log("Rendering grievance", g);
-                      const statusStyles = getStatusStyles(g.status);
-                      return (
-                        <Card
-                          key={g.id}
-                          className={cn(
-                            surfaceCardClass,
-                            "p-5 hover:-translate-y-1",
-                            statusStyles.ring
-                          )}
-                          style={{ animationDelay: `${index * 0.03}s` }}
-                        >
-                          <div className="relative grid gap-4 text-sm md:grid-cols-5">
-                            <InfoField label={t("dashboard.grievances.fields.id")} value={g.unique_id} />
-                            <InfoField
-                              label={t("dashboard.grievances.fields.category")}
-                              value={`${cap(g.main_category)} / ${cap(g.sub_category)}`}
-                            />
+          {listLoading ? (
+            <div className="space-y-2 p-4">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="h-14 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800" />
+              ))}
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-14 text-sm text-muted-foreground">
+              <Inbox className="h-8 w-8 opacity-50" />
+              {t("dashboard.grievances.empty")}
+            </div>
+          ) : (
+            <>
+              {/* Desktop table */}
+              <table className="hidden w-full text-sm md:table">
+                <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-muted-foreground dark:bg-slate-900/60">
+                  <tr>
+                    <th className="px-4 py-2.5 font-medium">{t("dashboard.grievances.list.ticket")}</th>
+                    <th className="px-4 py-2.5 font-medium">{t("dashboard.grievances.list.category")}</th>
+                    <th className="px-4 py-2.5 font-medium">{t("dashboard.grievances.list.location")}</th>
+                    <th className="px-4 py-2.5 font-medium">{t("dashboard.grievances.list.priority")}</th>
+                    <th className="px-4 py-2.5 font-medium">{t("dashboard.grievances.list.status")}</th>
+                    <th className="px-4 py-2.5 font-medium">{t("dashboard.grievances.list.raised")}</th>
+                    <th className="w-8" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {rows.map((g) => (
+                    <tr
+                      key={g.unique_id}
+                      onClick={() => setSelected(g)}
+                      className="cursor-pointer transition hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                    >
+                      <td className="max-w-xs px-4 py-3">
+                        <p className="font-mono text-xs text-muted-foreground">{g.ticket_no || g.unique_id}</p>
+                        <p className="truncate font-medium">{g.title || g.category_name || "-"}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p>{g.category_name || "-"}</p>
+                        {g.subcategory_name && <p className="text-xs text-muted-foreground">{g.subcategory_name}</p>}
+                      </td>
+                      <td className="max-w-56 px-4 py-3">
+                        <p className="truncate">{locationLabel(g)}</p>
+                      </td>
+                      <td className="px-4 py-3">{priorityTag(g)}</td>
+                      <td className="px-4 py-3">{statusBadge(g)}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">{formatDateTime(g.created)}</td>
+                      <td className="pr-3">
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
 
-                            <InfoField label={t("dashboard.grievances.fields.zone")} value={g.zone_name || (g.zone_id ? g.zone_id.split('-').pop() : '-')} />
-                            <InfoField label={t("dashboard.grievances.fields.ward")} value={g.ward_name || (g.ward_id ? g.ward_id.split('-').pop() : '-')} />
+              {/* Mobile list */}
+              <ul className="divide-y divide-slate-100 dark:divide-slate-800 md:hidden">
+                {rows.map((g) => (
+                  <li key={g.unique_id}>
+                    <button type="button" onClick={() => setSelected(g)} className="w-full space-y-1.5 px-4 py-3 text-left">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-xs text-muted-foreground">{g.ticket_no || g.unique_id}</span>
+                        {statusBadge(g)}
+                      </div>
+                      <p className="font-medium">{g.title || g.category_name || "-"}</p>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        {priorityTag(g)}
+                        <span className="inline-flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {locationLabel(g)}
+                        </span>
+                        <span>{formatDateTime(g.created)}</span>
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
 
-                            <div>
-                              <p className="text-xs text-muted-foreground">{t("dashboard.grievances.fields.status")}</p>
-                              <Badge className={cn("mt-1", statusStyles.badge)}>
-                                {formatStatusLabel(g.status)}
-                              </Badge>
-                            </div>
-                          </div>
+              <Pager
+                page={currentPage}
+                pageCount={pageCount}
+                pageSize={pageSize}
+                total={total}
+                onPageChange={setPage}
+                onPageSizeChange={changePageSize}
+              />
+            </>
+          )}
+        </div>
+      </div>
 
-                          <Button
-                            onClick={() => {
-                              setSelectedComplaint(g);
-                              setOpenDialog(true);
-                            }}
-                            size="sm"
-                            variant="outline"
-                            className="mt-4"
-                          >
-                            {t("dashboard.grievances.view_details")}
-                          </Button>
-                        </Card>
-                      );
-                    })}
-                  </div>
+      {/* DETAIL DRAWER */}
+      <Sheet open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
+        <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-xl">
+          {selected && <GrievanceDetail ticket={selected} statusBadge={statusBadge(selected)} priorityTag={priorityTag(selected)} />}
+        </SheetContent>
+      </Sheet>
+    </div>
+  );
+}
+
+function GrievanceDetail({
+  ticket: g,
+  statusBadge,
+  priorityTag,
+}: {
+  ticket: ComplaintTicket;
+  statusBadge: ReactNode;
+  priorityTag: ReactNode;
+}) {
+  const { t } = useTranslation();
+  const k = (key: string) => t(`dashboard.grievances.${key}`);
+
+  const sla = g.sla_time_remaining_seconds;
+  const timeline = g.public_timeline ?? [];
+  const attachments = (g.attachments ?? []).filter((a) => a.file_url);
+  const hasCoords = g.latitude && g.longitude;
+
+  return (
+    <div className="flex flex-col">
+      <SheetHeader className="space-y-3 border-b border-slate-200 bg-slate-50 p-6 text-left dark:border-slate-800 dark:bg-slate-900/60">
+        <p className="font-mono text-xs text-muted-foreground">{g.ticket_no || g.unique_id}</p>
+        <SheetTitle className="text-xl leading-snug">{g.title || g.category_name || k("dialog_title")}</SheetTitle>
+        <SheetDescription asChild>
+          <div className="flex flex-wrap items-center gap-3">
+            {statusBadge}
+            {priorityTag}
+            {typeof sla === "number" && (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1 text-xs font-medium",
+                  sla < 0 ? "text-rose-600 dark:text-rose-300" : "text-muted-foreground",
                 )}
-              </TabsContent>
-            );
-          })}
-        </Tabs>
-
-      {/* VIEW DETAILS MODAL */}
-      <Dialog open={openDialog} onOpenChange={setOpenDialog}>
-        <DialogContent
-          className="max-w-4xl rounded-xl p-0"
-          style={{ height: "90vh" }}
-        >
-          <div className="overflow-y-auto h-full p-8">
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-bold">
-                {t("dashboard.grievances.dialog_title")}
-              </DialogTitle>
-              <DialogDescription>{t("dashboard.grievances.dialog_subtitle")}</DialogDescription>
-            </DialogHeader>
-
-            {selectedComplaint && (
-              <div className="space-y-8 pt-4">
-                <div className="grid md:grid-cols-2 gap-8">
-                  <div className="space-y-6">
-                    <InfoField label={t("dashboard.grievances.detail.complaint_no")} value={selectedComplaint.unique_id} />
-                    <InfoField label={t("dashboard.grievances.fields.zone")} value={selectedComplaint.zone_name || (selectedComplaint.zone_id ? selectedComplaint.zone_id.split('-').pop() : '-')} />
-                    <InfoField label={t("dashboard.grievances.detail.contact")} value={selectedComplaint.contact_no} />
-                    <InfoField label={t("dashboard.grievances.detail.closed_at")} value={formatDateTime(selectedComplaint.complaint_closed_at)} />
-                    <InfoField label={t("dashboard.grievances.detail.address")} value={selectedComplaint.address} />
-                  </div>
-
-                  <div className="space-y-6">
-                    <InfoField label={t("dashboard.grievances.fields.category")} value={cap(selectedComplaint.category)} />
-                    <InfoField label={t("dashboard.grievances.fields.ward")} value={selectedComplaint.ward_name || (selectedComplaint.ward_id ? selectedComplaint.ward_id.split('-').pop() : '-')} />
-                    <InfoField label={t("dashboard.grievances.detail.created")} value={formatDateTime(selectedComplaint.created)} />
-
-                    <div>
-                      <p className="text-xs text-muted-foreground">{t("dashboard.grievances.fields.status")}</p>
-                      <Badge className={cn("px-3 py-1", getStatusStyles(selectedComplaint.status).badge)}>
-                        {formatStatusLabel(selectedComplaint.status)}
-                      </Badge>
-                    </div>
-
-                    <InfoField label={t("dashboard.grievances.detail.details")} value={selectedComplaint.details} />
-                  </div>
-                </div>
-
-                <hr />
-
-                <div className="grid md:grid-cols-2 gap-8">
-                  <AttachmentPreview label={t("dashboard.grievances.detail.uploaded_file")} fileUrl={selectedComplaint.image_url} />
-                  <AttachmentPreview label={t("dashboard.grievances.detail.close_file")} fileUrl={selectedComplaint.close_image_url} />
-                </div>
-
-                <hr />
-
-                <InfoField label={t("dashboard.grievances.detail.remarks")} value={selectedComplaint.action_remarks || "-"} />
-              </div>
+              >
+                <Clock className="h-3.5 w-3.5" />
+                {sla < 0 ? k("sla_overdue") : t("dashboard.grievances.sla_left", { time: formatDuration(sla) })}
+              </span>
             )}
           </div>
-        </DialogContent>
-      </Dialog>
+        </SheetDescription>
+      </SheetHeader>
+
+      <div className="space-y-6 p-6">
+        <Section title={k("section.description")}>
+          <p className="whitespace-pre-wrap text-sm">{g.description || k("info.no_description")}</p>
+        </Section>
+
+        <Section title={k("section.complaint")}>
+          <FieldGrid>
+            <Field label={k("fields.category")} value={g.category_name} />
+            <Field label={k("info.subcategory")} value={g.subcategory_name} />
+            <Field label={k("info.module")} value={g.module_name} />
+            <Field label={k("info.source")} value={g.source_code} />
+            <Field label={k("detail.created")} value={formatDateTime(g.created)} />
+            {g.waste_type_names?.length ? <Field label={k("info.waste_types")} value={g.waste_type_names.join(", ")} /> : null}
+          </FieldGrid>
+        </Section>
+
+        <Section title={k("section.reporter")}>
+          <FieldGrid>
+            <Field label={k("info.name")} value={g.reporter_name || g.customer_name || g.profile_name || k("info.anonymous")} />
+            <Field label={k("info.type")} value={g.reporter_type} />
+            <Field label={k("info.phone")} value={g.wa_phone} />
+            <Field label={k("info.email")} value={g.email} />
+          </FieldGrid>
+        </Section>
+
+        <Section title={k("section.location")}>
+          <FieldGrid>
+            <Field label={k("info.district")} value={g.district_name} />
+            <Field label={k("info.panchayat")} value={g.panchayat_name} />
+            <Field label={k("fields.zone")} value={g.zone_name} />
+            <Field label={k("fields.ward")} value={g.ward_name} />
+          </FieldGrid>
+          {(g.location_text || hasCoords) && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-900/60">
+              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <div className="space-y-1">
+                {g.location_text && <p>{g.location_text}</p>}
+                {hasCoords && (
+                  <a
+                    href={`https://www.google.com/maps?q=${g.latitude},${g.longitude}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs font-medium text-sky-600 hover:underline dark:text-sky-300"
+                  >
+                    {k("info.open_map")}
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+        </Section>
+
+        <Section title={k("section.handling")}>
+          <FieldGrid>
+            <Field label={k("info.assigned_to")} value={g.assigned_staff_name || k("info.unassigned")} />
+            <Field label={k("info.escalation_level")} value={g.escalation_level_name} />
+            {g.is_escalated && <Field label={k("info.escalated_to")} value={g.escalated_to_staff_name} />}
+            <Field label={k("info.sla_due")} value={formatDateTime(g.next_escalation_due_at)} />
+            <Field label={k("info.resolved_at")} value={formatDateTime(g.resolved_at)} />
+            <Field label={k("detail.closed_at")} value={formatDateTime(g.closed_at)} />
+            {!!g.reopened_count && <Field label={k("info.reopened")} value={g.reopened_count} />}
+          </FieldGrid>
+        </Section>
+
+        <Section title={k("section.attachments")}>
+          {g.image_url || g.close_image_url || attachments.length ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {g.image_url && <AttachmentPreview label={k("detail.uploaded_file")} fileUrl={g.image_url} />}
+              {g.close_image_url && <AttachmentPreview label={k("detail.close_file")} fileUrl={g.close_image_url} />}
+              {attachments.map((a) => (
+                <AttachmentPreview key={a.unique_id} label={a.file_name || a.file_type || ""} fileUrl={a.file_url} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">{k("info.no_attachments")}</p>
+          )}
+        </Section>
+
+        <Section title={k("section.timeline")}>
+          {timeline.length ? (
+            <ol className="relative space-y-4 border-l border-slate-200 pl-5 dark:border-slate-700">
+              {timeline.map((item, i) => (
+                <li key={`${item.status_code}-${item.at}-${i}`} className="relative">
+                  <span className="absolute -left-[26px] top-1 h-3 w-3 rounded-full border-2 border-white bg-sky-500 dark:border-slate-950" />
+                  <p className="text-sm font-medium">{item.status_name || item.status_code}</p>
+                  <p className="text-xs text-muted-foreground">{formatDateTime(item.at)}</p>
+                  {item.remarks && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{item.remarks}</p>}
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="text-sm text-muted-foreground">{k("info.no_timeline")}</p>
+          )}
+        </Section>
       </div>
+    </div>
+  );
+}
+
+// Page numbers to show: first, last, and a window around the current page, with gaps as null.
+const pageWindow = (page: number, pageCount: number): (number | null)[] => {
+  const pages = new Set([1, pageCount, page - 1, page, page + 1]);
+  const sorted = [...pages].filter((p) => p >= 1 && p <= pageCount).sort((a, b) => a - b);
+  return sorted.flatMap((p, i) => (i > 0 && p - sorted[i - 1] > 1 ? [null, p] : [p]));
+};
+
+function Pager({
+  page,
+  pageCount,
+  pageSize,
+  total,
+  onPageChange,
+  onPageSizeChange,
+}: {
+  page: number;
+  pageCount: number;
+  pageSize: number;
+  total: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
+}) {
+  const { t } = useTranslation();
+  const from = (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, total);
+
+  return (
+    <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 text-sm dark:border-slate-800 md:flex-row md:items-center md:justify-between">
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <span className="whitespace-nowrap">{t("dashboard.grievances.rows_per_page")}</span>
+        <Select value={String(pageSize)} onValueChange={(v) => onPageSizeChange(Number(v))}>
+          <SelectTrigger className="h-8 w-20">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PAGE_SIZES.map((size) => (
+              <SelectItem key={size} value={String(size)}>{size}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span className="whitespace-nowrap">
+          {t("dashboard.grievances.page_range", { from, to, total })}
+        </span>
+      </div>
+
+      <nav className="flex items-center gap-1" aria-label="Pagination">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1 px-2"
+          disabled={page <= 1}
+          onClick={() => onPageChange(page - 1)}
+        >
+          <ChevronLeft className="h-4 w-4" />
+          <span className="hidden sm:inline">{t("dashboard.grievances.previous")}</span>
+        </Button>
+        {pageWindow(page, pageCount).map((p, i) =>
+          p === null ? (
+            <span key={`gap-${i}`} className="px-1 text-muted-foreground">…</span>
+          ) : (
+            <Button
+              key={p}
+              variant={p === page ? "default" : "ghost"}
+              size="sm"
+              className="h-8 min-w-8 px-2 tabular-nums"
+              aria-current={p === page ? "page" : undefined}
+              onClick={() => onPageChange(p)}
+            >
+              {p}
+            </Button>
+          ),
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1 px-2"
+          disabled={page >= pageCount}
+          onClick={() => onPageChange(page + 1)}
+        >
+          <span className="hidden sm:inline">{t("dashboard.grievances.next")}</span>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </nav>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section>
+      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function FieldGrid({ children }: { children: ReactNode }) {
+  return <dl className="grid grid-cols-2 gap-x-6 gap-y-3">{children}</dl>;
+}
+
+function Field({ label, value }: { label: string; value?: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="wrap-break-word text-sm font-medium">{value === undefined || value === null || value === "" ? "-" : value}</dd>
     </div>
   );
 }

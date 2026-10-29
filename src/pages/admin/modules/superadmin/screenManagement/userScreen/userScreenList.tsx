@@ -9,7 +9,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { useTranslation } from "react-i18next";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -19,9 +19,12 @@ import { Switch } from "@/components/ui/switch";
 import { userScreenApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import { filterRowsForExport } from "@/utils/adminListExport";
 
 import type { UserScreen } from "../shared/admin.types";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 const USER_SCREEN_SEARCH_FIELDS = ["userscreen_name", "mainscreen_name", "folder_name"];
 
@@ -38,10 +41,11 @@ export default function UserScreenList() {
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters();
 
   const navigate = useNavigate();
+  const { canEdit } = useScreenAccess();
   const { encAdmins, encUserScreen } = getEncryptedRoute();
 
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -99,7 +103,7 @@ export default function UserScreenList() {
     return (
       <Switch
         checked={row.is_active}
-        disabled={pendingStatusId === String(row.unique_id)}
+        disabled={!canEdit || pendingStatusId === String(row.unique_id)}
         onCheckedChange={updateStatus}
       />
     );
@@ -143,8 +147,6 @@ export default function UserScreenList() {
       searchPlaceholder={t("common.search_placeholder", {
         item: t("admin.nav.user_screen"),
       })}
-      statusValue={statusValue}
-      onStatusChange={onStatusFilterChange}
     />
   );
 
@@ -168,17 +170,20 @@ export default function UserScreenList() {
             </p>
           </div>
 
-          <Button
-            label={t("common.add_item", {
-              item: t("admin.nav.user_screen"),
-            })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", {
+                item: t("admin.nav.user_screen"),
+              })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         </div>
 
         <DataTable
+          filterPanel={combineFilters(statusFilter)}
           value={screens}
           exportRows={exportRows}
           paginator
@@ -190,6 +195,7 @@ export default function UserScreenList() {
           rowsPerPageOptions={[5, 10, 25, 50]}
           stripedRows
           showGridlines
+          fitWidth
           className="p-datatable-sm"
           header={header}
           emptyMessage={t("common.no_items_found", {
@@ -199,47 +205,47 @@ export default function UserScreenList() {
           <Column
             header={t("common.s_no")}
             body={indexTemplate}
-            style={{ width: "70px" }}
+            style={{ width: "5%" }}
           />
           <Column
             field="mainscreen_name"
             header={t("admin.nav.main_screen")}
             sortable
-            style={{ minWidth: "150px" }}
+            style={{ width: "20%" }}
           />
           <Column
             field="userscreen_name"
             header={t("admin.nav.user_screen")}
             sortable
-            style={{ minWidth: "150px" }}
+            style={{ width: "22%" }}
           />
           <Column
             field="folder_name"
             header={t("common.folder")}
             sortable
-            style={{ minWidth: "120px" }}
+            style={{ width: "15%" }}
           />
           <Column
             field="icon_name"
             header={t("common.icon")}
             sortable
-            style={{ minWidth: "100px" }}
+            style={{ width: "13%" }}
           />
           <Column
             field="order_no"
             header={t("common.order")}
             sortable
-            style={{ width: "100px" }}
+            style={{ width: "8%" }}
           />
           <Column
             header={t("common.status")}
             body={statusTemplate}
-            style={{ width: "120px" }}
+            style={{ width: "9%" }}
           />
           <Column
             header={t("common.actions")}
             body={actionTemplate}
-            style={{ width: "150px" }}
+            style={{ width: "8%" }}
           />
         </DataTable>
      

@@ -3,17 +3,21 @@ import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
-import { FilterBarSelect } from "@/components/common/FilterBar";
+import { FormSelect } from "@/components/common/FormSelect";
+import { FilterSection } from "@/components/common/ListToolbar";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
 import { customerAccessConfigurationApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useDraftFilter } from "@/components/filters/useDraftFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 type CustomerOption = {
   unique_id: string;
@@ -59,8 +63,28 @@ const toList = <T,>(value: unknown): T[] => {
  */
 export default function CustomerAccessConfigList() {
   const { t } = useTranslation();
-  const { companyUniqueId, companies, onCompanyChange, isSuperAdmin } =
-    useCompanyProjectSelection({ isEdit: false, defaultToAll: true });
+  const { canAdd, canEdit } = useScreenAccess();
+  const selection = useCompanyProjectSelection({
+    isEdit: false,
+    defaultToAll: true,
+  });
+  const { companies, isSuperAdmin } = selection;
+
+  // Company only (no project here). A super admin picks it in the Filters
+  // panel; everyone else is pinned to their own company, as before.
+  const companyFilter = useDraftFilter({
+    empty: { company: "" },
+    chips: {
+      company: {
+        label: "Company",
+        format: (id) =>
+          companies.find((company) => company.value === id)?.label ?? id,
+      },
+    },
+  });
+  const companyUniqueId = isSuperAdmin
+    ? companyFilter.applied.company
+    : selection.companyUniqueId;
 
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [available, setAvailable] = useState<AvailableScreens | null>(null);
@@ -168,69 +192,82 @@ export default function CustomerAccessConfigList() {
         their app access.
       </p>
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <FilterBarSelect
-          value={companyUniqueId || ""}
-          onChange={onCompanyChange}
-          placeholder={t("common.all_companies") || "All Companies"}
-          disabled={!isSuperAdmin || companies.length === 0}
-          options={companies}
+      {/* Always rendered: the Company picker lives in its Filters panel. */}
+      <DataTable
+        value={customers}
+        loading={loading}
+        dataKey="unique_id"
+        stripedRows
+        paginator
+        rows={10}
+        filterPanel={combineFilters({
+          ...companyFilter,
+          field: (
+            <FilterSection label="Company">
+              <FormSelect
+                label="Company"
+                value={
+                  isSuperAdmin
+                    ? companyFilter.draft.company
+                    : selection.companyUniqueId
+                }
+                onChange={(value) => companyFilter.setField("company", value)}
+                options={companies}
+                placeholder={t("common.all_companies") || "All Companies"}
+                disabled={!isSuperAdmin || companies.length === 0}
+              />
+            </FilterSection>
+          ),
+        })}
+        emptyMessage={
+          companyUniqueId
+            ? undefined
+            : "Select a company to list its customers."
+        }
+      >
+        <Column field="customer_name" header="Customer" />
+        <Column
+          field="contact_no"
+          header="Contact"
+          style={{ width: "11rem" }}
         />
-      </div>
-
-      {!companyUniqueId ? (
-        <div className="rounded-lg border border-dashed border-gray-300 p-6 text-sm text-gray-500 dark:border-gray-700">
-          Select a company to list its customers.
-        </div>
-      ) : (
-        <DataTable
-          value={customers}
-          loading={loading}
-          dataKey="unique_id"
-          stripedRows
-          paginator
-          rows={10}
-        >
-          <Column field="customer_name" header="Customer" />
-          <Column
-            field="contact_no"
-            header="Contact"
-            style={{ width: "11rem" }}
-          />
-          <Column
-            field="username"
-            header="Username"
-            style={{ width: "11rem" }}
-          />
-          <Column
-            header="App access"
-            style={{ width: "12rem" }}
-            body={(row: CustomerOption) =>
-              row.has_access_configuration ? (
-                <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700 dark:bg-green-900/40 dark:text-green-300">
-                  Configured
-                </span>
-              ) : (
-                <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                  No app access
-                </span>
-              )
-            }
-          />
-          <Column
-            header=""
-            style={{ width: "8rem" }}
-            body={(row: CustomerOption) => (
+        <Column
+          field="username"
+          header="Username"
+          style={{ width: "11rem" }}
+        />
+        <Column
+          header="App access"
+          style={{ width: "12rem" }}
+          body={(row: CustomerOption) =>
+            row.has_access_configuration ? (
+              <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                Configured
+              </span>
+            ) : (
+              <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                No app access
+              </span>
+            )
+          }
+        />
+        <Column
+          header=""
+          style={{ width: "8rem" }}
+          body={(row: CustomerOption) =>
+            // Saving creates the configuration when there is none yet and
+            // updates it otherwise, so it needs the matching grant.
+            (configs[row.unique_id] ? canEdit : canAdd) ? (
               <Button
                 label="Configure"
                 size="small"
                 outlined
                 onClick={() => startEdit(row)}
               />
-            )}
-          />
-        </DataTable>
-      )}
+            ) : null
+          }
+        />
+      </DataTable>
 
       {editing && available && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">

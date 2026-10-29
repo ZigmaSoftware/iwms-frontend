@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import { lbApi } from "@/api";
 import { saveAs } from "file-saver";
 // xlsx is ~427KB minified — loaded on demand only when a user actually
 // triggers an Excel export, instead of shipping in this dashboard's chunk.
@@ -11,18 +11,9 @@ import {
 } from "lucide-react";
 import ZigmaLogo from "../../images/logo.png";
 import { useIdleLogout, type SessionEndCause } from "@/hooks/useIdleLogout";
-import { clearLoginSessionTracking, endLoginSession } from "@/utils/loginSession";
-
-/* ─── axios instance ─────────────────────────────────────────────────── */
-const IS_PROD = import.meta.env.VITE_PROD === "true";
-const API_ROOT = IS_PROD ? import.meta.env.VITE_API_PROD : import.meta.env.VITE_API_LOCAL;
-
-const lbApi = axios.create({ baseURL: API_ROOT });
-lbApi.interceptors.request.use((config) => {
-  const token = localStorage.getItem("lb_access_token");
-  if (token) { config.headers = config.headers ?? {}; config.headers.Authorization = `Bearer ${token}`; }
-  return config;
-});
+import { endLoginSession, hasSession } from "@/utils/loginSession";
+import { clearLocalBodySession, LOCAL_BODY_KEYS } from "@/utils/authStorage";
+import { sessionStore } from "@/utils/sessionStore";
 
 /* ─── types ──────────────────────────────────────────────── */
 type MonthlyRow = {
@@ -77,12 +68,6 @@ const currentMonth = () => {
 };
 const todayStr = () => new Date().toISOString().split("T")[0];
 
-function clearLocalBodySession() {
-  clearLoginSessionTracking("lb_access_token");
-  ["lb_access_token","lb_panchayat_unique_id","lb_panchayat_name","lb_leader_name","lb_role"]
-    .forEach((k) => localStorage.removeItem(k));
-}
-
 type View = "home" | "daily" | "monthly";
 
 const fmt = (v?: number | null, dec = 3) =>
@@ -108,7 +93,7 @@ export default function LocalBodyDashboard() {
   const navigate      = useNavigate();
 
   useIdleLogout({
-    tokenKey: "lb_access_token",
+    portal: "localbody",
     onSessionEnd: (cause: SessionEndCause) => {
       clearLocalBodySession();
       navigate("/auth/localbody", {
@@ -117,14 +102,13 @@ export default function LocalBodyDashboard() {
       });
     },
   });
-  const leaderName    = localStorage.getItem("lb_leader_name") ?? "Leader";
-  const panchayatName = localStorage.getItem("lb_panchayat_name") ?? "";
+  const leaderName    = sessionStore.getItem(LOCAL_BODY_KEYS.leaderName) || "Leader";
+  const panchayatName = sessionStore.getItem(LOCAL_BODY_KEYS.panchayatName) ?? "";
   const printRef      = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const role  = localStorage.getItem("lb_role");
-    const token = localStorage.getItem("lb_access_token");
-    if (role !== "panchayat_leader" || !token) navigate("/auth/localbody", { replace: true });
+    const role = sessionStore.getItem(LOCAL_BODY_KEYS.role);
+    if (role !== "panchayat_leader" || !hasSession("localbody")) navigate("/auth/localbody", { replace: true });
   }, [navigate]);
 
   /* ── view / filters ── */
@@ -254,7 +238,7 @@ export default function LocalBodyDashboard() {
           <span className="text-xs font-semibold text-gray-700 hidden sm:block">{leaderName}</span>
         </div>
         <button
-          onClick={async () => { await endLoginSession("lb_access_token", "manual"); clearLocalBodySession(); navigate("/auth/localbody", { replace: true }); }}
+          onClick={async () => { await endLoginSession("localbody", "manual"); clearLocalBodySession(); navigate("/auth/localbody", { replace: true }); }}
           className="flex items-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 hover:border-red-300 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
         >
           <LogOut className="h-3.5 w-3.5" /> Logout

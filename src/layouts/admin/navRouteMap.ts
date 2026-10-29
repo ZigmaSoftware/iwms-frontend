@@ -97,6 +97,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encPermissionAudit,
     encStaticRouteAudit,
     encComplaintAudit,
+    encDbChangeAudit,
     encAuditDashboard,
     encTripPlans,
     encCompanyCreation,
@@ -128,6 +129,7 @@ export function buildNavRouteMap(): RouteEntry[] {
       nameKey: "admin.nav.superadmin_dashboard",
     },
     { path: "/admin", nameKey: "admin.nav.admin_dashboard" },
+    { path: "/admin/vehicle-status", nameKey: "admin.nav.vehicle_status_dashboard" },
     {
       path: `/${encAttendance}/${encAttendance}`,
       nameKey: "admin.nav.attendance",
@@ -545,6 +547,11 @@ export function buildNavRouteMap(): RouteEntry[] {
     {
       path: `/${encAudits}/${encComplaintAudit}`,
       nameKey: "admin.nav.complaint_audit",
+      parentNameKey: "admin.nav.audit_items",
+    },
+    {
+      path: `/${encAudits}/${encDbChangeAudit}`,
+      nameKey: "admin.nav.db_change_audit",
       parentNameKey: "admin.nav.audit_items",
     },
     // Vehicle Tracking

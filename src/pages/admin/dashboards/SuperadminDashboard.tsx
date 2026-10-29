@@ -305,7 +305,7 @@ function SuperadminDashboardContent() {
   );
 }
 
-const ACTIONS = ["view", "add", "edit", "delete", "use"] as const;
+const ACTIONS = ["view", "add", "edit", "delete", "use", "import", "export"] as const;
 
 /** Which screens, with which actions, each company/project is enabled for:
  * pick a company and project, then a module on the left; the right side is

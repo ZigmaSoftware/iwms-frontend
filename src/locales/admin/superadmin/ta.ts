@@ -39,6 +39,9 @@ export default {
     reports_to: "யாருக்கு அறிக்கை அளிக்கிறார்",
     level: "நிலை",
     top_of_chain: "சங்கிலியின் உச்சம் (தலைவர் இல்லை)",
+    escalation: "புகார் மேல்முறையீடு",
+    escalation_yes: "பங்கேற்கும்",
+    escalation_no: "தவிர்க்கப்படும்",
   },
   staff_template_audit: {
     title: "பணியாளர் டெம்ப்ளேட் ஆய்வு",
@@ -361,6 +364,7 @@ export default {
     group_dashboard: "டாஷ்போர்டு",
     superadmin_dashboard: "சூப்பர் அட்மின் டாஷ்போர்டு",
     admin_dashboard: "அட்மின் டாஷ்போர்டு",
+    vehicle_status_dashboard: "வாகன நிலை டாஷ்போர்டு",
     group_super_admin: "சூப்பர் அட்மின்",
     group_masters: "மாஸ்டர்கள்",
     group_core_modules: "கோர் மாட்யூல்கள்",
@@ -454,6 +458,7 @@ export default {
     user_access_audit: "பயனர் அணுகல் ஆய்வு",
     static_route_audit: "நிலையான வழி ஆய்வு",
     complaint_audit: "புகார் ஆய்வு",
+    db_change_audit: "தரவுத்தள மாற்ற ஆய்வு",
     vehicle_trip_audit: "வாகன பயண ஆய்வு",
     trip_exception_log: "பயண விதிவிலக்கு பதிவு",
     zone_property_load_tracker: "மண்டல சொத்து சுமை கண்காணிப்பு",
@@ -511,6 +516,7 @@ export default {
   dashboards: {
     admin: { title: "நிர்வாக டாஷ்போர்டு" },
     superadmin: { title: "சூப்பர் அட்மின் டாஷ்போர்டு", subtitle: "அனைத்து நிறுவனங்களும் திட்டங்களும்" },
+    vehicle_status: { title: "வாகன நிலை டாஷ்போர்டு" },
     range: {
       today: "இன்று",
       yesterday: "நேற்று",

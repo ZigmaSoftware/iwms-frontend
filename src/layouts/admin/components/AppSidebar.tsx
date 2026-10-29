@@ -1,1271 +1,281 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Fragment, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { usePermission } from "@/contexts/PermissionContext";
-import { cn } from "@/lib/utils";
-
 import {
-  ChevronDown,
-  BarChart3,
-  Briefcase,
-  Building2,
-  CalendarCheck,
-  CalendarCog,
-  ClipboardList,
-  FileSearch,
-  Globe,
-  KeyRound,
-  Landmark,
-  LayoutDashboard,
-  MapPin,
-  MessageSquareWarning,
-  MonitorCog,
-  PieChart,
-  Recycle,
-  Route,
-  ShieldCheck,
-  Truck,
-  UserCircle,
-  Users,
-  Search,
-  X,
-} from "lucide-react";
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useSpring,
+  useTransform,
+  type MotionValue,
+} from "framer-motion";
+import * as TooltipPrimitive from "@radix-ui/react-tooltip";
+import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import { useSidebar } from "@/contexts/SideBarContext";
-import { getEncryptedRoute } from "@/utils/routeCache";
-import { decryptSegment } from "@/utils/routeCrypto";
-import { permissionFor } from "@/generated/permissionCatalog";
+import { startRouteProgress } from "@/components/common/routeProgressStore";
+import { useSidebarNav } from "@/layouts/admin/useSidebarNav";
+import type { NavItem, SidebarSectionKey } from "@/layouts/admin/sidebarMenu";
 
-const {
-  encAttendance,
-  encMasters,
-  encAudits,
-  encContinents,
-  encCountries,
-  encDepartments,
-  encDesignations,
-  encStates,
-  encDistricts,
-  encCities,
-  encWards,
-  encCollectionPoints,
-  encPlants,
-  encWasteTypes,
-  encZones,
-  encProperties,
-  encSubProperties,
-  encStaffCreation,
-  encAdmins,
-  encUserScreen,
-  encUserType,
-  encCustomerMaster,
-  encCustomerCreation,
-  encApartmentList,
-  encReport,
-  encMonthlyDistance,
-  encTripSummary,
-  encWasteCollectedSummary,
-  encMonthlyWasteComparison,
-  encComplaintsReport,
-  encComplaintTicket,
-  encComplaint,
-  encMyTasks,
-  encComplaintMastersModule,
-  encComplaintTypes,
-  encComplaintCategories,
-  encComplaintSubcategories,
-  encComplaintSlaRules,
-  encFeedback,
-  encTransportMaster,
-  encScheduleSetup,
-  encScheduleOperations,
-  encFuel,
-  encVehicleCreation,
-  encVehicleHistory,
-  encVehicleTrack,
-  encVehicleTracking,
-  encVehicleType,
-  encWasteCollectedData,
-  encWorkforceManagement,
-  encDateReport,
-  encDayReport,
-  encStaffUserType,
-  encProjectStaffHierarchy,
-  encMainScreenType,
-  encUserScreenAction,
-  encMainScreen,
-  encUserScreenPermission,
-  encStaffAccessConfiguration,
-  encAppModules,
-  encCustomerAccessConfiguration,
-  encStaffMasters,
-  encStaffTemplate,
-  encAlternativeStaffTemplate,
-  encCommonAudit,
-  encTripPlans,
-  encCompanyCreation,
-  encProjectCreation,
-  encSuperAdminMaster,
-  encPanchayats,
-  encPanchayatLeaders,
-  encDistrictLeaders,
-  encBins,
-  encDailyTripAssignment,
-  encDailyTripLog,
-  encDailyTripTracking,
-  encStaticRouteMap,
-  encBinCollectionEvent,
-  encLoginAudits,
-  encPermissionAudit,
-  encStaticRouteAudit,
-  encComplaintAudit,
-  encAuditDashboard,
-  encDailyWasteComparison,
-  encVehicleBreakdown,
-  encTripRetripRequest,
-  encTripDelayReport,
-} = getEncryptedRoute();
+// One entry per top-level menu; the selected menu's submenu is shown as
+// horizontal tabs at the top of the page (AdminSubNav). Closed, the sidebar is
+// a rail of icons only (names in tooltips); open, it lists full names beside
+// the icons.
+// Each item is a card: hidden at rest, lifted on hover, kept for the
+// selected item. Only colours and shadow animate (no layout shift).
+const railButtonBase =
+  "group flex w-full shrink-0 rounded-2xl border transition-[background-color,border-color,box-shadow] duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-300";
+const railButtonClosedClasses = "items-center justify-center p-1.5";
+const railButtonOpenClasses =
+  "flex-row items-center gap-3 px-2 py-1.5 text-left";
+const railCardRestClasses =
+  "border-transparent hover:border-green-100 hover:bg-white hover:shadow-[0_6px_18px_-6px_rgba(13,148,136,0.35)] dark:hover:border-white/10 dark:hover:bg-white/5 dark:hover:shadow-none";
+const railCardSelectedClasses =
+  "border-green-100 bg-white shadow-[0_4px_14px_-6px_rgba(13,148,136,0.4)] dark:border-green-400/20 dark:bg-white/5 dark:shadow-none";
+// No transform transition here: DockIcon drives the scale every frame.
+const railIconBase =
+  "flex shrink-0 items-center justify-center rounded-xl transition-[background-color,color,box-shadow] duration-200";
+const railActiveClasses =
+  "bg-linear-to-br from-green-500 to-green-600 text-white shadow-md shadow-green-200/70 dark:shadow-green-900/40";
+const railCurrentClasses =
+  "bg-green-50 text-green-700 dark:bg-green-400/10 dark:text-green-300";
+const railInactiveClasses =
+  "text-gray-500 group-hover:bg-green-50 group-hover:text-green-700 dark:text-gray-400 dark:group-hover:bg-green-400/10 dark:group-hover:text-green-300";
+const railLabelClasses = "min-w-0 flex-1 text-sm leading-snug";
 
-type NavMatchable = {
-  path?: string;
-  matchPaths?: string[];
-  /** Match `path` only, not routes nested under it. */
-  exact?: boolean;
-};
+// Dock magnification: icons within DOCK_RANGE px of the pointer grow towards
+// DOCK_MAX_SCALE on a cosine falloff. Only the icon scales (no layout change),
+// so labels and spacing stay put; a spring keeps it smooth.
+const DOCK_RANGE = 110;
+const DOCK_MAX_SCALE = 1.28;
+const DOCK_SPRING = { stiffness: 320, damping: 26, mass: 0.35 };
 
-// `module`/`screens` always come from `permissionFor(...)`, which only accepts
-// names in the generated backend permission catalog. Group headers (items
-// with subItems) carry none: they show whenever a child is visible.
-type NavPermission = {
-  module?: string;
-  screens?: string[];
-};
+const DockIcon: React.FC<{
+  pointerY: MotionValue<number>;
+  disabled: boolean;
+  className: string;
+  children: React.ReactNode;
+}> = ({ pointerY, disabled, className, children }) => {
+  const ref = useRef<HTMLSpanElement>(null);
+  const targetScale = useTransform(pointerY, (y) => {
+    const rect = ref.current?.getBoundingClientRect();
+    if (disabled || !rect || !Number.isFinite(y)) return 1;
+    const distance = Math.abs(y - (rect.top + rect.height / 2));
+    if (distance >= DOCK_RANGE) return 1;
+    const falloff = (Math.cos((Math.PI * distance) / DOCK_RANGE) + 1) / 2;
+    return 1 + (DOCK_MAX_SCALE - 1) * falloff;
+  });
+  const scale = useSpring(targetScale, DOCK_SPRING);
 
-type NavItem = NavMatchable &
-  NavPermission & {
-    nameKey: string;
-    icon: React.ReactNode;
-    /** Platform super admins only; not grantable to anyone else. */
-    superadminOnly?: boolean;
-    subItems?: Array<
-      NavMatchable &
-        NavPermission & {
-          nameKey: string;
-          path: string;
-        }
-    >;
-  };
-
-type SidebarSectionKey =
-  | "main"
-  | "attendance"
-  | "superadminMaster"
-  | "commonMaster"
-  | "master"
-  | "leaderManagement"
-  | "wasteType"
-  | "screenManagement"
-  | "roleAssigns"
-  | "staffManagement"
-  | "processItems"
-  | "customerMasters"
-  | "complaintMasters"
-  | "complaintTicket"
-  | "transportMasters"
-  | "scheduleSetup"
-  | "scheduleOperations"
-  | "wasteReports"
-  | "auditItems"
-  | "wasteManagement"
-  | "workforceManagement"
-  | "fleetReports";
-
-const MODULE_GROUPS: {
-  key: string;
-  titleKey: string;
-  accent: string;
-  sectionKeys: SidebarSectionKey[];
-}[] = [
-  {
-    key: "dashboard",
-    titleKey: "admin.nav.group_dashboard",
-    accent: "bg-green-500",
-    sectionKeys: ["main"],
-  },
-  {
-    key: "super-admin",
-    titleKey: "admin.nav.group_super_admin",
-    accent: "bg-blue-500",
-    sectionKeys: [
-      "superadminMaster",
-      "screenManagement",
-      "roleAssigns",
-      "staffManagement",
-      "commonMaster",
-      "complaintMasters",
-      "auditItems",
-    ],
-  },
-  {
-    key: "masters",
-    titleKey: "admin.nav.group_masters",
-    accent: "bg-orange-400",
-    sectionKeys: [
-      "master",
-      "wasteType",
-      "transportMasters",
-      "customerMasters",
-      "leaderManagement",
-    ],
-  },
-  {
-    key: "core-modules",
-    titleKey: "admin.nav.group_core_modules",
-    accent: "bg-green-500",
-    sectionKeys: [
-      "scheduleSetup",
-      "scheduleOperations",
-      "complaintTicket",
-      "attendance",
-    ],
-  },
-  {
-    key: "reports",
-    titleKey: "admin.nav.group_reports",
-    accent: "bg-blue-500",
-    sectionKeys: ["wasteReports", "fleetReports"],
-  },
-];
-
-/* =====================
-   MENU DEFINITIONS
-===================== */
-
-// Each entry names its permission with permissionFor(module, ...screens).
-// Those names come from the generated backend permission catalog
-// (src/generated/permissionCatalog.ts <- iwms-backend/app/utils/
-// permission_catalog.py), so the checkbox an admin ticks in Staff Access
-// Configuration is the one that shows the page, and a typo fails to compile.
-// A page backed by several screens lists them all; the catalog groups them
-// under one heading in the permission forms (e.g. Daily Trip Plan).
-
-const navItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.superadmin_dashboard",
-    icon: <ShieldCheck size={18} />,
-    path: "/admin/superadmin-dashboard",
-    superadminOnly: true,
-  },
-  {
-    nameKey: "admin.nav.admin_dashboard",
-    icon: <LayoutDashboard size={18} />,
-    path: "/admin",
-    // Every admin page lives under /admin; only the page itself is this item.
-    exact: true,
-    ...permissionFor("dashboard", "admin-dashboard"),
-  },
-];
-
-const attendanceItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.attendance",
-    icon: <CalendarCheck size={18} />,
-    path: `/${encAttendance}/${encAttendance}`,
-    ...permissionFor("attendance", "attendance"),
-  },
-];
-
-const superadminMasterItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.superAdmin_masters",
-    icon: <Building2 size={18} />,
-    subItems: [
-      {
-        nameKey: "admin.nav.company",
-        path: `/${encSuperAdminMaster}/${encCompanyCreation}`,
-        ...permissionFor("superadmin-masters", "company"),
-      },
-      {
-        nameKey: "admin.nav.project",
-        path: `/${encSuperAdminMaster}/${encProjectCreation}`,
-        ...permissionFor("superadmin-masters", "project"),
-      },
-    ],
-  },
-];
-
-const commonMasterItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.common_masters",
-    icon: <Globe size={18} />,
-    subItems: [
-      {
-        nameKey: "admin.nav.continent",
-        path: `/${encMasters}/${encContinents}`,
-        ...permissionFor("common-masters", "continents"),
-      },
-      {
-        nameKey: "admin.nav.country",
-        path: `/${encMasters}/${encCountries}`,
-        ...permissionFor("common-masters", "countries"),
-      },
-      {
-        nameKey: "admin.nav.state",
-        path: `/${encMasters}/${encStates}`,
-        ...permissionFor("common-masters", "states"),
-      },
-    ],
-  },
-];
-
-const masterItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.location_masters",
-    icon: <MapPin size={18} />,
-    subItems: [
-      // ── Administrative / Geographic Hierarchy ────────────────
-      {
-        nameKey: "admin.nav.district",
-        path: `/${encMasters}/${encDistricts}`,
-        ...permissionFor("masters", "districts"),
-      },
-      {
-        nameKey: "admin.nav.city",
-        path: `/${encMasters}/${encCities}`,
-        ...permissionFor("masters", "cities"),
-      },
-      {
-        nameKey: "admin.nav.zone",
-        path: `/${encMasters}/${encZones}`,
-        ...permissionFor("masters", "zones"),
-      },
-      // ── Operational / Field Level ────────────────────────────
-      {
-        nameKey: "admin.nav.ward",
-        path: `/${encMasters}/${encWards}`,
-        ...permissionFor("masters", "wards"),
-      },
-      {
-        nameKey: "admin.nav.panchayat",
-        path: `/${encMasters}/${encPanchayats}`,
-        ...permissionFor("masters", "panchayat"),
-      },
-      {
-        nameKey: "admin.nav.plant",
-        path: `/${encMasters}/${encPlants}`,
-        ...permissionFor("masters", "plants"),
-      },
-    ],
-  },
-];
-
-const leaderManagementItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.leader_management",
-    icon: <Landmark size={18} />,
-    subItems: [
-      {
-        nameKey: "admin.nav.panchayat_leader",
-        path: `/${encMasters}/${encPanchayatLeaders}`,
-        ...permissionFor("masters", "panchayat-leaders"),
-      },
-      {
-        nameKey: "admin.nav.district_leader",
-        path: `/${encMasters}/${encDistrictLeaders}`,
-        ...permissionFor("masters", "district-leaders"),
-      },
-    ],
-  },
-];
-
-const wasteTypeItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.waste_masters",
-    icon: <Recycle size={18} />,
-    subItems: [
-      {
-        nameKey: "admin.nav.property",
-        path: `/${encMasters}/${encProperties}`,
-        ...permissionFor("waste-types", "properties"),
-      },
-      {
-        nameKey: "admin.nav.sub_property",
-        path: `/${encMasters}/${encSubProperties}`,
-        ...permissionFor("waste-types", "subproperties"),
-      },
-      {
-        nameKey: "admin.nav.bin_creation",
-        path: `/${encMasters}/${encBins}`,
-        ...permissionFor("waste-types", "bins"),
-      },
-      {
-        nameKey: "common.waste_type",
-        path: `/${encMasters}/${encWasteTypes}`,
-        ...permissionFor("waste-types", "waste type"),
-      },
-    ],
-  },
-];
-
-const screenManagementItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.screen_management",
-    icon: <MonitorCog size={18} />,
-    subItems: [
-      {
-        nameKey: "admin.nav.main_screen_type",
-        path: `/${encAdmins}/${encMainScreenType}`,
-        ...permissionFor("screen-managements", "mainscreentype"),
-      },
-      {
-        nameKey: "admin.nav.main_screen",
-        path: `/${encAdmins}/${encMainScreen}`,
-        ...permissionFor("screen-managements", "mainscreens"),
-      },
-      {
-        nameKey: "admin.nav.user_screen",
-        path: `/${encAdmins}/${encUserScreen}`,
-        ...permissionFor("screen-managements", "userscreens"),
-      },
-      {
-        nameKey: "admin.nav.user_screen_action",
-        path: `/${encAdmins}/${encUserScreenAction}`,
-        ...permissionFor("screen-managements", "userscreen-action"),
-      },
-      {
-        nameKey: "admin.nav.companywise_user_screen_permission",
-        path: `/${encAdmins}/${encUserScreenPermission}`,
-        ...permissionFor("screen-managements", "companywisescreenpermissions"),
-      },
-      {
-        nameKey: "admin.nav.app_modules",
-        path: `/${encAdmins}/${encAppModules}`,
-        ...permissionFor("screen-managements", "app-modules"),
-      },
-    ],
-  },
-];
-
-const roleAssignsItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.role_management",
-    icon: <KeyRound size={18} />,
-    subItems: [
-      {
-        nameKey: "admin.nav.user_type",
-        path: `/${encAdmins}/${encUserType}`,
-        ...permissionFor("role-assigns", "user-type"),
-      },
-      {
-        nameKey: "admin.nav.staff_user_type",
-        path: `/${encAdmins}/${encStaffUserType}`,
-        // One page with two tabs, shown as one "Staff User Type" row in the
-        // permission forms (SCREEN_GROUPS in the backend).
-        ...permissionFor("role-assigns", "staffusertypes", "contractorusertypes"),
-      },
-      {
-        nameKey: "admin.nav.project_staff_hierarchy",
-        path: `/${encAdmins}/${encProjectStaffHierarchy}`,
-        ...permissionFor("role-assigns", "project-staff-hierarchy"),
-      },
-    ],
-  },
-];
-
-const staffManagementMasters: NavItem[] = [
-  {
-    nameKey: "admin.nav.staff_management",
-    icon: <Users size={18} />,
-    subItems: [
-      {
-        nameKey: "admin.nav.department",
-        path: `/${encStaffMasters}/${encDepartments}`,
-        ...permissionFor("staff-creations", "department-masters"),
-      },
-      {
-        nameKey: "admin.nav.designation",
-        path: `/${encStaffMasters}/${encDesignations}`,
-        ...permissionFor("staff-creations", "designation-masters"),
-      },
-      {
-        nameKey: "admin.nav.staff_creation",
-        path: `/${encStaffMasters}/${encStaffCreation}`,
-        ...permissionFor("staff-creations", "staffcreation"),
-      },
-      {
-        nameKey: "admin.nav.staff_access_configuration",
-        path: `/${encAdmins}/${encStaffAccessConfiguration}`,
-        ...permissionFor("staff-creations", "staff-access-configuration"),
-      },
-    ],
-  },
-];
-
-const customerMasters: NavItem[] = [
-  {
-    nameKey: "admin.nav.customer_masters",
-    icon: <UserCircle size={18} />,
-    subItems: [
-      {
-        nameKey: "admin.nav.customer_creation",
-        path: `/${encCustomerMaster}/${encCustomerCreation}`,
-        ...permissionFor("customers", "customercreations"),
-      },
-      {
-        nameKey: "admin.nav.apartment_list",
-        path: `/${encCustomerMaster}/${encApartmentList}`,
-        ...permissionFor("customers", "apartment-list"),
-      },
-      {
-        nameKey: "admin.nav.customer_access_configuration",
-        path: `/${encCustomerMaster}/${encCustomerAccessConfiguration}`,
-        ...permissionFor("customers", "customer-access-configuration"),
-      },
-    ],
-  },
-];
-
-const complaintMastersItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.complaint_masters",
-    icon: <ClipboardList size={18} />,
-    subItems: [
-      {
-        nameKey: "admin.nav.complaint_types",
-        path: `/${encComplaintMastersModule}/${encComplaintTypes}`,
-        ...permissionFor("complaint-masters", "types", "categories", "subcategories", "sla-rules"),
-        matchPaths: [
-          `/${encComplaintMastersModule}/${encComplaintCategories}`,
-          `/${encComplaintMastersModule}/${encComplaintSubcategories}`,
-          `/${encComplaintMastersModule}/${encComplaintSlaRules}`,
-        ],
-      },
-    ],
-  },
-];
-
-const complaintTicketItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.complaint_management",
-    icon: <MessageSquareWarning size={18} />,
-    subItems: [
-      {
-        nameKey: "admin.nav.complaint_desk",
-        path: `/${encComplaintTicket}/${encComplaint}`,
-        ...permissionFor("complaint-ticket", "tickets"),
-      },
-      {
-        nameKey: "admin.nav.my_tasks",
-        path: `/${encComplaintTicket}/${encMyTasks}`,
-        ...permissionFor("complaint-ticket", "my-tasks"),
-      },
-      {
-        nameKey: "admin.nav.feedback",
-        path: `/${encComplaintTicket}/${encFeedback}`,
-        ...permissionFor("complaint-ticket", "feedback"),
-      },
-      {
-        nameKey: "admin.nav.complaints_report",
-        path: `/${encReport}/${encComplaintsReport}`,
-        ...permissionFor("reports", "complaints-report"),
-      },
-    ],
-  },
-];
-
-const transportMastersItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.transport_masters",
-    icon: <Truck size={18} />,
-    subItems: [
-      {
-        nameKey: "admin.nav.vehicle_type",
-        path: `/${encTransportMaster}/${encVehicleType}`,
-        ...permissionFor("transport-masters", "vehicle-type"),
-      },
-      {
-        nameKey: "admin.nav.vehicle_creation",
-        path: `/${encTransportMaster}/${encVehicleCreation}`,
-        ...permissionFor("transport-masters", "vehicle-creation"),
-      },
-      {
-        nameKey: "admin.nav.fuel",
-        path: `/${encTransportMaster}/${encFuel}`,
-        ...permissionFor("transport-masters", "fuels"),
-      },
-    ],
-  },
-];
-
-const scheduleSetupItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.schedule_setup",
-    icon: <CalendarCog size={18} />,
-    subItems: [
-      {
-        nameKey: "admin.nav.staff_template",
-        path: `/${encScheduleSetup}/${encStaffTemplate}`,
-        ...permissionFor("schedule-setup", "staff-templates"),
-      },
-      {
-        nameKey: "admin.nav.alternative_staff_template",
-        path: `/${encScheduleSetup}/${encAlternativeStaffTemplate}`,
-        ...permissionFor("schedule-setup", "alternative-staff-templates"),
-      },
-      {
-        nameKey: "admin.nav.collection_point",
-        path: `/${encScheduleSetup}/${encCollectionPoints}`,
-        ...permissionFor("schedule-setup", "collection-points"),
-      },
-      {
-        nameKey: "admin.nav.trip_plans",
-        path: `/${encScheduleSetup}/${encTripPlans}`,
-        ...permissionFor("schedule-setup", "trip-plans"),
-      },
-    ],
-  },
-];
-
-// Split from the legacy "schedule-masters" section — day-to-day execution resources.
-const scheduleOperationsItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.schedule_operations",
-    icon: <Route size={18} />,
-    subItems: [
-      {
-        nameKey: "admin.nav.daily_trip_plan",
-        path: `/${encScheduleOperations}/${encDailyTripAssignment}`,
-        ...permissionFor("schedule-operations", "daily-trip-assignments"),
-      },
-      {
-        nameKey: "admin.nav.daily_trip_tracking",
-        path: `/${encScheduleOperations}/${encDailyTripTracking}`,
-        ...permissionFor("schedule-operations", "daily-trip-tracking"),
-      },
-      {
-        nameKey: "admin.nav.static_route_map",
-        path: `/${encScheduleOperations}/${encStaticRouteMap}`,
-        ...permissionFor("schedule-operations", "static-route-map"),
-      },
-      {
-        nameKey: "admin.nav.bin_collection_event",
-        path: `/${encScheduleOperations}/${encBinCollectionEvent}`,
-        ...permissionFor("schedule-operations", "bin-collection-events"),
-      },
-      {
-        nameKey: "admin.nav.waste_collected_data",
-        path: `/${encScheduleOperations}/${encWasteCollectedData}`,
-        ...permissionFor("schedule-operations", "wastecollections"),
-      },
-      {
-        nameKey: "admin.nav.daily_trip_log",
-        path: `/${encScheduleOperations}/${encDailyTripLog}`,
-        ...permissionFor("schedule-operations", "daily-trip-logs"),
-      },
-      {
-        nameKey: "Vehicle Breakdown",
-        path: `/${encScheduleOperations}/${encVehicleBreakdown}`,
-        ...permissionFor("schedule-operations", "vehicle-breakdowns"),
-      },
-      {
-        nameKey: "admin.nav.trip_retrip_request",
-        path: `/${encScheduleOperations}/${encTripRetripRequest}`,
-        ...permissionFor("schedule-operations", "retrip-requests"),
-      },
-      {
-        nameKey: "Trip Delays",
-        path: `/${encScheduleOperations}/${encTripDelayReport}`,
-        ...permissionFor("schedule-operations", "trip-delay-reports"),
-      },
-    ],
-  },
-];
-
-const wasteReportItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.waste_reports",
-    icon: <PieChart size={18} />,
-    subItems: [
-      {
-        nameKey: "Daily Waste Comparison",
-        path: `/${encReport}/${encDailyWasteComparison}`,
-        ...permissionFor("reports", "daily-waste-comparisons"),
-      },
-      {
-        nameKey: "admin.nav.monthly_waste_comparison",
-        path: `/${encReport}/${encMonthlyWasteComparison}`,
-        ...permissionFor("reports", "monthly-waste-comparison"),
-      },
-    ],
-  },
-];
-
-const auditItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.audits",
-    icon: <FileSearch size={18} />,
-    subItems: [
-      {
-        nameKey: "admin.nav.audit_dashboard",
-        path: `/${encAudits}/${encAuditDashboard}`,
-        ...permissionFor("audits", "audit-dashboard"),
-      },
-      {
-        nameKey: "admin.nav.common_audit",
-        path: `/${encAudits}/${encCommonAudit}`,
-        ...permissionFor("audits", "common-audit"),
-      },
-      {
-        nameKey: "admin.nav.login_audit",
-        path: `/${encAudits}/${encLoginAudits}`,
-        ...permissionFor("audits", "login-audit"),
-      },
-      {
-        nameKey: "admin.nav.user_access_audit",
-        path: `/${encAudits}/${encPermissionAudit}`,
-        ...permissionFor("audits", "permission-audit"),
-      },
-      {
-        nameKey: "admin.nav.static_route_audit",
-        path: `/${encAudits}/${encStaticRouteAudit}`,
-        ...permissionFor("audits", "static-route-audit"),
-      },
-      {
-        nameKey: "admin.nav.complaint_audit",
-        path: `/${encAudits}/${encComplaintAudit}`,
-        ...permissionFor("audits", "complaint-audit"),
-      },
-    ],
-  },
-];
-
-const fleetReportItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.fleet_reports",
-    icon: <BarChart3 size={18} />,
-    subItems: [
-      {
-        nameKey: "admin.nav.vehicle_tracking",
-        path: `/${encVehicleTracking}/${encVehicleTrack}`,
-        ...permissionFor("fleet-reports", "vehicle-track"),
-      },
-      {
-        nameKey: "admin.nav.vehicle_history",
-        path: `/${encVehicleTracking}/${encVehicleHistory}`,
-        ...permissionFor("fleet-reports", "vehicle-history"),
-      },
-      {
-        nameKey: "admin.nav.trip_summary",
-        path: `/${encReport}/${encTripSummary}`,
-        ...permissionFor("fleet-reports", "trip-summary"),
-      },
-      {
-        nameKey: "admin.nav.monthly_distance",
-        path: `/${encReport}/${encMonthlyDistance}`,
-        ...permissionFor("fleet-reports", "monthly-distance"),
-      },
-      {
-        nameKey: "admin.nav.waste_collected_summary",
-        path: `/${encReport}/${encWasteCollectedSummary}`,
-        ...permissionFor("fleet-reports", "waste-collected-summary"),
-      },
-    ],
-  },
-  // One permission row covers the menu and both reports (SCREEN_GROUPS
-  // "weighbridge-management" in the backend's screen_dependencies.py).
-  {
-    nameKey: "admin.nav.workforce_management",
-    icon: <Briefcase size={18} />,
-    subItems: [
-      {
-        nameKey: "admin.nav.day_report",
-        path: `/${encWorkforceManagement}/${encDayReport}`,
-        ...permissionFor("fleet-reports", "day-report"),
-      },
-      {
-        nameKey: "admin.nav.date_report",
-        path: `/${encWorkforceManagement}/${encDateReport}`,
-        ...permissionFor("fleet-reports", "date-report"),
-      },
-    ],
-  },
-];
-
-const menuButtonBase =
-  "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-300";
-const menuActiveClasses =
-  "bg-linear-to-r from-green-500 to-green-600 text-white shadow-md shadow-green-200/60";
-const menuInactiveClasses =
-  "text-gray-700 hover:bg-green-50 hover:text-green-800";
-const subMenuContainerClasses =
-  "mt-1 ml-2 border-l-2 border-green-100 pl-3 space-y-0.5 pb-1";
-const subMenuActiveClasses =
-  "block rounded-lg bg-orange-50 px-3 py-1.5 text-sm font-semibold text-orange-600";
-const subMenuInactiveClasses =
-  "block rounded-lg px-3 py-1.5 text-sm text-gray-600 hover:bg-green-50 hover:text-green-700";
-
-// Helper: Check if user is superadmin
-const isSuperAdminUser = (): boolean => {
-  const roleFromStorage = localStorage.getItem("user_role");
-  return roleFromStorage === "superadmin" || roleFromStorage === "super_admin";
+  return (
+    <motion.span
+      ref={ref}
+      style={{ scale }}
+      className={cn("will-change-transform", className)}
+    >
+      {children}
+    </motion.span>
+  );
 };
 
 const AppSidebar: React.FC = () => {
-  const { isExpanded, isMobileOpen, toggleSidebar } = useSidebar();
-  const location = useLocation();
+  const { isExpanded, isMobileOpen, toggleMobileSidebar } = useSidebar();
   const { t } = useTranslation();
-  const { hasPermission } = usePermission();
-  const showFullSidebar = isExpanded || isMobileOpen;
+  const { railGroups, isItemCurrent, selectedItem, select } = useSidebarNav();
+  const navigate = useNavigate();
+  const isOpen = isExpanded || isMobileOpen;
+  // Pointer's viewport Y over the rail; Infinity when it is elsewhere.
+  const pointerY = useMotionValue(Infinity);
+  const reduceMotion = useReducedMotion();
+  // One tooltip at a time: Radix keeps a focused (just-clicked) icon's
+  // tooltip open while another is hovered, so several could stack up.
+  const [tooltipKey, setTooltipKey] = useState<string | null>(null);
 
-  //  Detect if current user is superadmin
-  const isSuperAdmin = useMemo(() => isSuperAdminUser(), []);
-
-  // Check sidebar visibility using the read/view permission returned by login.
-  const checkPermission = useCallback(
-    (module: string | undefined, screen: string | undefined): boolean => {
-      if (!module || !screen) return true;
-      return hasPermission(module, screen, "view");
-    },
-    [hasPermission],
-  );
-
-  const checkSubItemPermission = useCallback(
-    (entry: NavPermission): boolean => {
-      if (!entry.module || !entry.screens?.length) return true;
-      return entry.screens.some((screen) => checkPermission(entry.module, screen));
-    },
-    [checkPermission],
-  );
-
-  // Filter sub-items: only show items with permission
-  const filterSubItems = (
-    subItems: NavItem["subItems"],
-  ): NavItem["subItems"] => {
-    if (!subItems) return undefined;
-
-    // Superadmin sees all items
-    if (isSuperAdmin) return subItems;
-
-    // Regular users: only show items they have permission for
-    return subItems.filter((sub) => checkSubItemPermission(sub));
-  };
-
-  // Check if menu item should be shown
-  const hasVisibleContent = (
+  const handleRailClick = (
+    type: SidebarSectionKey,
+    index: number,
     item: NavItem,
-    filteredSubItems: NavItem["subItems"],
-  ): boolean => {
-    // If no subItems, check direct permission or show if no permission needed
-    if (!item.subItems || item.subItems.length === 0) {
-      return checkSubItemPermission(item);
+  ) => {
+    select(type, index);
+    // Open the menu's first page so the content matches its tabs, unless one
+    // of its pages is already open.
+    const firstPage = item.subItems?.[0]?.path;
+    if (firstPage && !isItemCurrent(item)) {
+      startRouteProgress(firstPage);
+      navigate(firstPage);
     }
-
-    // If has subItems, show only if filtered children exist
-    return !!(filteredSubItems && filteredSubItems.length > 0);
+    // On mobile the rail covers the page; close it so the submenu bar shows.
+    if (isMobileOpen) toggleMobileSidebar();
   };
-
-  // Build sidebar sections with strict filtering
-  const sidebarSections = useMemo(() => {
-    const allSections = [
-      { key: "main" as const, items: navItems },
-      { key: "attendance" as const, items: attendanceItems },
-      { key: "superadminMaster" as const, items: superadminMasterItems },
-      { key: "commonMaster" as const, items: commonMasterItems },
-      { key: "master" as const, items: masterItems },
-      { key: "leaderManagement" as const, items: leaderManagementItems },
-      { key: "wasteType" as const, items: wasteTypeItems },
-      { key: "screenManagement" as const, items: screenManagementItems },
-      { key: "roleAssigns" as const, items: roleAssignsItems },
-      { key: "staffManagement" as const, items: staffManagementMasters },
-      { key: "customerMasters" as const, items: customerMasters },
-      { key: "complaintMasters" as const, items: complaintMastersItems },
-      { key: "complaintTicket" as const, items: complaintTicketItems },
-      { key: "transportMasters" as const, items: transportMastersItems },
-      { key: "scheduleSetup" as const, items: scheduleSetupItems },
-      { key: "scheduleOperations" as const, items: scheduleOperationsItems },
-      { key: "wasteReports" as const, items: wasteReportItems },
-      { key: "auditItems" as const, items: auditItems },
-      { key: "fleetReports" as const, items: fleetReportItems },
-    ];
-
-    // If superadmin, show ALL sections with ALL items
-    if (isSuperAdmin) {
-      // console.log("[Sidebar] SuperAdmin detected - showing all sections");
-      return allSections.filter((section) => section.items.length > 0);
-    }
-
-    // For regular users: strict filtering
-    return allSections
-      .map((section) => {
-        // Filter items within section
-        const filteredItems = section.items
-          .filter((item) => !item.superadminOnly)
-          .map((item) => {
-            const filteredSubItems = filterSubItems(item.subItems);
-            return {
-              ...item,
-              subItems: filteredSubItems,
-            };
-          })
-          .filter((item) => hasVisibleContent(item, item.subItems));
-
-        return {
-          ...section,
-          items: filteredItems,
-        };
-      })
-      .filter((section) => section.items.length > 0); // Only show sections with visible items
-  }, [hasPermission, isSuperAdmin, checkPermission]);
-
-  const [searchQuery, setSearchQuery] = useState("");
-
-  const filteredSections = useMemo(() => {
-    if (!searchQuery.trim()) return sidebarSections;
-    const q = searchQuery.toLowerCase().trim();
-    return sidebarSections
-      .map((section) => {
-        const filteredItems = section.items
-          .map((item) => {
-            const parentName = t(item.nameKey).toLowerCase();
-            if (parentName.includes(q)) return item;
-            if (!item.subItems || item.subItems.length === 0) return null;
-            const matchingSubs = item.subItems.filter((sub) =>
-              t(sub.nameKey).toLowerCase().includes(q),
-            );
-            return matchingSubs.length > 0
-              ? { ...item, subItems: matchingSubs }
-              : null;
-          })
-          .filter((item): item is NavItem => item !== null);
-        return { ...section, items: filteredItems };
-      })
-      .filter((section) => section.items.length > 0);
-  }, [searchQuery, sidebarSections, t]);
-
-  // Nest the flat, permission/search-filtered sections under their top-level
-  // category group (SUPER ADMIN / MASTERS / CORE MODULES / REPORTS), in the
-  // exact order each group expects.
-  const groupedSections = useMemo(() => {
-    const sectionsByKey = new Map<
-      SidebarSectionKey,
-      (typeof filteredSections)[number]
-    >(filteredSections.map((section) => [section.key, section]));
-    return MODULE_GROUPS.map((group) => ({
-      key: group.key,
-      titleKey: group.titleKey,
-      accent: group.accent,
-      sections: group.sectionKeys
-        .map((key) => sectionsByKey.get(key))
-        .filter(
-          (section): section is (typeof filteredSections)[number] =>
-            !!section && section.items.length > 0,
-        ),
-    })).filter((group) => group.sections.length > 0);
-  }, [filteredSections]);
-
-  const [openSubmenu, setOpenSubmenu] = useState<{
-    type: SidebarSectionKey;
-    index: number;
-  } | null>(null);
-
-  const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>(
-    {},
-  );
-  const subMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
-
-  const currentDecodedPath = useMemo(() => {
-    const [master, module] = location.pathname.split("/").filter(Boolean);
-    return {
-      master: decryptSegment(master || "") ?? null,
-      module: decryptSegment(module || "") ?? null,
-    };
-  }, [location.pathname]);
-
-  const isActive = useCallback(
-    (path: string, allowNestedRoutes = false) => {
-      if (!path) return false;
-
-      const segments = path.split("/").filter(Boolean);
-      const [encMaster, encModule] = segments;
-      const decodedMaster = decryptSegment(encMaster || "");
-      const decodedModule = decryptSegment(encModule || "");
-
-      if (!decodedMaster && !decodedModule) {
-        if (location.pathname === path) return true;
-        return (
-          allowNestedRoutes &&
-          location.pathname.startsWith(path.endsWith("/") ? path : `${path}/`)
-        );
-      }
-
-      if (decodedMaster !== currentDecodedPath.master) return false;
-      if (!decodedModule) return true;
-
-      if (currentDecodedPath.module === decodedModule) return true;
-      return (
-        allowNestedRoutes &&
-        currentDecodedPath.module?.startsWith(decodedModule)
-      );
-    },
-    [currentDecodedPath, location.pathname],
-  );
-
-  /** True when `entry`'s own route, or any route it fronts, is current. */
-  const isEntryActive = useCallback(
-    (entry: NavMatchable) =>
-      (!!entry.path && isActive(entry.path, !entry.exact)) ||
-      (entry.matchPaths?.some((candidate) => isActive(candidate, true)) ??
-        false),
-    [isActive],
-  );
-
-  useEffect(() => {
-    let matched = false;
-    const skipAutoOpenSubmenuKeys = new Set([
-      "admin.nav.collection_monitoring",
-    ]);
-
-    sidebarSections.forEach((section) => {
-      section.items.forEach((nav, index) => {
-        nav.subItems?.forEach((sub) => {
-          if (isEntryActive(sub)) {
-            matched = true;
-            if (!skipAutoOpenSubmenuKeys.has(sub.nameKey)) {
-              setOpenSubmenu({ type: section.key, index });
-            }
-          }
-        });
-      });
-    });
-
-    if (!matched) setOpenSubmenu(null);
-  }, [location, isActive, isEntryActive, sidebarSections]);
-
-  useEffect(() => {
-    if (openSubmenu) {
-      const key = `${openSubmenu.type}-${openSubmenu.index}`;
-      const el = subMenuRefs.current[key];
-      if (el) {
-        setSubMenuHeight((prev) => ({
-          ...prev,
-          [key]: el.scrollHeight || 0,
-        }));
-      }
-    }
-  }, [openSubmenu]);
-
-  const handleSubmenuToggle = (index: number, type: SidebarSectionKey) => {
-    if (!showFullSidebar) {
-      toggleSidebar();
-      setOpenSubmenu({ type, index });
-      return;
-    }
-
-    setOpenSubmenu((prev) =>
-      prev && prev.type === type && prev.index === index
-        ? null
-        : { type, index },
-    );
-  };
-
-  const renderMenuItems = (items: NavItem[], type: SidebarSectionKey) => (
-    <ul className="flex flex-col gap-2">
-      {items.map((nav, index) => {
-        const isSubmenuOpen =
-          (searchQuery.trim() !== "" &&
-            !!(nav.subItems && nav.subItems.length > 0)) ||
-          (openSubmenu?.type === type && openSubmenu?.index === index);
-        return (
-          <li key={nav.path ?? nav.nameKey}>
-            {nav.subItems && nav.subItems.length > 0 ? (
-              <button
-                onClick={() => handleSubmenuToggle(index, type)}
-                className={`${menuButtonBase} ${
-                  isSubmenuOpen ? menuActiveClasses : menuInactiveClasses
-                }`}
-              >
-                <span
-                  className={cn(
-                    "menu-item-icon-size shrink-0",
-                    !showFullSidebar && "mx-auto",
-                    isSubmenuOpen ? "text-white" : "text-green-600",
-                  )}
-                >
-                  {nav.icon}
-                </span>
-
-                {showFullSidebar && (
-                  <>
-                    <span
-                      className={cn(
-                        "truncate text-sm font-semibold",
-                        isSubmenuOpen ? "text-white" : "text-gray-800",
-                      )}
-                    >
-                      {t(nav.nameKey)}
-                    </span>
-                    <ChevronDown
-                      className={cn(
-                        "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
-                        isSubmenuOpen
-                          ? "rotate-180 text-white"
-                          : "text-green-500",
-                      )}
-                    />
-                  </>
-                )}
-              </button>
-            ) : (
-              nav.path && (
-                <Link
-                  to={nav.path}
-                  className={`${menuButtonBase} ${
-                    isEntryActive(nav) ? menuActiveClasses : menuInactiveClasses
-                  }`}
-                >
-                  <span
-                    className={cn(
-                      "menu-item-icon-size shrink-0",
-                      !showFullSidebar && "mx-auto",
-                      isEntryActive(nav) ? "text-white" : "text-green-600",
-                    )}
-                  >
-                    {nav.icon}
-                  </span>
-                  {showFullSidebar && (
-                    <span
-                      className={cn(
-                        "truncate text-sm font-semibold",
-                        isEntryActive(nav) ? "text-white" : "text-gray-800",
-                      )}
-                    >
-                      {t(nav.nameKey)}
-                    </span>
-                  )}
-                </Link>
-              )
-            )}
-
-            {nav.subItems && nav.subItems.length > 0 && showFullSidebar && (
-              <div
-                ref={(el) => {
-                  subMenuRefs.current[`${type}-${index}`] = el;
-                }}
-                className="overflow-hidden transition-all duration-300"
-                style={{
-                  height: isSubmenuOpen
-                    ? `${subMenuHeight[`${type}-${index}`]}px`
-                    : "0px",
-                }}
-              >
-                <ul className={subMenuContainerClasses}>
-                  {nav.subItems.map((subItem) => (
-                    <li key={subItem.path}>
-                      <Link
-                        to={subItem.path}
-                        className={`block px-3 py-1.5 text-sm font-medium transition-colors ${
-                          isEntryActive(subItem)
-                            ? subMenuActiveClasses
-                            : subMenuInactiveClasses
-                        }`}
-                      >
-                        {t(subItem.nameKey)}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </li>
-        );
-      })}
-    </ul>
-  );
 
   return (
     <aside
       className={cn(
-        "fixed left-0 top-(--admin-header-h) z-50 h-[calc(100vh-var(--admin-header-h))] transition-all duration-300 ease-out",
-        "border-r border-green-100 bg-white shadow-lg shadow-green-100/40",
-        showFullSidebar ? "w-[290px]" : "w-20",
+        "fixed left-0 top-(--admin-header-h) z-50 flex h-[calc(100vh-var(--admin-header-h))] flex-col transition-all duration-300 ease-out",
+        "border-r border-(--admin-border) bg-(--admin-surface) shadow-lg shadow-gray-200/50 dark:shadow-black/30",
+        isOpen ? "w-64" : "w-[72px]",
         isMobileOpen ? "translate-x-0" : "-translate-x-full",
         "lg:translate-x-0",
       )}
     >
-      {/* Top accent bar: green → blue → orange */}
-      <div className="absolute left-0 right-0 top-0 h-[3px] bg-linear-to-r from-green-500 via-blue-500 to-orange-400" />
-
-      <div className="flex h-full flex-col px-3 pb-6 pt-5">
-        {/* Search input — only when expanded */}
-        {showFullSidebar && (
-          <div className="relative mb-3">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search menu..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-green-100 bg-green-50/50 py-2 pl-9 pr-8 text-sm text-gray-700 placeholder-gray-400 focus:border-green-300 focus:outline-none focus:ring-2 focus:ring-green-200"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                aria-label="Clear search"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
+      <nav
+        onPointerMove={(e) => {
+          if (e.pointerType === "mouse") pointerY.set(e.clientY);
+        }}
+        onPointerLeave={() => {
+          pointerY.set(Infinity);
+          setTooltipKey(null);
+        }}
+        onScroll={() => {
+          pointerY.set(Infinity);
+          setTooltipKey(null);
+        }}
+        className={cn(
+          "scrollbar-none flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto py-3",
+          isOpen ? "items-stretch px-3" : "items-center px-1.5",
         )}
-
-        <div className="no-scrollbar flex-1 overflow-y-auto pr-1">
-          <nav className="flex flex-col gap-1.5">
-            {groupedSections.length > 0
-              ? groupedSections.map((group, groupIndex) => (
-                  <div key={group.key} className="flex flex-col gap-1">
-                    {showFullSidebar ? (
-                      <div
+      >
+        {/* No delay, so names follow the pointer while sweeping the rail. */}
+        <TooltipProvider delayDuration={0} skipDelayDuration={300}>
+          {railGroups.map((group, groupIndex) => (
+            <Fragment key={group.key}>
+              {isOpen ? (
+                <div
+                  className={cn(
+                    "flex shrink-0 items-center gap-2 px-2 pb-1",
+                    groupIndex > 0 && "pt-3",
+                  )}
+                >
+                  <span
+                    className={cn("h-1.5 w-1.5 rounded-full", group.accent)}
+                  />
+                  <span className="text-[10.5px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                    {t(group.titleKey)}
+                  </span>
+                </div>
+              ) : (
+                groupIndex > 0 && (
+                  <div className="my-1 h-px w-10 shrink-0 bg-gray-200 dark:bg-white/10" />
+                )
+              )}
+              {group.sections.map((section) =>
+                section.items.map((item, index) => {
+                  const isSelected = selectedItem === item;
+                  const isCurrent = isItemCurrent(item);
+                  const label = t(item.nameKey);
+                  const content = (
+                    <>
+                      <DockIcon
+                        pointerY={pointerY}
+                        disabled={!!reduceMotion}
                         className={cn(
-                          "flex items-center gap-2 px-3 pb-1.5",
-                          groupIndex === 0 ? "pt-0" : "pt-3",
+                          railIconBase,
+                          isOpen ? "h-9 w-9" : "h-8 w-12",
+                          isSelected
+                            ? railActiveClasses
+                            : isCurrent
+                              ? railCurrentClasses
+                              : railInactiveClasses,
                         )}
                       >
+                        {item.icon}
+                      </DockIcon>
+                      {isOpen && (
                         <span
                           className={cn(
-                            "h-1.5 w-1.5 shrink-0 rounded-full",
-                            group.accent,
+                            railLabelClasses,
+                            isSelected || isCurrent
+                              ? "font-semibold text-gray-900 dark:text-white"
+                              : "font-medium text-gray-500 group-hover:text-green-700 dark:text-gray-400 dark:group-hover:text-green-300",
                           )}
-                        />
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
-                          {t(group.titleKey)}
+                        >
+                          {label}
                         </span>
-                      </div>
-                    ) : (
-                      groupIndex > 0 && (
-                        <div className="mx-2 my-2 h-px bg-green-100" />
-                      )
-                    )}
-
-                    {group.sections.map((section) => (
-                      <div key={section.key} className="flex flex-col gap-1">
-                        {renderMenuItems(section.items, section.key)}
-                      </div>
-                    ))}
-                  </div>
-                ))
-              : showFullSidebar &&
-                searchQuery.trim() && (
-                  <p className="px-3 py-6 text-center text-sm text-gray-400">
-                    No results for &ldquo;{searchQuery}&rdquo;
-                  </p>
-                )}
-          </nav>
-        </div>
-
-        {/* Bottom blue accent line */}
-        <div className="mt-4 h-px bg-linear-to-r from-transparent via-blue-200 to-transparent" />
-      </div>
+                      )}
+                    </>
+                  );
+                  const hasSubItems =
+                    !!item.subItems && item.subItems.length > 0;
+                  const itemKey = `${section.key}-${index}`;
+                  return (
+                    <Tooltip
+                      key={itemKey}
+                      open={!isOpen && tooltipKey === itemKey}
+                      onOpenChange={(open) =>
+                        setTooltipKey((current) =>
+                          open ? itemKey : current === itemKey ? null : current,
+                        )
+                      }
+                    >
+                      <TooltipTrigger asChild>
+                        {hasSubItems || !item.path ? (
+                          <button
+                            type="button"
+                            aria-label={label}
+                            onClick={() =>
+                              handleRailClick(section.key, index, item)
+                            }
+                            className={cn(
+                              railButtonBase,
+                              isOpen
+                                ? railButtonOpenClasses
+                                : railButtonClosedClasses,
+                              isSelected
+                                ? railCardSelectedClasses
+                                : railCardRestClasses,
+                            )}
+                          >
+                            {content}
+                          </button>
+                        ) : (
+                          <Link
+                            to={item.path}
+                            aria-label={label}
+                            onClick={() =>
+                              handleRailClick(section.key, index, item)
+                            }
+                            className={cn(
+                              railButtonBase,
+                              isOpen
+                                ? railButtonOpenClasses
+                                : railButtonClosedClasses,
+                              isSelected
+                                ? railCardSelectedClasses
+                                : railCardRestClasses,
+                            )}
+                          >
+                            {content}
+                          </Link>
+                        )}
+                      </TooltipTrigger>
+                      {/* Names are only hidden when closed.
+                          Portalled: the rail scrolls, so it would clip it. */}
+                      {!isOpen && (
+                        <TooltipPrimitive.Portal>
+                          <TooltipContent
+                            side="right"
+                            sideOffset={10}
+                            className="z-70 rounded-lg border-0 bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white shadow-lg dark:bg-gray-700"
+                          >
+                            {label}
+                            <TooltipPrimitive.Arrow className="fill-gray-900 dark:fill-gray-700" />
+                          </TooltipContent>
+                        </TooltipPrimitive.Portal>
+                      )}
+                    </Tooltip>
+                  );
+                }),
+              )}
+            </Fragment>
+          ))}
+        </TooltipProvider>
+      </nav>
     </aside>
   );
 };

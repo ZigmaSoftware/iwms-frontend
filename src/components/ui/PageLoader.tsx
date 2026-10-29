@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react";
+import { LoadingCard } from "@/components/common/LoadingCard";
 import { cn } from "@/lib/utils";
 
 interface PageLoaderProps {
@@ -8,20 +8,22 @@ interface PageLoaderProps {
 }
 
 export function PageLoader({
-  message = "Loading...",
+  message,
   fullHeight = false,
   className,
 }: PageLoaderProps) {
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-3 text-muted-foreground",
-        fullHeight ? "h-[calc(100vh-80px)]" : "py-8",
+        "flex items-center justify-center",
+        fullHeight ? "h-[calc(100vh-80px)]" : "py-16",
         className,
       )}
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
     >
-      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      <p className="text-sm">{message}</p>
+      <LoadingCard message={message} />
     </div>
   );
 }

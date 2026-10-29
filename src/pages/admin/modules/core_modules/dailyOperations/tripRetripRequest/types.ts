@@ -1,5 +1,35 @@
 export type RetripStatus = "Pending" | "Approved" | "Rejected" | "Expired";
 
+/** Mirrors TripRetripRequest.REASON_CODE_CHOICES (backend). */
+export type RetripReasonCode =
+  | "VEHICLE_FULL"
+  | "SHIFT_END"
+  | "ROAD_BLOCKED"
+  | "WEIGHMENT"
+  | "OTHER";
+
+export const RETRIP_REASON_OPTIONS: { value: RetripReasonCode; label: string }[] = [
+  { value: "VEHICLE_FULL", label: "Vehicle full" },
+  { value: "SHIFT_END", label: "Shift ending" },
+  { value: "ROAD_BLOCKED", label: "Road blocked" },
+  { value: "WEIGHMENT", label: "Going for weighment" },
+  { value: "OTHER", label: "Other" },
+];
+
+/** "Other" must be explained in at least this many characters
+ *  (TripRetripRequest.OTHER_REASON_MIN_LENGTH). */
+export const RETRIP_OTHER_REASON_MIN_LENGTH = 10;
+
+/** Client-side copy of retrip_service.resolve_reason's rule; returns an
+ *  error message, or null when the reason is acceptable. */
+export const retripReasonError = (code: string, note: string): string | null => {
+  if (!code) return "Select a reason.";
+  if (code === "OTHER" && note.trim().length < RETRIP_OTHER_REASON_MIN_LENGTH) {
+    return `Describe the reason in at least ${RETRIP_OTHER_REASON_MIN_LENGTH} characters.`;
+  }
+  return null;
+};
+
 export interface RetripPendingBin {
   unique_id: string;
   sequence: number | null;
@@ -34,7 +64,12 @@ export type TripRetripRequestRecord = {
   collection_type: "bin" | "household" | "bulk" | null;
   vehicle_no: string | null;
   area_name: string | null;
+  panchayat_name?: string | null;
+  zone_name?: string | null;
+  ward_name?: string | null;
 
+  reason_code: RetripReasonCode | null;
+  reason_code_label: string | null;
   reason: string;
   status: RetripStatus;
 

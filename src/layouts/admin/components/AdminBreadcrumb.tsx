@@ -55,7 +55,7 @@ const AdminBreadcrumb: React.FC = () => {
   return (
     <nav
       aria-label="breadcrumb"
-      className="mb-4 flex items-center gap-1 rounded-xl border border-green-100 bg-linear-to-r from-green-50 to-white px-4 py-2.5"
+      className="mb-4 flex items-center gap-1 rounded-xl border border-green-100 bg-linear-to-r from-green-50 to-white px-4 py-2.5 dark:border-white/10 dark:from-green-400/10 dark:to-transparent"
     >
       {breadcrumbs.map((item, index) => (
         <div key={index} className="flex items-center gap-1">
@@ -63,20 +63,20 @@ const AdminBreadcrumb: React.FC = () => {
             <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" />
           )}
           {item.isActive ? (
-            <span className="flex items-center gap-1.5 text-sm font-semibold text-orange-600">
+            <span className="flex items-center gap-1.5 text-sm font-semibold text-gray-900 dark:text-white">
               {index === 0 && <Home className="h-3.5 w-3.5" />}
               {item.label}
             </span>
           ) : item.path ? (
             <Link
               to={item.path}
-              className="flex items-center gap-1.5 text-sm font-medium text-green-700 transition-colors hover:text-green-900"
+              className="flex items-center gap-1.5 text-sm font-medium text-green-700 transition-colors hover:text-green-900 dark:text-green-300 dark:hover:text-green-200"
             >
               {index === 0 && <Home className="h-3.5 w-3.5" />}
               {item.label}
             </Link>
           ) : (
-            <span className="text-sm font-medium text-blue-600">
+            <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
               {item.label}
             </span>
           )}

@@ -17,9 +17,13 @@ import { ActionMenu } from "@/components/ui/ActionMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { districtApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
@@ -49,6 +53,7 @@ const BACKEND_ORDER_FIELD: Record<string, string> = {
 
 export default function DistrictListPage() {
   const { t } = useTranslation();
+  const { canEdit } = useScreenAccess();
   const { showColumn: showCol } = useFieldVisibility(
     "masters",
     "districts",
@@ -73,21 +78,12 @@ export default function DistrictListPage() {
     companyUniqueId?: string;
     projectId?: string;
   } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  const companyProject = useCompanyProjectFilter(() => setFirst(0), {
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { companies, isSuperAdmin } = companyProject.selection;
 
   const navigate = useNavigate();
   const { encMasters, encDistricts } = getEncryptedRoute();
@@ -212,20 +208,19 @@ export default function DistrictListPage() {
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
-  // Feeds the table's single "Download Excel" button: "All data" re-fetches
-  // every row matching the current company/project scope, while "Current
-  // page" uses the rows already on screen.
-  const loadAllExportRows = async () => {
+  // Feeds the table's single "Download Excel" button: "All data" is built
+  // server-side for the current company/project scope, while "Current page"
+  // uses the rows already on screen.
+  const onServerExport = (filename: string, sheetName: string) => {
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
 
-    const allRows = await districtApi.readAllForExport(
+    return districtApi.exportToExcel(
       Object.keys(params).length ? { params } : undefined,
+      filename,
+      sheetName,
     );
-    return (
-      Array.isArray(allRows) ? (allRows as unknown as DistrictApiRow[]) : []
-    ).map(mapRow);
   };
 
   const updateStatus = async (row: DistrictListRecord, checked: boolean) => {
@@ -253,7 +248,9 @@ export default function DistrictListPage() {
   const statusTemplate = (row: DistrictListRecord) => (
     <Switch
       checked={row.is_active}
-      disabled={isUpdating && pendingStatusId === String(row.unique_id)}
+      disabled={
+        !canEdit || (isUpdating && pendingStatusId === String(row.unique_id))
+      }
       onCheckedChange={(checked) => void updateStatus(row, checked)}
     />
   );
@@ -322,49 +319,37 @@ export default function DistrictListPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.district") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() =>
-              navigate(ENC_NEW_PATH, {
-                state: {
-                  companyUniqueId,
-                  projectId,
-                },
-              })
-            }
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", { item: t("admin.nav.district") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() =>
+                navigate(ENC_NEW_PATH, {
+                  state: {
+                    companyUniqueId,
+                    projectId,
+                  },
+                })
+              }
+            />
+          </Can>
         </div>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <DataTable
-        loadExportRows={loadAllExportRows}
-        header={<div className="border-b border-gray-100 bg-gray-50/70 p-3"><FilterBar
+        onServerExport={onServerExport}
+        header={
+          <FilterBar
             searchValue={globalFilterValue}
             onSearchChange={onGlobalFilterChange}
             searchPlaceholder={t("common.search_placeholder", {
               item: t("admin.nav.district"),
             })}
-          >
-            <FilterBarSelect
-              value={companyUniqueId || ""}
-              onChange={onCompanyChange}
-              options={companies}
-              placeholder="All Companies"
-              disabled={!isSuperAdmin || companies.length === 0}
-            />
-            <FilterBarSelect
-              value={projectId || ""}
-              onChange={setProjectId}
-              options={projects}
-              placeholder={showAllProjectsOption ? "All Projects" : undefined}
-              disabled={
-                (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-              }
-            />
-          </FilterBar></div>}
+          />
+        }
+        filterPanel={combineFilters(companyProject)}
         value={districts}
         dataKey="unique_id"
         lazy
@@ -390,20 +375,19 @@ export default function DistrictListPage() {
           body={indexTemplate}
           style={{ width: "80px" }}
         />
-        {showCol("countryName") && (
-          <Column
-            field="countryName"
-            header={t("admin.nav.country")}
-            body={(row) => cap(row.countryName)}
-          />
-        )}
-        {showCol("stateName") && (
-          <Column
-            field="stateName"
-            header={t("admin.nav.state")}
-            body={(row) => cap(row.stateName)}
-          />
-        )}
+        {locationColumn<DistrictListRecord>({
+          header: t("common.location"),
+          levels: [
+            showCol("countryName") && {
+              label: t("admin.nav.country"),
+              value: (row) => cap(row.countryName),
+            },
+            showCol("stateName") && {
+              label: t("admin.nav.state"),
+              value: (row) => cap(row.stateName),
+            },
+          ],
+        })}
         {showCol("name") && (
           <Column
             field="name"

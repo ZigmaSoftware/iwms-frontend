@@ -5,6 +5,7 @@ import { getCurrentCompanyUniqueId, getCurrentProjectId } from "@/utils/projectC
 import { USER_ROLE_STORAGE_KEY, normalizeRole } from "@/types/roles";
 import { getStoredProjects } from "@/utils/authStorage";
 import { setListCompanyProjectContext } from "@/utils/listQueryContext";
+import { sessionStore } from "@/utils/sessionStore";
 
 export type CompanyProjectOption = {
   value: string;
@@ -24,6 +25,12 @@ type UseCompanyProjectSelectionArgs = {
   initialCompanyId?: string;
   initialProjectId?: string;
   defaultToAll?: boolean;
+  /**
+   * Publish the selection as the list query context SafeDataTable reads.
+   * Off for useCompanyProjectFilter, whose selection is a Filters-panel draft
+   * that it publishes itself only once applied.
+   */
+  publishContext?: boolean;
 };
 
 const toStringId = (value: unknown): string => {
@@ -59,7 +66,7 @@ const toRecordList = (value: unknown): Record<string, unknown>[] => {
 const readLoginProfile = (): LoginProfile | null => {
   if (typeof window === "undefined") return null;
 
-  const raw = localStorage.getItem("profile");
+  const raw = sessionStore.getItem("profile");
   if (!raw) return null;
 
   try {
@@ -74,6 +81,7 @@ export const useCompanyProjectSelection = ({
   initialCompanyId,
   initialProjectId,
   defaultToAll = false,
+  publishContext = true,
 }: UseCompanyProjectSelectionArgs) => {
   const [companyUniqueId, setCompanyUniqueId] = useState(
     () => initialCompanyId || (defaultToAll ? "" : getCurrentCompanyUniqueId() ?? "")
@@ -100,7 +108,7 @@ export const useCompanyProjectSelection = ({
     if (typeof window === "undefined") return false;
 
     const roleFromStorage = normalizeRole(
-      localStorage.getItem(USER_ROLE_STORAGE_KEY)
+      sessionStore.getItem(USER_ROLE_STORAGE_KEY)
     );
     const roleFromProfile = normalizeRole(profile?.role);
     const normalizedRole = roleFromStorage ?? roleFromProfile;
@@ -309,7 +317,7 @@ export const useCompanyProjectSelection = ({
     // cache first to avoid an extra API round-trip.
     //
     // Safety: only skip the API call when we know the staff's project ID
-    // (stored in localStorage["project_id"] after login).  If the project ID
+    // (stored in the in-memory session after login).  If the project ID
     // is not yet set (old session before this fix), we fall through to the API
     // — the API itself is now scoped by the backend, so it also returns the
     // correct result.
@@ -422,12 +430,17 @@ export const useCompanyProjectSelection = ({
   // runs *before* this (parent's) effect. Publishing in an effect left the
   // table one step behind, e.g. "Clear filters" refetched with the old
   // company/project. The write is idempotent, so a repeated render is harmless.
-  setListCompanyProjectContext({ companyId: companyUniqueId, projectId });
+  if (publishContext) {
+    setListCompanyProjectContext({ companyId: companyUniqueId, projectId });
+  }
 
   useEffect(
     () => () => {
-      setListCompanyProjectContext({ companyId: "", projectId: "" });
+      if (publishContext) {
+        setListCompanyProjectContext({ companyId: "", projectId: "" });
+      }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 

@@ -11,7 +11,7 @@ import Swal from "@/lib/notify";
 import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 import { useTranslation } from "react-i18next";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -21,10 +21,13 @@ import { companyApi } from "@/helpers/admin";
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 const { encSuperAdminMaster: encSuperAdminMasters, encCompanyCreation } =
   getEncryptedRoute();
@@ -38,6 +41,7 @@ export default function CompanyList() {
   const { t } = useTranslation();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(false);
+  const { canEdit } = useScreenAccess();
 
   const {
     filters,
@@ -45,7 +49,7 @@ export default function CompanyList() {
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters({
     initialFilters: {
       name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -98,7 +102,13 @@ export default function CompanyList() {
       }
     };
 
-    return <Switch checked={row.is_active} onCheckedChange={updateStatus} />;
+    return (
+      <Switch
+        checked={row.is_active}
+        disabled={!canEdit}
+        onCheckedChange={updateStatus}
+      />
+    );
   };
 
   const handleDelete = async (id: string) => {
@@ -149,12 +159,14 @@ export default function CompanyList() {
           </p>
         </div>
 
-        <Button
-          label={t("common.add_item", { item: t("admin.nav.company") })}
-          icon="pi pi-plus"
-          className="p-button-success"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+        <Can action="add">
+          <Button
+            label={t("common.add_item", { item: t("admin.nav.company") })}
+            icon="pi pi-plus"
+            className="p-button-success"
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </Can>
       </div>
 
       <DataTable
@@ -165,10 +177,9 @@ export default function CompanyList() {
             searchPlaceholder={t("common.search_placeholder", {
               item: t("admin.nav.company"),
             })}
-            statusValue={statusValue}
-            onStatusChange={onStatusFilterChange}
           />
         }
+        filterPanel={combineFilters(statusFilter)}
         loadExportRows={async () => getFilteredExportRows()}
         value={companies}
         dataKey="unique_id"

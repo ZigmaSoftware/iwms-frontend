@@ -7,11 +7,12 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
 import { appModuleApi } from "@/helpers/admin";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 /** One row of the mobile app module master. */
 type AppModuleRow = {
@@ -47,6 +48,7 @@ const toRows = (value: unknown): AppModuleRow[] => {
  */
 export default function AppModuleList() {
   const { t } = useTranslation();
+  const { canEdit } = useScreenAccess();
   const [rows, setRows] = useState<AppModuleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -129,6 +131,7 @@ export default function AppModuleList() {
           body={(row: AppModuleRow) => (
             <input
               className="w-full rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800"
+              disabled={!canEdit}
               value={drafts[row.unique_id]?.label ?? row.label}
               onChange={(event) =>
                 setDrafts((current) => ({
@@ -149,6 +152,7 @@ export default function AppModuleList() {
             <input
               type="number"
               className="w-20 rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800"
+              disabled={!canEdit}
               value={drafts[row.unique_id]?.order_no ?? row.order_no}
               onChange={(event) =>
                 setDrafts((current) => ({
@@ -175,7 +179,7 @@ export default function AppModuleList() {
             <button
               type="button"
               onClick={() => toggleActive(row)}
-              disabled={savingId === row.unique_id}
+              disabled={!canEdit || savingId === row.unique_id}
               className={`rounded-full px-3 py-1 text-xs font-medium ${
                 row.is_active
                   ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
@@ -189,14 +193,16 @@ export default function AppModuleList() {
         <Column
           header=""
           style={{ width: "7rem" }}
-          body={(row: AppModuleRow) => (
-            <Button
-              label="Save"
-              size="small"
-              loading={savingId === row.unique_id}
-              onClick={() => save(row)}
-            />
-          )}
+          body={(row: AppModuleRow) =>
+            canEdit ? (
+              <Button
+                label="Save"
+                size="small"
+                loading={savingId === row.unique_id}
+                onClick={() => save(row)}
+              />
+            ) : null
+          }
         />
       </DataTable>
     </ComponentCard>

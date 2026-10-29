@@ -1,63 +1,41 @@
-import { LayoutDashboard, FileText, Scale, MessageSquare } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { getEncryptedRoute } from "@/utils/routeCache";
-import { decryptSegment } from "@/utils/routeCrypto";
-
-const {
-  encDashboardGrievances,
-  encDashboardReports,
-  encDashboardWeighBridge,
-} = getEncryptedRoute();
-
-export const menuItems = [
-  { labelKey: "dashboard.nav.dashboard", url: "/dashboard", icon: LayoutDashboard, moduleName: null },
-  { labelKey: "dashboard.nav.grievances", url: `/dashboard/${encDashboardGrievances}`, icon: MessageSquare, moduleName: "dashboard-grievances" },
-  { labelKey: "dashboard.nav.reports", url: `/dashboard/${encDashboardReports}`, icon: FileText, moduleName: "dashboard-reports" },
-  { labelKey: "dashboard.nav.weighbridge", url: `/dashboard/${encDashboardWeighBridge}`, icon: Scale, moduleName: "dashboard-weighbridge" },
-];
-
-
-export function useDashboardActiveNav() {
-  const location = useLocation();
-  const pathSegments = location.pathname.split("/").filter(Boolean);
-  const currentModuleName = pathSegments[0] === "dashboard" && pathSegments[1]
-    ? decryptSegment(pathSegments[1])
-    : null;
-  const isDashboardHome = location.pathname === "/dashboard";
-
-  return (item: (typeof menuItems)[number]) =>
-    item.moduleName === null ? isDashboardHome : currentModuleName === item.moduleName;
-}
+import { cn } from "@/lib/utils";
+import {
+  useDashboardActiveNav,
+  useDashboardMenuItems,
+} from "@/layouts/dashboard/dashboardMenu";
 
 export function HorizontalNav() {
   const { t } = useTranslation();
   const isItemActive = useDashboardActiveNav();
+  const { items } = useDashboardMenuItems();
 
+  // Rendered inside the header's glass capsule: flat items, the active one a
+  // teal pill.
   return (
     <nav className="hidden items-center gap-1 lg:flex">
-      {menuItems.map((item) => {
+      {items.map((item) => {
         const isActive = isItemActive(item);
 
         return (
           <Link
             key={item.url}
             to={item.url}
-            className={`group relative flex items-center gap-3 px-2 text-lg py-2 rounded-lg font-medium transition-all duration-300 after:absolute after:left-2 after:right-2 after:-bottom-0.5 after:h-0.5 after:rounded-full after:bg-primary/60 after:opacity-0 after:transition-opacity after:duration-300 hover:after:opacity-100 ${
+            className={cn(
+              "group flex h-8 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors duration-200",
               isActive
-                ? "bg-gradient-to-r from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/25"
-                : "text-foreground/70 hover:text-foreground hover:bg-accent/50"
-            }`}
+                ? "bg-linear-to-r from-green-500 to-green-600 font-semibold text-white shadow-[0_6px_16px_-6px_rgba(13,148,136,0.6)] dark:from-green-400 dark:to-green-500 dark:text-green-950"
+                : "text-gray-600 hover:bg-white/80 hover:text-green-700 dark:text-gray-300 dark:hover:bg-white/[0.06] dark:hover:text-green-300",
+            )}
           >
             <item.icon
-              className={`h-4 w-4 transition-transform duration-300 ${
-                isActive ? "scale-110" : "group-hover:scale-110"
-              }`}
+              className={cn(
+                "h-4 w-4 transition-transform duration-200",
+                !isActive && "group-hover:scale-110",
+              )}
             />
-            <span className="text-sm">{t(item.labelKey)}</span>
-            {isActive && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-foreground/50 rounded-t-full" />
-            )}
+            <span>{t(item.labelKey)}</span>
           </Link>
         );
       })}

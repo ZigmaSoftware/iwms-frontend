@@ -7,7 +7,7 @@ import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason"
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
+import { FilterBar } from "@/components/common/FilterBar";
 import { FilterMatchMode } from "primereact/api";
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { createCrudRoutePaths } from "@/utils/routePaths";
@@ -15,6 +15,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { complaintCategoryApi, complaintSubcategoryApi } from "@/features/complaintTicketing/api";
 import { asArray, errorText, idOf, yesNo } from "../utils";
 import { MASTER_CONFIG } from "../masters/masterConfig";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 /**
  * "Categories & Subcategories" — merges what used to be two separate
@@ -34,6 +35,7 @@ export default function CategoryManagementScreen() {
   const navigate = useNavigate();
   const routes = getEncryptedRoute();
   const [searchParams] = useSearchParams();
+  const { canAdd } = useScreenAccess();
 
   const categoryRoutes = createCrudRoutePaths(routes.encComplaintTicket, routes[MASTER_CONFIG.category.routeKey]);
   const subcategoryRoutes = createCrudRoutePaths(routes.encComplaintTicket, routes[MASTER_CONFIG.subcategory.routeKey]);
@@ -124,7 +126,9 @@ export default function CategoryManagementScreen() {
           <h1 className="text-2xl font-semibold text-gray-800">Categories &amp; Subcategories</h1>
           <p className="text-sm text-gray-500">Complaint ticketing setup</p>
         </div>
-        <Button label="Add Category" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(categoryRoutes.newPath)} />
+        {canAdd && (
+          <Button label="Add Category" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(categoryRoutes.newPath)} />
+        )}
       </div>
 
       <DataTable
@@ -140,28 +144,26 @@ export default function CategoryManagementScreen() {
         selection={selectedCategory}
         onSelectionChange={(event: any) => setSelectedCategoryId(event.value?.unique_id ?? null)}
         header={
-          <div className="flex justify-end">
-            <InputText
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setFilters((prev: any) => ({ ...prev, global: { ...prev.global, value: event.target.value } }));
-              }}
-              placeholder="Search"
-              className="p-inputtext-sm"
-            />
-          </div>
+          <FilterBar
+            searchValue={query}
+            onSearchChange={(value) => {
+              setQuery(value);
+              setFilters((prev: any) => ({ ...prev, global: { ...prev.global, value } }));
+            }}
+            searchPlaceholder="Search"
+          />
         }
         emptyMessage="No categories found"
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
       >
-        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "80px" }} />
+        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "5%" }} />
         {MASTER_CONFIG.category.columns.map((column) => (
           <Column key={column.field} field={column.field} header={column.header} sortable={column.sortable} />
         ))}
-        <Column header="Active" body={(row) => yesNo(row.is_active !== false)} />
+        <Column header="Active" body={(row) => yesNo(row.is_active !== false)} style={{ width: "8%" }} />
         <Column
           header="Actions"
           body={(row) => (
@@ -172,7 +174,7 @@ export default function CategoryManagementScreen() {
               />
             </div>
           )}
-          style={{ width: "100px" }}
+          style={{ width: "8%" }}
         />
       </DataTable>
 
@@ -186,7 +188,7 @@ export default function CategoryManagementScreen() {
               {selectedCategory ? "" : "Select a category above to manage its subcategories."}
             </p>
           </div>
-          {selectedCategory && (
+          {selectedCategory && canAdd && (
             <Button label="Add Subcategory" icon="pi pi-plus" className="p-button-success" onClick={addSubcategory} />
           )}
         </div>
@@ -200,13 +202,14 @@ export default function CategoryManagementScreen() {
             emptyMessage="No subcategories found for this category"
             stripedRows
             showGridlines
+            fitWidth
             className="p-datatable-sm"
           >
-            <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "80px" }} />
+            <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "5%" }} />
             <Column field="subcategory_code" header="Code" sortable />
             <Column field="subcategory_name" header="Subcategory" sortable />
             <Column field="default_priority_code" header="Default Priority" />
-            <Column header="Active" body={(row) => yesNo(row.is_active !== false)} />
+            <Column header="Active" body={(row) => yesNo(row.is_active !== false)} style={{ width: "8%" }} />
             <Column
               header="Actions"
               body={(row) => (
@@ -217,7 +220,7 @@ export default function CategoryManagementScreen() {
                   />
                 </div>
               )}
-              style={{ width: "100px" }}
+              style={{ width: "8%" }}
             />
           </DataTable>
         )}

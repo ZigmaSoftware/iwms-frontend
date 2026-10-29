@@ -10,15 +10,19 @@ import {
 } from "@/utils/customerUtils";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import { StackCell } from "@/components/common/TableCells";
 import { Column } from "primereact/column";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
 import { FilterBar } from "@/components/common/FilterBar";
+import { FilterSection, type ActiveFilterChip } from "@/components/common/ListToolbar";
+import { useDraftFilter } from "@/components/filters/useDraftFilter";
+import { combineFilters, type FilterPart } from "@/components/filters/useOptionFilter";
 import { buildVehicleTrackingUrl } from "@/config/gpsApiConfig";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -54,8 +58,40 @@ export default function WasteSummary() {
     today.getMonth() + 1
   ).padStart(2, "0")}`;
 
-  const [monthValue, setMonthValue] = useState(initialMonth);
-  const [appliedMonth, setAppliedMonth] = useState(initialMonth);
+  // The month is required: the Filters panel edits a draft, Reset (and
+  // removing the chip) goes back to the current month.
+  const monthFilter = useDraftFilter({ empty: { month: initialMonth } });
+  const monthChips: ActiveFilterChip[] =
+    monthFilter.applied.month !== initialMonth
+      ? [
+          {
+            key: "month",
+            label: "Month",
+            value: monthFilter.applied.month,
+            onRemove: () => monthFilter.commit({ month: initialMonth }),
+          },
+        ]
+      : [];
+  const monthFilterPart: FilterPart = {
+    field: (
+      <FilterSection label="Month">
+        <input
+          type="month"
+          value={monthFilter.draft.month}
+          max={initialMonth}
+          onChange={(e) => monthFilter.setField("month", e.target.value)}
+          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+          aria-label="Month"
+        />
+      </FilterSection>
+    ),
+    chips: monthChips,
+    count: monthChips.length,
+    // an emptied month input falls back to the current month
+    apply: () => monthFilter.commit({ month: monthFilter.draft.month || initialMonth }),
+    reset: () => monthFilter.commit({ month: initialMonth }),
+  };
+  const appliedMonth = monthFilter.applied.month;
   const [rows, setRows] = useState<ApiRow[]>([]);
   const [totalHouseholdCount, setTotalHouseholdCount] = useState<number | null>(
     null
@@ -401,24 +437,6 @@ export default function WasteSummary() {
             {t("admin.reports.waste_summary.subtitle")}
           </p>
         </div>
-
-        <div className="flex gap-3 items-center">
-          <input
-            type="month"
-            value={monthValue}
-            max={initialMonth}
-            onChange={(e) => setMonthValue(e.target.value)}
-            className="border px-2 py-1 rounded"
-          />
-
-          <button
-            onClick={() => setAppliedMonth(monthValue)}
-            className="bg-blue-600 text-white px-4 py-2 rounded"
-          >
-            {t("common.go")}
-          </button>
-
-        </div>
       </div>
 
       <DataTable
@@ -440,69 +458,99 @@ export default function WasteSummary() {
         showGridlines
         emptyMessage={t("admin.reports.waste_summary.empty_message")}
         globalFilterFields={WASTE_SUMMARY_GLOBAL_FIELDS}
+        filterPanel={combineFilters(monthFilterPart)}
         className="p-datatable-sm"
+        fitWidth
       >
         <Column
           header={t("admin.reports.waste_summary.columns.s_no")}
           body={(_, o) => o.rowIndex + 1}
-          style={{ width: "80px" }}
+          style={{ width: "6%" }}
         />
         <Column
           field="date"
           header={t("admin.reports.waste_summary.columns.date")}
           sortable
+          style={{ width: "14%" }}
         />
         <Column
           header={t("admin.reports.waste_summary.columns.total_household")}
-          body={() => formatNum(totalHouseholdCount)}
-        />
-        <Column
-          header={t("admin.reports.waste_summary.columns.collected")}
-          body={() => formatNum(totalCollectedCount)}
-        />
-        <Column
-          header={t("admin.reports.waste_summary.columns.not_collected")}
-          body={() =>
-            formatNum(
-              totalHouseholdCount !== null
-                ? Math.max(totalHouseholdCount - (totalCollectedCount ?? 0), 0)
-                : null
-            )
-          }
-        />
-        <Column
-          header={t("admin.reports.waste_summary.columns.vehicle_count")}
-          body={(r) => formatNum(getVehicleCount(r))}
+          style={{ width: "22%" }}
+          body={() => (
+            <StackCell
+              primary={formatNum(totalHouseholdCount)}
+              lines={[
+                {
+                  label: t("admin.reports.waste_summary.columns.collected"),
+                  value: formatNum(totalCollectedCount),
+                },
+                {
+                  label: t("admin.reports.waste_summary.columns.not_collected"),
+                  value: formatNum(
+                    totalHouseholdCount !== null
+                      ? Math.max(totalHouseholdCount - (totalCollectedCount ?? 0), 0)
+                      : null
+                  ),
+                },
+              ]}
+            />
+          )}
         />
         <Column
           field="total_trip"
           header={t("admin.reports.waste_summary.columns.trip_count")}
           sortable
+          style={{ width: "16%" }}
+          body={(r) => (
+            <StackCell
+              primary={r.total_trip}
+              lines={[
+                {
+                  label: t("admin.reports.waste_summary.columns.vehicle_count"),
+                  value: formatNum(getVehicleCount(r)),
+                },
+              ]}
+            />
+          )}
         />
         <Column
-          field="dry_weight"
-          header={t("admin.reports.waste_summary.columns.dry_weight")}
-          sortable
-        />
-        <Column
-          field="wet_weight"
-          header={t("admin.reports.waste_summary.columns.wet_weight")}
-          sortable
-        />
-        <Column
-          field="mix_weight"
-          header={t("admin.reports.waste_summary.columns.mixed_weight")}
-          sortable
+          header="Waste Split"
+          style={{ width: "22%" }}
+          body={(r) => (
+            <StackCell
+              lines={[
+                {
+                  label: t("admin.reports.waste_summary.columns.dry_weight"),
+                  value: r.dry_weight,
+                },
+                {
+                  label: t("admin.reports.waste_summary.columns.wet_weight"),
+                  value: r.wet_weight,
+                },
+                {
+                  label: t("admin.reports.waste_summary.columns.mixed_weight"),
+                  value: r.mix_weight,
+                },
+              ]}
+            />
+          )}
         />
         <Column
           field="total_net_weight"
           header={t("admin.reports.waste_summary.columns.weighment")}
           sortable
-        />
-        <Column
-          field="average_weight_per_trip"
-          header={t("admin.reports.waste_summary.columns.avg_per_trip")}
-          body={(r) => Number(r.average_weight_per_trip).toFixed(2)}
+          style={{ width: "20%" }}
+          body={(r) => (
+            <StackCell
+              primary={r.total_net_weight}
+              lines={[
+                {
+                  label: t("admin.reports.waste_summary.columns.avg_per_trip"),
+                  value: Number(r.average_weight_per_trip).toFixed(2),
+                },
+              ]}
+            />
+          )}
         />
       </DataTable>
     </div>

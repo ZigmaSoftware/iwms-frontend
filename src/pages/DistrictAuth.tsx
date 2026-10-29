@@ -1,9 +1,9 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { api } from "@/api";
+import { districtApi } from "@/api";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { startLoginSession } from "@/utils/loginSession";
+import { clearDistrictSession, persistDistrictSession } from "@/utils/authStorage";
 import { ArrowRight, Building2, Eye, EyeOff, Lock, User } from "lucide-react";
 import ZigmaLogo from "../images/logo.png";
 import LoginBg from "../images/bgSignin.jpg";
@@ -27,16 +27,6 @@ export default function DistrictAuth() {
     }
   }, []);
 
-  const clearDistrictSession = () => {
-    [
-      "district_access_token",
-      "district_unique_id",
-      "district_name",
-      "district_user_name",
-      "district_role",
-    ].forEach((key) => localStorage.removeItem(key));
-  };
-
   const handleSignIn = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!username.trim() || !password.trim()) {
@@ -47,33 +37,16 @@ export default function DistrictAuth() {
     clearDistrictSession();
 
     try {
-      const res = await api.post("/login/login-user/", {
+      const res = await districtApi.post("/login/login-user/", {
         username,
         password,
         login_type: "district_member",
         client: "web",
       });
 
-      const payload = res.data;
-      const token = payload?.access_token ?? payload?.access ?? "";
-      const profile = payload?.profile ?? {};
-      const districtId = profile?.district_unique_id;
-      const districtName = profile?.district_name;
-      const leaderName = profile?.employee_name ?? profile?.name ?? username;
-
-      if (!token) {
-        throw new Error("Login failed: token missing.");
-      }
-      if (!districtId || !districtName) {
-        throw new Error("This user is not assigned to a district.");
-      }
-
-      localStorage.setItem("district_access_token", token);
-      startLoginSession("district_access_token");
-      localStorage.setItem("district_unique_id", districtId);
-      localStorage.setItem("district_name", districtName);
-      localStorage.setItem("district_user_name", leaderName);
-      localStorage.setItem("district_role", "district_member");
+      // The token arrives as an HttpOnly cookie; only the district context
+      // is kept, in memory.
+      persistDistrictSession(res.data);
 
       navigate("/district", { replace: true });
     } catch (error: any) {

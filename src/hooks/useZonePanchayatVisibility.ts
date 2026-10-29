@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { USER_ROLE_STORAGE_KEY, normalizeRole } from "@/types/roles";
 import { getStoredPanchayats, getStoredZones } from "@/utils/authStorage";
 import { panchayatApi, zoneApi } from "@/helpers/admin";
+import { sessionStore } from "@/utils/sessionStore";
 
 const isSuperAdminSession = (): boolean => {
   if (typeof window === "undefined") return false;
-  return normalizeRole(localStorage.getItem(USER_ROLE_STORAGE_KEY)) === "superadmin";
+  return normalizeRole(sessionStore.getItem(USER_ROLE_STORAGE_KEY)) === "superadmin";
 };
 
 // Admin roles (Company Admin, Company Project Admin, ...) manage data
@@ -16,7 +17,7 @@ const isSuperAdminSession = (): boolean => {
 // them, while superadmin (same empty scope) sees everything.
 const isAdminLikeSession = (): boolean => {
   if (typeof window === "undefined") return false;
-  const role = normalizeRole(localStorage.getItem(USER_ROLE_STORAGE_KEY));
+  const role = normalizeRole(sessionStore.getItem(USER_ROLE_STORAGE_KEY));
   if (!role) return false;
   const normalized = role.toLowerCase().trim();
   return normalized.includes("admin");

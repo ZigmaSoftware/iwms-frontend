@@ -13,10 +13,13 @@ import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 import { ActionMenu } from "@/components/ui/ActionMenu";
+import { Can } from "@/contexts/ScreenPermissionContext";
 import { dailyTripCollectionPointApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { StackCell } from "@/components/common/TableCells";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters, useOptionFilter } from "@/components/filters/useOptionFilter";
 
 
 // A5: DailyTripCollectionPoint.STATUS_CHOICES (Pending/In Progress/Collected/Skipped/Missed).
@@ -75,8 +78,6 @@ const extractError = (error: unknown): string | null => {
 export default function DailyTripCollectionPointList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const { encScheduleOperations, encDailyTripCollectionPoint } = getEncryptedRoute();
   const { newPath: NEW_PATH } = createCrudRoutePaths(encScheduleOperations, encDailyTripCollectionPoint);
   const { editPath: EDIT_PATH } = createCrudRoutePaths(
@@ -84,20 +85,22 @@ export default function DailyTripCollectionPointList() {
     encDailyTripCollectionPoint,
   );
 
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  const location = useLocation();
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
+  const companyProject = useCompanyProjectFilter(undefined, {
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
+  });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { isSuperAdmin } = companyProject.selection;
+  // A5: backend viewset supports a status query-param filter.
+  const statusPart = useOptionFilter({
+    param: "status",
+    label: "Status",
+    options: STATUS_OPTIONS,
   });
 
   const [records, setRecords] = useState<DailyTripCollectionPointRecord[]>([]);
@@ -122,9 +125,7 @@ export default function DailyTripCollectionPointList() {
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
-    // A5: backend viewset supports a status query-param filter.
-    const statusFilter = (filters.status as { value?: string | null } | undefined)?.value;
-    if (statusFilter) params.status = statusFilter;
+    if (statusPart.value) params.status = statusPart.value;
     dailyTripCollectionPointApi
       .readAll({ params })
       .then((data) => setRecords(Array.isArray(data) ? data as DailyTripCollectionPointRecord[] : []))
@@ -133,7 +134,7 @@ export default function DailyTripCollectionPointList() {
         Swal.fire(t("common.error"), extractError(error) ?? t("common.load_failed"), "error");
       })
       .finally(() => setLoading(false));
-  }, [companyUniqueId, projectId, isSuperAdmin, filters.status, t]);
+  }, [companyUniqueId, projectId, isSuperAdmin, statusPart.value, t]);
 
   useEffect(() => {
     loadRecords();
@@ -213,13 +214,15 @@ export default function DailyTripCollectionPointList() {
           <p className="text-sm text-gray-500">Manage collection points assigned to daily trips</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button
-            label="New Collection Point"
-            icon="pi pi-plus"
-            className="p-button-success"
+          <Can action="add">
+            <Button
+              label="New Collection Point"
+              icon="pi pi-plus"
+              className="p-button-success"
 
-            onClick={() => navigate(NEW_PATH, { state: { companyUniqueId, projectId } })}
-          />
+              onClick={() => navigate(NEW_PATH, { state: { companyUniqueId, projectId } })}
+            />
+          </Can>
         </div>
       </div>
 
@@ -241,48 +244,56 @@ export default function DailyTripCollectionPointList() {
               onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
             }
             searchPlaceholder="Search trip collection points..."
-          >
-            <FilterBarSelect
-              value={companyUniqueId || ""}
-              onChange={onCompanyChange}
-              placeholder="All Companies"
-              options={companies}
-              disabled={!isSuperAdmin || companies.length === 0}
-            />
-            <FilterBarSelect
-              value={projectId || ""}
-              onChange={setProjectId}
-              placeholder={showAllProjectsOption ? "All Projects" : undefined}
-              options={projects}
-              disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            />
-            <FilterBarSelect
-              value={(filters.status as { value?: string | null } | undefined)?.value ?? ""}
-              onChange={(value) => setFilters((f) => ({
-                  ...f,
-                  status: { value: value || null, matchMode: FilterMatchMode.CONTAINS },
-                }))}
-              options={STATUS_OPTIONS}
-              placeholder={"All Statuses"}
-            />
-          </FilterBar>
+          />
         }
+        filterPanel={combineFilters(companyProject, statusPart)}
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage="No daily trip collection points found."
         globalFilterFields={["unique_id", "_trip", "_collection_point", "_bin", "_waste_type", "status"]}
         className="p-datatable-sm"
       >
-        <Column header={t("common.s_no")} body={(_, options: { rowIndex: number }) => options.rowIndex + 1} style={{ width: 60 }} />
-        <Column field="unique_id" header="ID" sortable filter showFilterMatchModes={false} style={{ minWidth: 150 }} />
-        <Column field="_trip" header="Trip" sortable filter showFilterMatchModes={false} style={{ minWidth: 170 }} />
-        <Column field="_collection_point" header="Collection Point" sortable filter showFilterMatchModes={false} style={{ minWidth: 180 }} />
-        <Column field="_bin" header="Bin" sortable filter showFilterMatchModes={false} />
-        <Column field="_waste_type" header="Waste Type" sortable />
-        <Column field="sequence" header="Seq" sortable style={{ width: 90 }} />
-        <Column field="collected_weight_kg" header="Weight (kg)" sortable body={(row: DailyTripCollectionPointRecord) => text(row.collected_weight_kg)} />
-        <Column field="status" header="Status" body={(row: DailyTripCollectionPointRecord) => <Badge value={row.status} />} sortable filter showFilterMatchModes={false} />
-        <Column field="status_reason" header="Status Reason" body={(row: DailyTripCollectionPointRecord) => text(row.status_reason)} style={{ minWidth: 160 }} />
+        <Column header={t("common.s_no")} body={(_, options: { rowIndex: number }) => options.rowIndex + 1} style={{ width: "5%" }} />
+        <Column
+          field="unique_id"
+          header="ID"
+          sortable
+          filter
+          showFilterMatchModes={false}
+          style={{ width: "20%" }}
+          body={(row: (typeof rows)[number]) => (
+            <StackCell primary={row.unique_id} lines={[{ label: "Trip", value: row._trip }]} />
+          )}
+        />
+        <Column
+          field="_collection_point"
+          header="Collection Point"
+          sortable
+          style={{ width: "30%" }}
+          body={(row: (typeof rows)[number]) => (
+            <StackCell
+              primary={row._collection_point}
+              lines={[
+                { label: "Bin", value: row._bin },
+                { label: "Waste Type", value: row._waste_type },
+                { label: "Seq", value: text(row.sequence) },
+              ]}
+            />
+          )}
+        />
+        <Column field="collected_weight_kg" header="Weight (kg)" sortable body={(row: DailyTripCollectionPointRecord) => text(row.collected_weight_kg)} style={{ width: "12%" }} />
+        <Column
+          field="status"
+          header="Status"
+          body={(row: DailyTripCollectionPointRecord) => (
+            <StackCell primary={<Badge value={row.status} />} lines={[{ label: "Reason", value: text(row.status_reason) }]} />
+          )}
+          sortable
+          filter
+          showFilterMatchModes={false}
+          style={{ width: "25%" }}
+        />
         <Column
           header={t("common.actions")}
           body={(row: DailyTripCollectionPointRecord) => (
@@ -295,7 +306,7 @@ export default function DailyTripCollectionPointList() {
               />
             </div>
           )}
-          style={{ width: 120 }}
+          style={{ width: "8%" }}
         />
       </DataTable>
     </div>

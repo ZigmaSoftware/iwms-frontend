@@ -16,15 +16,18 @@ import Swal from "@/lib/notify";
 import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 import type { ContinentRecord } from "./types";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 const { encMasters, encContinents } = getEncryptedRoute();
 
@@ -69,6 +72,7 @@ const extractErrorMessage = (error: unknown, fallback: string) => {
 export default function ContinentList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { canEdit } = useScreenAccess();
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [continents, setContinents] = useState<ContinentRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -78,7 +82,7 @@ export default function ContinentList() {
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters({
     initialFilters: {
       name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -158,7 +162,7 @@ export default function ContinentList() {
     return (
       <Switch
         checked={row.is_active}
-        disabled={pendingStatusId === continentId}
+        disabled={!canEdit || pendingStatusId === continentId}
         onCheckedChange={(checked) => {
           void updateStatus(row, checked);
         }}
@@ -215,15 +219,18 @@ export default function ContinentList() {
           </p>
         </div>
 
-        <Button
-          label={t("common.add_item", { item: t("admin.nav.continent") })}
-          icon="pi pi-plus"
-          className="p-button-success"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+        <Can action="add">
+          <Button
+            label={t("common.add_item", { item: t("admin.nav.continent") })}
+            icon="pi pi-plus"
+            className="p-button-success"
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </Can>
       </div>
 
       <DataTable
+        filterPanel={combineFilters(statusFilter)}
         header={
           <FilterBar
             searchValue={globalFilterValue}
@@ -231,8 +238,6 @@ export default function ContinentList() {
             searchPlaceholder={t("common.search_placeholder", {
               item: t("admin.nav.continent"),
             })}
-            statusValue={statusValue}
-            onStatusChange={onStatusFilterChange}
           />
         }
         loadExportRows={async () => getFilteredExportRows()}

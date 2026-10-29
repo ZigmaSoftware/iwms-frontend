@@ -39,6 +39,9 @@ export default {
     reports_to: "Reports To",
     level: "Level",
     top_of_chain: "Top of chain (no head)",
+    escalation: "Complaint Escalation",
+    escalation_yes: "Takes part",
+    escalation_no: "Skipped",
   },
   staff_template_audit: {
     title: "Staff Template Audit",
@@ -356,6 +359,7 @@ export default {
     group_dashboard: "Dashboard",
     superadmin_dashboard: "Superadmin Dashboard",
     admin_dashboard: "Admin Dashboard",
+    vehicle_status_dashboard: "Vehicle Status Dashboard",
     group_super_admin: "Super Admin",
     group_masters: "Masters",
     group_core_modules: "Core Modules",
@@ -479,6 +483,7 @@ export default {
     user_access_audit: "User Access Audit",
     static_route_audit: "Static Route Audit",
     complaint_audit: "Complaint Audit",
+    db_change_audit: "DB Change Audit",
     vehicle_trip_audit: "Vehicle Trip Audit",
     trip_exception_log: "Trip Exception Log",
     bin_load_log: "Bin Load Log",
@@ -504,6 +509,7 @@ export default {
   dashboards: {
     admin: { title: "Admin Dashboard" },
     superadmin: { title: "Superadmin Dashboard", subtitle: "All companies and projects" },
+    vehicle_status: { title: "Vehicle Status Dashboard" },
     range: {
       today: "Today",
       yesterday: "Yesterday",

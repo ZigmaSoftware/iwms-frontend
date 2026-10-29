@@ -6,7 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { getStoredProjects, getStoredProfile, isAccessTokenValid } from "@/utils/authStorage";
+import { getStoredProjects, getStoredProfile, isAuthSessionActive } from "@/utils/authStorage";
 import type { ProjectConfig } from "@/utils/authStorage";
 import { projectApi, companyApi } from "@/helpers/admin";
 
@@ -27,7 +27,7 @@ interface ProjectSelectorContextValue {
   selectedProject: ProjectConfig | null;
   setProjectId: (id: string) => void;
 
-  /* re-seed company/project state from localStorage after login/logout,
+  /* re-seed company/project state from the session after login/logout,
      since the provider is mounted once at the app root and won't otherwise
      pick up a freshly persisted session without a full page reload */
   reloadFromSession: () => void;
@@ -138,7 +138,7 @@ export function ProjectSelectorProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Re-seed company/project state from localStorage. Needed after
+  // Re-seed company/project state from the session. Needed after
   // login/logout since this provider lives above the router and isn't
   // remounted on navigation — only a hard refresh would otherwise pick up a
   // freshly persisted session.
@@ -164,11 +164,8 @@ export function ProjectSelectorProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (getStoredProjects().length > 0) return;
-    // Guard against firing before the access token is committed to storage
-    // (e.g. landing here right after a redirect) — an unguarded call here
-    // races the axios interceptor and goes out with no Authorization header,
-    // 401ing the very first company/project fetch of the session.
-    if (!isAccessTokenValid()) return;
+    // Signed out (e.g. on the login page): the fetch would only 401.
+    if (!isAuthSessionActive()) return;
     fetchCompaniesAndProjects(companyId);
   }, []);
 

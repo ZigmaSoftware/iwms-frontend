@@ -42,6 +42,7 @@ export type ComplaintTicket = {
   subcategory_name?: string | null;
   priority: ApiId;
   priority_code?: string | null;
+  priority_name?: string | null;
   status: ApiId;
   status_code?: ComplaintTicketStatusCode | null;
   status_name?: string | null;
@@ -193,8 +194,6 @@ export type ComplaintSlaEscalationLevel = {
   unique_id?: string;
   /** Hierarchy level this window applies to (matches ProjectStaffHierarchy.level). */
   level: number;
-  /** Whether this level participates in escalation for this rule. */
-  is_enabled?: boolean;
   resolve_within_minutes: number;
 };
 
@@ -205,6 +204,7 @@ export type ComplaintSlaRule = {
   subcategory_id?: ApiId | null;
   priority_id: ApiId;
   priority_code?: string | null;
+  priority_name?: string | null;
   source_id?: ApiId | null;
   resolve_within_minutes?: number | null;
   working_hours_only?: boolean;

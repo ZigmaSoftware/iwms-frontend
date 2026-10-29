@@ -6,9 +6,13 @@ import type { DataTableFilterMeta } from "primereact/datatable";
 import { api } from "@/api";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Button } from "@/components/ui/button";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import Swal from "@/lib/notify";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { StackCell } from "@/components/common/TableCells";
+import { FilterSection, type ActiveFilterChip } from "@/components/common/ListToolbar";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { useDraftFilter } from "@/components/filters/useDraftFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import { applyTableFilters } from "@/utils/tableFilterMatch";
 import {
   exportRecordsToExcel,
@@ -44,6 +48,9 @@ type ApiError = {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+const DATE_INPUT_CLASS =
+  "h-10 w-full rounded-md border border-input bg-background px-3 text-sm";
+
 const text = (row: AttendanceRecord, ...keys: string[]) => {
   for (const key of keys) {
     const value = row[key];
@@ -54,17 +61,69 @@ const text = (row: AttendanceRecord, ...keys: string[]) => {
 };
 
 export default function ExternalAttendanceList() {
-  const {
-    companyUniqueId,
-    projectId,
-    companies,
-    projects,
-    isSuperAdmin,
-    onCompanyChange,
-    setProjectId,
-  } = useCompanyProjectSelection({ isEdit: false });
-  const [fromDate, setFromDate] = useState(today);
-  const [toDate, setToDate] = useState(today);
+  // Company / Project and the date range live in the table's Filters panel.
+  // The attendance provider needs one company + project, so there is no
+  // "All" choice: the first ones are picked by default, as before.
+  const companyProject = useCompanyProjectFilter(undefined, {
+    defaultToAll: false,
+  });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+
+  // Both dates are required and default to today; Reset and the chips' ✕
+  // go back to today rather than to an empty date.
+  const [defaultDate] = useState(today);
+  const dates = useDraftFilter({ empty: { from: defaultDate, to: defaultDate } });
+  const { from: fromDate, to: toDate } = dates.applied;
+  const dateChips: ActiveFilterChip[] = (
+    [
+      ["from", "From date"],
+      ["to", "To date"],
+    ] as const
+  )
+    .filter(([key]) => dates.applied[key] !== defaultDate)
+    .map(([key, label]) => ({
+      key,
+      label,
+      value: dates.applied[key],
+      onRemove: () => dates.commit({ ...dates.applied, [key]: defaultDate }),
+    }));
+  const datePart = {
+    ...dates,
+    chips: dateChips,
+    count: dateChips.length,
+    // an emptied input falls back to today
+    apply: () =>
+      dates.commit({
+        from: dates.draft.from || defaultDate,
+        to: dates.draft.to || defaultDate,
+      }),
+    field: (
+      <FilterSection label="Date range">
+        <div className="grid grid-cols-2 gap-2">
+          <label className="text-sm text-gray-700">
+            <span className="mb-1 block">From date</span>
+            <input
+              type="date"
+              value={dates.draft.from}
+              max={dates.draft.to || undefined}
+              onChange={(event) => dates.setField("from", event.target.value)}
+              className={DATE_INPUT_CLASS}
+            />
+          </label>
+          <label className="text-sm text-gray-700">
+            <span className="mb-1 block">To date</span>
+            <input
+              type="date"
+              value={dates.draft.to}
+              min={dates.draft.from || undefined}
+              onChange={(event) => dates.setField("to", event.target.value)}
+              className={DATE_INPUT_CLASS}
+            />
+          </label>
+        </div>
+      </FilterSection>
+    ),
+  };
   const [rows, setRows] = useState<AttendanceRecord[]>([]);
   const [companyName, setCompanyName] = useState("");
   const [projectName, setProjectName] = useState("");
@@ -118,7 +177,7 @@ export default function ExternalAttendanceList() {
     [rows, filters],
   );
 
-  const header = (
+  const renderHeader = (actions: React.ReactNode) => (
     <div className="space-y-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
@@ -129,52 +188,14 @@ export default function ExternalAttendanceList() {
             recognized attendance records
           </p>
         </div>
-        <div className="flex flex-wrap items-end gap-3">
-          {isSuperAdmin ? (
-            <label className="text-sm text-gray-700">
-              <span className="mb-1 block">Company</span>
-              <FilterBarSelect
-                value={companyUniqueId || ""}
-                onChange={(value) => onCompanyChange(value)}
-                options={companies}
-                placeholder={"Select company"}
-              />
-            </label>
-          ) : null}
-          <label className="text-sm text-gray-700">
-            <span className="mb-1 block">Project</span>
-            <FilterBarSelect
-              value={projectId || ""}
-              onChange={(value) => setProjectId(value)}
-              options={projects}
-              placeholder={"Select project"}
-              disabled={!companyUniqueId || projects.length === 0}
-            />
-          </label>
-          <label className="text-sm text-gray-700">
-            <span className="mb-1 block">From date</span>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(event) => setFromDate(event.target.value)}
-              className="h-10 rounded-md border px-3"
-            />
-          </label>
-          <label className="text-sm text-gray-700">
-            <span className="mb-1 block">To date</span>
-            <input
-              type="date"
-              value={toDate}
-              onChange={(event) => setToDate(event.target.value)}
-              className="h-10 rounded-md border px-3"
-            />
-          </label>
+        <div className="flex flex-wrap items-center gap-3">
           <Button
             onClick={fetchAttendance}
             disabled={loading || !companyUniqueId || !projectId}
           >
             {loading ? "Loading..." : "Load attendance"}
           </Button>
+          {actions}
         </div>
       </div>
       <FilterBar
@@ -209,9 +230,11 @@ export default function ExternalAttendanceList() {
           "recognition_time",
           "punch_type",
         ]}
-        header={header}
+        renderHeaderWithActions={renderHeader}
+        filterPanel={combineFilters(companyProject, datePart)}
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage={
           companyUniqueId && projectId
             ? "No attendance records found."
@@ -224,54 +247,66 @@ export default function ExternalAttendanceList() {
           body={(_: AttendanceRecord, options: { rowIndex: number }) =>
             options.rowIndex + 1
           }
-        />
-        <Column
-          field="emp_id"
-          header="Employee ID"
-          body={(row: AttendanceRecord) => text(row, "emp_id", "employee_id")}
-          sortable
+          style={{ width: "5%" }}
         />
         <Column
           field="name"
-          header="Name"
-          body={(row: AttendanceRecord) => text(row, "name", "employee_name")}
+          header="Employee"
           sortable
+          style={{ width: "28%" }}
+          body={(row: AttendanceRecord) => (
+            <StackCell
+              primary={text(row, "name", "employee_name")}
+              lines={[
+                {
+                  icon: "pi-id-card",
+                  value: text(row, "emp_id", "employee_id"),
+                },
+              ]}
+            />
+          )}
         />
         <Column
           field="recognition_date"
-          header="Date"
-          body={(row: AttendanceRecord) =>
-            text(row, "recognition_date", "date")
-          }
+          header="Date & Time"
           sortable
-        />
-        <Column
-          field="recognition_time"
-          header="Time"
-          body={(row: AttendanceRecord) =>
-            text(row, "recognition_time", "time")
-          }
-          sortable
+          style={{ width: "18%" }}
+          body={(row: AttendanceRecord) => (
+            <StackCell
+              primary={text(row, "recognition_date", "date")}
+              lines={[
+                {
+                  icon: "pi-clock",
+                  value: text(row, "recognition_time", "time"),
+                },
+              ]}
+            />
+          )}
         />
         <Column
           field="punch_type"
           header="Punch"
           body={(row: AttendanceRecord) => text(row, "punch_type", "type")}
+          style={{ width: "14%" }}
         />
         <Column
           field="similarity_score"
           header="Similarity"
           body={(row: AttendanceRecord) => text(row, "similarity_score")}
+          style={{ width: "13%" }}
         />
         <Column
           field="latitude"
-          header="Latitude"
-          body={(row: AttendanceRecord) => text(row, "latitude")}
-        />
-        <Column
-          field="longitude"
-          header="Longitude"
-          body={(row: AttendanceRecord) => text(row, "longitude")}
+          header="Coordinates"
+          style={{ width: "22%" }}
+          body={(row: AttendanceRecord) => (
+            <StackCell
+              lines={[
+                { label: "Lat", value: text(row, "latitude") },
+                { label: "Long", value: text(row, "longitude") },
+              ]}
+            />
+          )}
         />
       </DataTable>
     </div>

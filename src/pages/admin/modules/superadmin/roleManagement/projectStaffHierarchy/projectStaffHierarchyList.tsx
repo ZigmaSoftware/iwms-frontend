@@ -11,7 +11,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { useTranslation } from "react-i18next";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -21,7 +21,10 @@ import { Switch } from "@/components/ui/switch";
 import { projectStaffHierarchyApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import { filterRowsForExport } from "@/utils/adminListExport";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 const SEARCH_FIELDS = [
   "project_name",
@@ -68,10 +71,11 @@ export default function ProjectStaffHierarchyList() {
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters();
 
   const navigate = useNavigate();
+  const { canEdit } = useScreenAccess();
   const { encAdmins, encProjectStaffHierarchy } = getEncryptedRoute();
 
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -117,7 +121,7 @@ export default function ProjectStaffHierarchyList() {
   const statusTemplate = (row: ProjectStaffHierarchyRow) => (
     <Switch
       checked={row.is_active}
-      disabled={isUpdating && pendingStatusId === row.unique_id}
+      disabled={!canEdit || (isUpdating && pendingStatusId === row.unique_id)}
       onCheckedChange={(checked) => void updateStatus(row, checked)}
     />
   );
@@ -163,8 +167,6 @@ export default function ProjectStaffHierarchyList() {
       searchValue={globalFilterValue}
       onSearchChange={onGlobalFilterChange}
       searchPlaceholder={t("common.search_placeholder")}
-      statusValue={statusValue}
-      onStatusChange={onStatusFilterChange}
     />
   );
 
@@ -187,17 +189,20 @@ export default function ProjectStaffHierarchyList() {
           </p>
         </div>
 
-        <Button
-          label={t("common.add_item", {
-            item: t("admin.nav.project_staff_hierarchy"),
-          })}
-          icon="pi pi-plus"
-          className="p-button-success"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+        <Can action="add">
+          <Button
+            label={t("common.add_item", {
+              item: t("admin.nav.project_staff_hierarchy"),
+            })}
+            icon="pi pi-plus"
+            className="p-button-success"
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </Can>
       </div>
 
       <DataTable
+        filterPanel={combineFilters(statusFilter)}
         value={rows}
         exportRows={exportRows}
         paginator
@@ -210,39 +215,51 @@ export default function ProjectStaffHierarchyList() {
         header={header}
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage={t("common.no_items_found", {
           item: t("admin.nav.project_staff_hierarchy"),
         })}
         className="p-datatable-sm"
       >
-        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: 80 }} />
+        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "5%" }} />
         <Column
           field="project_name"
           header={t("admin.nav.project")}
           sortable
-          style={{ minWidth: 160 }}
+          style={{ width: "24%" }}
         />
         <Column
           field="staffusertype_name"
           header={t("admin.nav.staff_user_type")}
           sortable
-          style={{ minWidth: 160 }}
+          style={{ width: "18%" }}
         />
         <Column
           header={t("admin.project_staff_hierarchy.reports_to")}
           body={reportsToTemplate}
           sortable
           field="reports_to_staffusertype_name"
-          style={{ minWidth: 160 }}
+          style={{ width: "18%" }}
         />
         <Column
           field="level"
           header={t("admin.project_staff_hierarchy.level")}
           sortable
-          style={{ width: 100 }}
+          style={{ width: "7%" }}
         />
-        <Column header={t("common.status")} body={statusTemplate} style={{ width: 120 }} />
-        <Column header={t("common.actions")} body={actionTemplate} style={{ width: 150 }} />
+        <Column
+          header={t("admin.project_staff_hierarchy.escalation")}
+          body={(row: ProjectStaffHierarchyRow) =>
+            t(
+              row.escalation_enabled === false
+                ? "admin.project_staff_hierarchy.escalation_no"
+                : "admin.project_staff_hierarchy.escalation_yes",
+            )
+          }
+          style={{ width: "10%" }}
+        />
+        <Column header={t("common.status")} body={statusTemplate} style={{ width: "10%" }} />
+        <Column header={t("common.actions")} body={actionTemplate} style={{ width: "8%" }} />
       </DataTable>
     </div>
   );

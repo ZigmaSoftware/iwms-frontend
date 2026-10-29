@@ -84,6 +84,19 @@ export type CrudHelpers<T = any> = {
     payload: FormData,
     config?: AxiosRequestConfig,
   ) => Promise<R>;
+
+  /**
+   * Export every row (same `config.params` as the list: company/project,
+   * search, filters, ordering) to Excel on the server — `POST /exports/excel/`
+   * with `path` = this resource — then download it. Throws
+   * "There is no data to export." when nothing matches.
+   */
+  exportToExcel: (
+    config: AxiosRequestConfig | undefined,
+    filename: string,
+    sheetName?: string,
+    columns?: { header: string; field: string }[],
+  ) => Promise<void>;
 };
 
 /* -----------------------------------------
@@ -270,6 +283,20 @@ export const createCrudHelpers = <T = any>(
         : await api.get(url, config);
 
       return data;
+    },
+
+    /* ---------- SERVER-SIDE EXCEL EXPORT ---------- */
+
+    exportToExcel: async (config, filename, sheetName, columns) => {
+      // Imported lazily: backgroundJobs -> commonAudit -> helpers -> here.
+      const { runServerExport } = await import("@/utils/backgroundJobs");
+      await runServerExport({
+        resourcePath: resource,
+        params: config?.params,
+        columns,
+        filename,
+        sheetName,
+      });
     },
 
     /* ---------- FILE UPLOADS ---------- */

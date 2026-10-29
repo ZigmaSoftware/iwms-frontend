@@ -22,7 +22,15 @@ import type {
 } from "primereact/datatable";
 
 import { permissionAuditApi } from "@/helpers/admin";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { StackCell } from "@/components/common/TableCells";
+import { FormSelect } from "@/components/common/FormSelect";
+import { FilterSection } from "@/components/common/ListToolbar";
+import { useDraftFilter } from "@/components/filters/useDraftFilter";
+import {
+  combineFilters,
+  useOptionFilter,
+} from "@/components/filters/useOptionFilter";
 import PermissionAuditDetail, { MethodBadge } from "./PermissionAuditDetail";
 
 const SORTABLE_FIELDS = new Set(["timestamp", "action_type", "http_method"]);
@@ -48,20 +56,8 @@ const toRecordList = (value: unknown): PermissionAuditRecord[] => {
 const formatDateTime = (value?: string | null) =>
   value ? new Date(value).toLocaleString() : "-";
 
-const LabeledFilter = ({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) => (
-  <div className="flex w-full flex-col gap-1 sm:w-[240px]">
-    <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
-      {label}
-    </label>
-    {children}
-  </div>
-);
+const nameOf = (options: { label: string; value: string }[], value: string) =>
+  options.find((option) => option.value === value)?.label ?? value;
 
 const StatTile = ({ label, value }: { label: string; value: ReactNode }) => (
   <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -75,11 +71,6 @@ export default function PermissionAuditList() {
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [companyFilter, setCompanyFilter] = useState("");
-  const [projectFilter, setProjectFilter] = useState("");
-  const [mainscreenFilter, setMainscreenFilter] = useState("");
-  const [sourceFilter, setSourceFilter] = useState("");
-  const [actionTypeFilter, setActionTypeFilter] = useState("");
   const [filterOptions, setFilterOptions] =
     useState<PermissionAuditFilterOptions | null>(null);
 
@@ -139,6 +130,50 @@ export default function PermissionAuditList() {
     [],
   );
 
+  const resetPage = () => setFirst(0);
+
+  // Source, Company → Project and Main screen, edited in the Filters panel as
+  // a draft and sent once applied.
+  const scope = useDraftFilter({
+    empty: { source: "", company: "", project: "", mainscreen: "" },
+    chips: {
+      source: {
+        label: t("admin.permission_audit.source_filter_label"),
+        format: (value) => nameOf(sourceOptions, value),
+      },
+      company: {
+        label: t("admin.permission_audit.company_filter_label"),
+        format: (value) => nameOf(companyOptions, value),
+        clears: ["project"],
+      },
+      project: {
+        label: t("admin.permission_audit.project_filter_label"),
+        format: (value) => nameOf(projectOptions, value),
+      },
+      mainscreen: {
+        label: t("admin.permission_audit.main_screen_filter_label"),
+        format: (value) => nameOf(mainscreenOptions, value),
+      },
+    },
+    onAppliedChange: resetPage,
+  });
+  const {
+    source: sourceFilter,
+    company: companyFilter,
+    project: projectFilter,
+    mainscreen: mainscreenFilter,
+  } = scope.applied;
+  const draft = scope.draft;
+
+  const actionType = useOptionFilter({
+    param: "action_type",
+    label: t("admin.permission_audit.change_type_filter_label"),
+    options: actionTypeOptions,
+    allLabel: t("common.all"),
+    onAppliedChange: resetPage,
+  });
+  const actionTypeFilter = actionType.value;
+
   const ordering =
     sortField && SORTABLE_FIELDS.has(sortField)
       ? `${sortOrder === -1 ? "-" : ""}${sortField}`
@@ -191,14 +226,14 @@ export default function PermissionAuditList() {
   }, [first, rowsPerPage, queryParams, ordering, loadRows]);
 
   // Dropdown choices come from the backend's scoped `filter-options` action,
-  // refetched on company change so projects only list that company's.
+  // refetched on (draft) company change so projects only list that company's.
   useEffect(() => {
     let mounted = true;
 
     const loadFilterOptions = async () => {
       try {
         const data = (await permissionAuditApi.read("filter-options", {
-          params: companyFilter ? { company_id: companyFilter } : {},
+          params: draft.company ? { company_id: draft.company } : {},
         })) as unknown as PermissionAuditFilterOptions;
         if (mounted && data) setFilterOptions(data);
       } catch {
@@ -210,7 +245,7 @@ export default function PermissionAuditList() {
     return () => {
       mounted = false;
     };
-  }, [companyFilter]);
+  }, [draft.company]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -220,12 +255,8 @@ export default function PermissionAuditList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const loadAllExportRows = async () => {
-    const data = await permissionAuditApi.readAllForExport({
-      params: queryParams,
-    });
-    return toRecordList(data) as unknown as Record<string, unknown>[];
-  };
+  const serverExport = (filename: string, sheetName: string) =>
+    permissionAuditApi.exportToExcel({ params: queryParams }, filename, sheetName);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -307,6 +338,49 @@ export default function PermissionAuditList() {
     return [r.userscreen_name, item].filter(Boolean).join(" › ") || "-";
   };
 
+  const scopeField = (
+    <>
+      <FilterSection label={t("admin.permission_audit.source_filter_label")}>
+        <FormSelect
+          value={draft.source}
+          onChange={(value) => scope.setField("source", value)}
+          options={sourceOptions}
+          placeholder={t("common.all")}
+        />
+      </FilterSection>
+      <FilterSection label="Company & project">
+        <div className="grid grid-cols-2 gap-2">
+          <FormSelect
+            label={t("admin.permission_audit.company_filter_label")}
+            value={draft.company}
+            onChange={(value) =>
+              // A project belongs to one company, so a stale project filter
+              // would silently return nothing after switching company.
+              scope.setDraft((d) => ({ ...d, company: value, project: "" }))
+            }
+            options={companyOptions}
+            placeholder={t("common.all")}
+          />
+          <FormSelect
+            label={t("admin.permission_audit.project_filter_label")}
+            value={draft.project}
+            onChange={(value) => scope.setField("project", value)}
+            options={projectOptions}
+            placeholder={t("common.all")}
+          />
+        </div>
+      </FilterSection>
+      <FilterSection label={t("admin.permission_audit.main_screen_filter_label")}>
+        <FormSelect
+          value={draft.mainscreen}
+          onChange={(value) => scope.setField("mainscreen", value)}
+          options={mainscreenOptions}
+          placeholder={t("common.all")}
+        />
+      </FilterSection>
+    </>
+  );
+
   return (
     <div className="p-3">
       <div className="mb-4 flex min-w-0 flex-wrap items-start justify-between gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -341,85 +415,17 @@ export default function PermissionAuditList() {
         />
       </div>
 
-      <div className="mb-4 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-        <FilterBar
-          searchValue={globalFilterValue}
-          onSearchChange={setGlobalFilterValue}
-          searchPlaceholder={t("admin.permission_audit.search_placeholder")}
-        >
-          <LabeledFilter label={t("admin.permission_audit.source_filter_label")}>
-            <FilterBarSelect
-              value={sourceFilter}
-              onChange={(value) => {
-                setFirst(0);
-                setSourceFilter(value);
-              }}
-              options={sourceOptions}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-
-          <LabeledFilter label={t("admin.permission_audit.company_filter_label")}>
-            <FilterBarSelect
-              value={companyFilter}
-              onChange={(value) => {
-                setFirst(0);
-                setCompanyFilter(value);
-                // A project belongs to one company, so a stale project filter
-                // would silently return nothing after switching company.
-                setProjectFilter("");
-              }}
-              options={companyOptions}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-
-          <LabeledFilter label={t("admin.permission_audit.project_filter_label")}>
-            <FilterBarSelect
-              value={projectFilter}
-              onChange={(value) => {
-                setFirst(0);
-                setProjectFilter(value);
-              }}
-              options={projectOptions}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-
-          <LabeledFilter label={t("admin.permission_audit.main_screen_filter_label")}>
-            <FilterBarSelect
-              value={mainscreenFilter}
-              onChange={(value) => {
-                setFirst(0);
-                setMainscreenFilter(value);
-              }}
-              options={mainscreenOptions}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-
-          <LabeledFilter label={t("admin.permission_audit.change_type_filter_label")}>
-            <FilterBarSelect
-              value={actionTypeFilter}
-              onChange={(value) => {
-                setFirst(0);
-                setActionTypeFilter(value);
-              }}
-              options={actionTypeOptions}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-        </FilterBar>
-      </div>
-
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <DataTable
-          loadExportRows={loadAllExportRows}
+          header={
+            <FilterBar
+              searchValue={globalFilterValue}
+              onSearchChange={setGlobalFilterValue}
+              searchPlaceholder={t("admin.permission_audit.search_placeholder")}
+            />
+          }
+          filterPanel={combineFilters({ ...scope, field: scopeField }, actionType)}
+          onServerExport={serverExport}
           value={records}
           dataKey="id"
           lazy
@@ -435,64 +441,86 @@ export default function PermissionAuditList() {
           loading={loading}
           stripedRows
           showGridlines
+          fitWidth
           className="p-datatable-sm"
           emptyMessage={t("admin.permission_audit.empty_message")}
         >
           <Column
             header={t("common.s_no")}
             body={(_, { rowIndex }) => rowIndex + 1}
-            style={{ width: 70 }}
-          />
-          <Column
-            field="source_label"
-            header={t("admin.permission_audit.source")}
-            body={(r: PermissionAuditRecord) => r.source_label ?? "-"}
+            style={{ width: "4%" }}
           />
           <Column
             field="target_name"
             header={t("admin.permission_audit.granted_to")}
-            body={(r: PermissionAuditRecord) => r.target_name ?? "-"}
+            body={(r: PermissionAuditRecord) => (
+              <StackCell
+                primary={r.target_name}
+                lines={[
+                  {
+                    label: t("admin.permission_audit.source"),
+                    value: r.source_label,
+                  },
+                ]}
+              />
+            )}
+            style={{ width: "16%" }}
           />
           <Column
             field="company_name"
-            header={t("admin.permission_audit.company")}
-            body={(r: PermissionAuditRecord) => r.company_name ?? "-"}
-          />
-          <Column
-            field="project_name"
-            header={t("admin.permission_audit.project")}
-            body={(r: PermissionAuditRecord) => r.project_name ?? "-"}
+            header={`${t("admin.permission_audit.company")} / ${t("admin.permission_audit.project")}`}
+            body={(r: PermissionAuditRecord) => (
+              <StackCell
+                primary={r.company_name}
+                lines={[
+                  {
+                    label: t("admin.permission_audit.project"),
+                    value: r.project_name,
+                  },
+                ]}
+              />
+            )}
+            style={{ width: "15%" }}
           />
           <Column
             header={t("admin.permission_audit.module")}
             body={moduleTemplate}
+            style={{ width: "17%" }}
           />
           <Column
             header={t("admin.permission_audit.permissions")}
             body={permissionTemplate}
-          />
-          <Column
-            field="http_method"
-            header={t("admin.permission_audit.http_method")}
-            body={(r: PermissionAuditRecord) => <MethodBadge method={r.http_method} />}
-            sortable
+            style={{ width: "14%" }}
           />
           <Column
             field="action_type"
             header={t("admin.permission_audit.action_type")}
-            body={actionTypeTemplate}
+            body={(r: PermissionAuditRecord) => (
+              <div className="flex flex-wrap items-center gap-1">
+                {actionTypeTemplate(r)}
+                <MethodBadge method={r.http_method} />
+              </div>
+            )}
             sortable
-          />
-          <Column
-            field="updated_by_name"
-            header={t("admin.permission_audit.updated_by")}
-            body={(r: PermissionAuditRecord) => r.updated_by_name ?? "-"}
+            style={{ width: "12%" }}
           />
           <Column
             field="timestamp"
             header={t("admin.permission_audit.timestamp")}
-            body={(r: PermissionAuditRecord) => formatDateTime(r.timestamp)}
+            body={(r: PermissionAuditRecord) => (
+              <StackCell
+                primary={formatDateTime(r.timestamp)}
+                lines={[
+                  {
+                    icon: "pi-user",
+                    title: t("admin.permission_audit.updated_by"),
+                    value: r.updated_by_name,
+                  },
+                ]}
+              />
+            )}
             sortable
+            style={{ width: "15%" }}
           />
           <Column
             header={t("common.actions")}
@@ -507,7 +535,7 @@ export default function PermissionAuditList() {
                 </button>
               </div>
             )}
-            style={{ width: 120 }}
+            style={{ width: "7%" }}
           />
         </DataTable>
       </div>

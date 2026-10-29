@@ -9,7 +9,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -17,10 +17,13 @@ import { ActionMenu } from "@/components/ui/ActionMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { fuelApi } from "@/helpers/admin";
-import { FilterBar, FilterBarSelect, type StatusFilterValue } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,6 +52,7 @@ const toRecordList = (value: unknown): Fuel[] => {
 
 export default function FuelList() {
   const { t } = useTranslation();
+  const { canEdit } = useScreenAccess();
   const navigate = useNavigate();
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "transport-master",
@@ -57,7 +61,6 @@ export default function FuelList() {
   );
 
   const [rows, setRows] = useState<Fuel[]>([]);
-  const [exportRows, setExportRows] = useState<Fuel[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -67,7 +70,6 @@ export default function FuelList() {
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusValue, setStatusValue] = useState<StatusFilterValue>("all");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const requestIdRef = useRef(0);
@@ -75,18 +77,15 @@ export default function FuelList() {
   // ── Company / project selection ───────────────────────────────────────────
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+  const companyProject = useCompanyProjectFilter(() => setFirst(0), {
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { companies, isSuperAdmin } = companyProject.selection;
+  // Applied status: "true" | "false" | "" (all) → `is_active`.
+  const statusFilter = useStatusFilter(() => setFirst(0));
+  const statusValue = statusFilter.value;
 
   // ── Routes ────────────────────────────────────────────────────────────────
   const { encTransportMaster, encFuel } = getEncryptedRoute();
@@ -109,7 +108,7 @@ export default function FuelList() {
       if (companyUniqueId) params.company_id = companyUniqueId;
       if (projectId) params.project_id = projectId;
       if (searchTerm) params.search = searchTerm;
-      if (statusValue !== "all") params.is_active = statusValue === "active" ? "true" : "false";
+      if (statusValue) params.is_active = statusValue;
       if (ordering) params.ordering = ordering;
 
       const response = await fuelApi.readAllwithPaginated(page, limit, { params });
@@ -172,11 +171,6 @@ export default function FuelList() {
     setGlobalFilterValue(e.target.value);
   };
 
-  const onStatusFilterChange = (value: StatusFilterValue) => {
-    setStatusValue(value);
-    setFirst(0);
-  };
-
   // ── Status toggle ─────────────────────────────────────────────────────────
   const statusTemplate = (row: Fuel) => {
     const updateStatus = async (value: boolean) => {
@@ -207,7 +201,7 @@ export default function FuelList() {
     return (
       <Switch
         checked={row.is_active}
-        disabled={isUpdating && pendingStatusId === row.unique_id}
+        disabled={!canEdit || (isUpdating && pendingStatusId === row.unique_id)}
         onCheckedChange={updateStatus}
       />
     );
@@ -250,26 +244,17 @@ export default function FuelList() {
     rowIndex + 1;
 
   // ── Export ────────────────────────────────────────────────────────────────
-  // SafeDataTable's built-in "Download All Excel" button reads the `exportRows`
-  // prop synchronously, so keep it refreshed with the full (unpaginated),
-  // currently-filtered result set whenever the filters/company/project change.
-  useEffect(() => {
-    if ((isSuperAdmin && companies.length === 0) || (!companyUniqueId && !isSuperAdmin)) {
-      setExportRows([]);
-      return;
-    }
-    let mounted = true;
+  // "Excel (all data)" is built server-side for the full (unpaginated),
+  // currently-filtered result set.
+  const onServerExport = (filename: string, sheetName: string) => {
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
     if (searchTerm) params.search = searchTerm;
-    if (statusValue !== "all") params.is_active = statusValue === "active" ? "true" : "false";
+    if (statusValue) params.is_active = statusValue;
 
-    fuelApi.readAllForExport({ params })
-      .then((data: unknown) => { if (mounted) setExportRows(toRecordList(data)); })
-      .catch(() => { if (mounted) setExportRows([]); });
-    return () => { mounted = false; };
-  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, searchTerm, statusValue]);
+    return fuelApi.exportToExcel({ params }, filename, sheetName);
+  };
 
   // ── Table header ──────────────────────────────────────────────────────────
   const header = (
@@ -279,24 +264,7 @@ export default function FuelList() {
         onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
       }
       searchPlaceholder={t("admin.fuel.search_placeholder")}
-      statusValue={statusValue}
-      onStatusChange={onStatusFilterChange}
-    >
-      <FilterBarSelect
-        value={companyUniqueId || ""}
-        onChange={onCompanyChange}
-        placeholder="All Companies"
-        options={companies}
-        disabled={!isSuperAdmin || companies.length === 0}
-      />
-      <FilterBarSelect
-        value={projectId || ""}
-        onChange={setProjectId}
-        placeholder={showAllProjectsOption ? "All Projects" : undefined}
-        options={projects}
-        disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-      />
-    </FilterBar>
+    />
   );
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -312,19 +280,21 @@ export default function FuelList() {
 
         <div className="flex items-center gap-3">
           {/* Add button */}
-          <Button
-            label={t("admin.fuel.add")}
-            icon="pi pi-plus"
-            className="p-button-success"
+          <Can action="add">
+            <Button
+              label={t("admin.fuel.add")}
+              icon="pi pi-plus"
+              className="p-button-success"
            
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
-          />
+              onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+            />
+          </Can>
         </div>
       </div>
 
       <DataTable
         value={rows}
-        exportRows={exportRows}
+        onServerExport={onServerExport}
         dataKey="unique_id"
         lazy
         paginator
@@ -338,6 +308,7 @@ export default function FuelList() {
         loading={isLoading}
         rowsPerPageOptions={[5, 10, 25, 50]}
         header={header}
+        filterPanel={combineFilters(companyProject, statusFilter)}
         emptyMessage={t("admin.fuel.empty_message")}
         stripedRows
         showGridlines

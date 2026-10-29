@@ -12,12 +12,14 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 
 import { ActionMenu } from "@/components/ui/ActionMenu";
+import { useScreenAccess } from "@/contexts/screenPermission";
 import { staffTemplateApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { FilterBar, FilterBarSelect, type StatusFilterValue } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters, useOptionFilter } from "@/components/filters/useOptionFilter";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import {
   exportRecordsToExcel,
@@ -39,6 +41,7 @@ const STAFF_TEMPLATE_COLUMN_FIELDS: Record<string, string[]> = {
 export default function StaffTemplateList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { canAdd, canEdit } = useScreenAccess();
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "staff-masters",
     "staff-template",
@@ -47,27 +50,30 @@ export default function StaffTemplateList() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  const [first, setFirst] = useState(0);
+  const resetPage = () => setFirst(0);
+  const companyProject = useCompanyProjectFilter(resetPage, {
     initialCompanyId:
       restoredState?.companyUniqueId ?? searchParams.get("company_unique_id") ?? undefined,
     initialProjectId: restoredState?.projectId ?? searchParams.get("project_id") ?? undefined,
+  });
+  const companyUniqueId = companyProject.companyId;
+  const selectedProjectId = companyProject.projectId;
+  const { companies, isSuperAdmin } = companyProject.selection;
+
+  const statusFilter = useOptionFilter({
+    param: "status",
+    label: "Status",
+    options: [
+      { label: "Active", value: "ACTIVE" },
+      { label: "Inactive", value: "INACTIVE" },
+    ],
+    onAppliedChange: resetPage,
   });
 
   const [templates, setTemplates] = useState<StaffTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalRecords, setTotalRecords] = useState(0);
-  const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
@@ -75,7 +81,6 @@ export default function StaffTemplateList() {
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [globalSearchTerm, setGlobalSearchTerm] = useState("");
-  const [statusFilterValue, setStatusFilterValue] = useState<StatusFilterValue>("all");
   const requestIdRef = useRef(0);
 
   const { encScheduleSetup, encStaffTemplate } = getEncryptedRoute();
@@ -83,14 +88,9 @@ export default function StaffTemplateList() {
     encScheduleSetup,
     encStaffTemplate,
   );
-  const selectedProjectId =
-    projectId && projects.some((project) => project.value === projectId)
-      ? projectId
-      : "";
   const selectedContext = { companyUniqueId, projectId: selectedProjectId };
 
-  const activeStatusParam =
-    statusFilterValue === "all" ? "" : statusFilterValue === "active" ? "ACTIVE" : "INACTIVE";
+  const activeStatusParam = statusFilter.value;
 
   const ordering = sortField
     ? `${sortOrder === -1 ? "-" : ""}${sortField}`
@@ -185,27 +185,18 @@ export default function StaffTemplateList() {
 
   const onSearchValueChange = (value: string) => setGlobalFilterValue(value);
 
-  const onStatusFilterChange = (value: StatusFilterValue) => {
-    setStatusFilterValue(value);
-    setFirst(0);
-  };
-
-  const fetchExportRows = async (): Promise<StaffTemplate[]> => {
+  // Feeds the table's single "Download Excel" button: the "All data" option
+  // is exported on the server with the current filters, while "Current page"
+  // uses the rows already on screen.
+  const serverExport = (filename: string, sheetName: string) => {
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (selectedProjectId) params.project_id = selectedProjectId;
     if (globalSearchTerm) params.search = globalSearchTerm;
     if (activeStatusParam) params.status = activeStatusParam;
 
-    const response = await staffTemplateApi.readAllForExport({ params });
-    const payload: any = response ?? [];
-    return Array.isArray(payload) ? payload : payload?.results ?? [];
+    return staffTemplateApi.exportToExcel({ params }, filename, sheetName);
   };
-
-  // Feeds the table's single "Download Excel" button: the "All data" option
-  // fetches every row matching the current filters, while "Current page"
-  // uses the rows already on screen.
-  const loadAllExportRows = async () => fetchExportRows();
 
   /* ================= STATUS TOGGLE ================= */
 
@@ -232,7 +223,7 @@ export default function StaffTemplateList() {
     return (
       <Switch
         checked={row.status === "ACTIVE"}
-        disabled={isUpdating && pendingStatusId === row.unique_id}
+        disabled={!canEdit || (isUpdating && pendingStatusId === row.unique_id)}
         onCheckedChange={(checked) => void updateStatus(checked)}
       />
     );
@@ -279,54 +270,40 @@ export default function StaffTemplateList() {
 
   /* ================= HEADER ================= */
 
-  const header = (
-    <ListPageHeader
-      title={t("admin.staff_template.list_title")}
-      subtitle={t("admin.staff_template.list_subtitle")}
-      actions={
-          <Button
-            label={t("admin.staff_template.create_button")}
-            icon="pi pi-plus"
-            className="p-button-success p-button-sm"
-            onClick={() => navigate(ENC_NEW_PATH, { state: selectedContext })}
-          />
-      }
-      filters={
-        <FilterBar
-          searchValue={globalFilterValue}
-          onSearchChange={onSearchValueChange}
-          searchPlaceholder={t("admin.staff_template.search_placeholder")}
-          statusValue={showCol("status") ? statusFilterValue : undefined}
-          onStatusChange={showCol("status") ? onStatusFilterChange : undefined}
-        >
-          <FilterBarSelect
-            value={companyUniqueId || ""}
-            onChange={(value) => onCompanyChange(value)}
-            options={companies}
-            placeholder="All Companies"
-            disabled={!isSuperAdmin || companies.length === 0}
-          />
-          <FilterBarSelect
-            value={selectedProjectId}
-            onChange={(value) => setProjectId(value)}
-            options={projects.map((project) => ({
-              value: String(project.value),
-              label: project.label || project.value,
-            }))}
-            placeholder={showAllProjectsOption ? "All Projects" : undefined}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-          />
-        </FilterBar>
-      }
-    />
-  );
-
   /* ================= RENDER ================= */
 
   return (
     <div className="p-3">
+      <ListPageHeader
+        title={t("admin.staff_template.list_title")}
+        subtitle={t("admin.staff_template.list_subtitle")}
+        actions={
+          canAdd ? (
+            <Button
+              label={t("admin.staff_template.create_button")}
+              icon="pi pi-plus"
+              className="p-button-success p-button-sm"
+              onClick={() => navigate(ENC_NEW_PATH, { state: selectedContext })}
+            />
+          ) : undefined
+        }
+        className="mb-4"
+      />
+
       <DataTable
-        loadExportRows={loadAllExportRows}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={onSearchValueChange}
+            searchPlaceholder={t("admin.staff_template.search_placeholder")}
+          />
+        }
+        filterPanel={
+          showCol("status")
+            ? combineFilters(companyProject, statusFilter)
+            : combineFilters(companyProject)
+        }
+        onServerExport={serverExport}
         value={templates}
         lazy
         paginator
@@ -339,13 +316,13 @@ export default function StaffTemplateList() {
         onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={loading}
-        header={header}
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         emptyMessage={t("admin.staff_template.empty_message")}
       >
-        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: 70 }} />
+        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "5%" }} />
 
         {showCol("unique_id") && (
           <Column
@@ -353,6 +330,7 @@ export default function StaffTemplateList() {
             header={t("admin.staff_template.columns.template_id")}
             body={(r: StaffTemplate) => r.display_code ?? r.unique_id}
             sortable
+            style={{ width: "20%" }}
           />
         )}
 
@@ -361,6 +339,7 @@ export default function StaffTemplateList() {
             field="driver_name"
             header={t("admin.staff_template.columns.primary_driver")}
             body={(r: StaffTemplate) => r.driver_name}
+            style={{ width: "22%" }}
           />
         )}
 
@@ -369,6 +348,7 @@ export default function StaffTemplateList() {
             field="operator_name"
             header={t("admin.staff_template.columns.primary_operator")}
             body={(r: StaffTemplate) => r.operator_name}
+            style={{ width: "22%" }}
           />
         )}
 
@@ -376,7 +356,7 @@ export default function StaffTemplateList() {
           <Column
             header={t("admin.staff_template.columns.extra_staff")}
             body={(r: StaffTemplate) => r.extra_operator_id?.length ?? 0}
-            style={{ width: 130 }}
+            style={{ width: "12%" }}
           />
         )}
 
@@ -384,7 +364,7 @@ export default function StaffTemplateList() {
           <Column
             header={t("common.status")}
             body={statusBodyTemplate}
-            style={{ width: 120 }}
+            style={{ width: "11%" }}
           />
         )}
 
@@ -393,7 +373,7 @@ export default function StaffTemplateList() {
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ width: 120 }}
+          style={{ width: "8%" }}
         />
       </DataTable>
     </div>

@@ -15,9 +15,14 @@ import { ActionMenu } from "@/components/ui/ActionMenu";
 import { panchayatLeaderApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
+import { StackCell } from "@/components/common/TableCells";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 
 const cap = (str?: string | null) =>
@@ -25,6 +30,7 @@ const cap = (str?: string | null) =>
 
 export default function PanchayatLeaderListPage() {
   const { t } = useTranslation();
+  const { canEdit } = useScreenAccess();
   const navigate = useNavigate();
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
@@ -33,25 +39,16 @@ export default function PanchayatLeaderListPage() {
   const { newPath: ENC_NEW_PATH } = createCrudRoutePaths(encMasters, encPanchayatLeaders);
   const { editPath: ENC_EDIT_PATH } = createCrudRoutePaths(encMasters, encPanchayatLeaders);
 
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
-    initialCompanyId: restoredState?.companyUniqueId,
-    initialProjectId: restoredState?.projectId,
-  });
-
   const [rows, setRows] = useState<PanchayatLeader[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [first, setFirst] = useState(0);
+
+  const companyProject = useCompanyProjectFilter(() => setFirst(0), {
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { companies, isSuperAdmin } = companyProject.selection;
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -62,7 +59,7 @@ export default function PanchayatLeaderListPage() {
   const requestIdRef = useRef(0);
   const {
     globalFilterValue, onGlobalFilterChange,
-    statusValue, onStatusFilterChange,
+    statusValue, statusFilter,
   } = useFilterBarFilters();
 
   const toRecordList = (value: unknown): PanchayatLeader[] => {
@@ -173,7 +170,7 @@ export default function PanchayatLeaderListPage() {
     return (
       <Switch
         checked={row.is_active}
-        disabled={isUpdating && pendingStatusId === row.unique_id}
+        disabled={!canEdit || (isUpdating && pendingStatusId === row.unique_id)}
         onCheckedChange={(v) => void toggle(v)}
       />
     );
@@ -235,29 +232,29 @@ export default function PanchayatLeaderListPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.panchayat_leader") })}
-            icon="pi pi-plus"
-            className="p-button-success"
+          <Can action="add">
+            <Button
+              label={t("common.add_item", { item: t("admin.nav.panchayat_leader") })}
+              icon="pi pi-plus"
+              className="p-button-success"
            
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
-          />
+              onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+            />
+          </Can>
         </div>
       </div>
-
-      <div className="mb-4 rounded-xl border border-gray-200 bg-white p-3 shadow-sm"><FilterBar searchValue={globalFilterValue} onSearchChange={onGlobalFilterChange}
-        searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.panchayat_leader") })}
-        statusValue={statusValue} onStatusChange={onStatusFilterChange} className="mb-4">
-        <FilterBarSelect value={companyUniqueId || ""} onChange={onCompanyChange} options={companies}
-          placeholder="All Companies" disabled={!isSuperAdmin || companies.length === 0} />
-        <FilterBarSelect value={projectId || ""} onChange={setProjectId} options={projects}
-          placeholder={showAllProjectsOption ? "All Projects" : undefined}
-          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0} />
-      </FilterBar></div>
 
       {/* ── DataTable ── */}
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <DataTable
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={onGlobalFilterChange}
+            searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.panchayat_leader") })}
+          />
+        }
+        filterPanel={combineFilters(companyProject, statusFilter)}
         value={data}
         exportRows={exportRows}
         exportSheetName="PanchayatLeaders"
@@ -275,54 +272,53 @@ export default function PanchayatLeaderListPage() {
         loading={isLoading && data.length === 0}
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage={t("common.no_items_found", { item: t("admin.nav.panchayat_leader") })}
         className="p-datatable-sm"
       >
-        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
-
-        <Column
-          field="username"
-          header="Username"
-          sortable
-          body={(r: PanchayatLeader) => cap(r.username)}
-        />
+        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "5%" }} />
 
         <Column
           field="leader_name"
           header="Leader Name"
           sortable
-          body={(r: PanchayatLeader) => cap(r.leader_name) || "-"}
+          style={{ width: "32%" }}
+          body={(r: PanchayatLeader) => (
+            <StackCell
+              primary={cap(r.leader_name)}
+              lines={[
+                { icon: "pi-user", title: "Username", value: cap(r.username) },
+                { icon: "pi-envelope", title: "Email", value: r.email },
+              ]}
+            />
+          )}
         />
 
-        <Column
-          field="panchayat_name"
-          header={t("admin.nav.panchayat")}
-          sortable
-          body={(r: PanchayatLeader) => cap(r.panchayat_name) || "-"}
-        />
-
-        <Column
-          field="email"
-          header="Email"
-          body={(r: PanchayatLeader) => r.email || "-"}
-        />
+        {locationColumn<PanchayatLeader>({
+          header: t("common.location"),
+          style: { width: "20%" },
+          levels: [
+            { label: t("common.panchayat"), value: (r) => cap(r.panchayat_name) },
+          ],
+        })}
 
         <Column
           field="company_name"
           header="Company"
+          style={{ width: "28%" }}
           body={(r: PanchayatLeader) => r.company_name || "-"}
         />
 
         <Column
           header={t("common.status")}
           body={statusTemplate}
-          style={{ width: "140px" }}
+          style={{ width: "8%" }}
         />
 
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ width: "150px", textAlign: "center" }}
+          style={{ width: "7%", textAlign: "center" }}
         />
       </DataTable>
       </div>

@@ -39,6 +39,9 @@ export default {
     reports_to: "रिपोर्ट्स टू",
     level: "स्तर",
     top_of_chain: "श्रृंखला का शीर्ष (कोई प्रमुख नहीं)",
+    escalation: "शिकायत एस्केलेशन",
+    escalation_yes: "शामिल",
+    escalation_no: "छोड़ा गया",
   },
   staff_template_audit: {
     title: "स्टाफ टेम्पलेट ऑडिट",
@@ -356,6 +359,7 @@ export default {
     group_dashboard: "डैशबोर्ड",
     superadmin_dashboard: "सुपरएडमिन डैशबोर्ड",
     admin_dashboard: "एडमिन डैशबोर्ड",
+    vehicle_status_dashboard: "वाहन स्थिति डैशबोर्ड",
     group_super_admin: "सुपर एडमिन",
     group_masters: "मास्टर्स",
     group_core_modules: "कोर मॉड्यूल",
@@ -449,6 +453,7 @@ export default {
     user_access_audit: "उपयोगकर्ता पहुंच ऑडिट",
     static_route_audit: "स्थिर मार्ग ऑडिट",
     complaint_audit: "शिकायत ऑडिट",
+    db_change_audit: "डेटाबेस परिवर्तन ऑडिट",
     vehicle_trip_audit: "वाहन ट्रिप ऑडिट",
     trip_exception_log: "ट्रिप अपवाद लॉग",
     zone_property_load_tracker: "ज़ोन प्रॉपर्टी लोड ट्रैकर",
@@ -506,6 +511,7 @@ export default {
   dashboards: {
     admin: { title: "एडमिन डैशबोर्ड" },
     superadmin: { title: "सुपरएडमिन डैशबोर्ड", subtitle: "सभी कंपनियाँ और परियोजनाएँ" },
+    vehicle_status: { title: "वाहन स्थिति डैशबोर्ड" },
     range: {
       today: "आज",
       yesterday: "कल",

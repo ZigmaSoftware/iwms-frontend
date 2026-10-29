@@ -49,6 +49,14 @@ export type DailyTripAssignmentRecord = {
     has_household?: boolean;
   };
   household_waste_types?: { unique_id?: string; waste_type_name?: string }[];
+  vehicle?: {
+    unique_id: string;
+    vehicle_no: string;
+    operational_status?: "ACTIVE" | "BREAKDOWN";
+  } | null;
+  // Not started and its vehicle is broken down: it cannot start until it is
+  // moved to another vehicle or the vehicle is marked repaired.
+  vehicle_under_breakdown?: boolean;
   collection_types?: { has_bin: boolean; has_household: boolean };
   collection_points?: DailyTripCollectionPointInline[];
   household_collection_points?: DailyTripHouseholdCollectionInline[];
@@ -59,7 +67,13 @@ export type DailyTripAssignmentRecord = {
     from_date?: string;
     to_date?: string;
   } | null;
-  effective_staff?: { source?: string; unique_id?: string; display_code?: string } | null;
+  effective_staff?: {
+    source?: string;
+    unique_id?: string;
+    display_code?: string;
+    driver?: string | null;
+    operator?: string | null;
+  } | null;
   panchayat?: NamedRef & { panchayat_name?: string };
   wards?: WardRef[];
   zone?: NamedRef & { zone_name?: string };
@@ -96,6 +110,14 @@ export type DailyTripAssignmentRecord = {
     replacement_operator?: string | null;
     new_assignment_id?: string | null;
   } | null;
+  // Delay reports, re-trip requests and continuations, oldest first.
+  trip_events?: {
+    label: string;
+    kind?: "delay";
+    status?: string;
+    detail?: string | null;
+    at?: string | null;
+  }[];
   retrip_info?: {
     unique_id: string;
     status: "Pending" | "Approved" | "Rejected" | "Expired";

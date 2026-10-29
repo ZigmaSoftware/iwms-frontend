@@ -108,23 +108,19 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
   const [sources, setSources] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
-  // Per-hierarchy-level resolve windows for the SLA rule. Auto-populated
-  // from the selected project's ProjectStaffHierarchy — level/role are
-  // read-only. `enabled` controls whether this level participates in
-  // escalation for this rule at all: a ticket starts at the lowest enabled
-  // level and only hops through other enabled levels above it, so e.g.
-  // unchecking Driver/Operator makes a ticket start straight at Supervisor.
+  // Per-hierarchy-level resolve windows for the SLA rule. One row per
+  // escalation-enabled level of the selected project's ProjectStaffHierarchy
+  // — level/role are read-only, and which levels take part (e.g. Driver/
+  // Operator switched off) is set on the hierarchy itself, not here.
   // resolve_within_minutes is kept as a string so an in-progress "" doesn't
   // get coerced to 0 while typing.
   const [escalationLevels, setEscalationLevels] = useState<
-    { level: number; staffusertype_name: string; enabled: boolean; resolve_within_minutes: string }[]
+    { level: number; staffusertype_name: string; resolve_within_minutes: string }[]
   >([]);
   const [hierarchyRows, setHierarchyRows] = useState<ProjectStaffHierarchyRow[]>([]);
-  // enabled/resolve-minutes values loaded from an existing record, keyed by
-  // level — merged onto the hierarchy-derived rows once the hierarchy loads.
-  const [savedEscalationLevels, setSavedEscalationLevels] = useState<
-    Record<number, { enabled: boolean; resolve_within_minutes: string }>
-  >({});
+  // resolve-minutes values loaded from an existing record, keyed by level —
+  // merged onto the hierarchy-derived rows once the hierarchy loads.
+  const [savedEscalationLevels, setSavedEscalationLevels] = useState<Record<number, string>>({});
 
   const api = useMemo(() => config.api(), [config]);
 
@@ -187,23 +183,15 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
       if (kind === "slaRule") {
         const saved = (record.escalation_levels ?? []) as ComplaintSlaEscalationLevel[];
         setSavedEscalationLevels(
-          Object.fromEntries(
-            saved.map((row) => [
-              row.level,
-              {
-                enabled: row.is_enabled !== false,
-                resolve_within_minutes: String(row.resolve_within_minutes ?? ""),
-              },
-            ]),
-          ),
+          Object.fromEntries(saved.map((row) => [row.level, String(row.resolve_within_minutes ?? "")])),
         );
       }
     }).catch((err) => Swal.fire("Error", errorText(err, "Unable to load record"), "error"));
   }, [api, id, isScoped, applyCompanyProjectFromRecord, kind]);
 
   // The SLA rule's escalation-level rows are driven entirely by the selected
-  // project's staff hierarchy — one row per hierarchy level, role/level
-  // read-only. Re-derive the rows whenever the project or the loaded
+  // project's staff hierarchy — one row per escalation-enabled level,
+  // role/level read-only. Re-derive the rows whenever the project or the loaded
   // hierarchy changes, carrying over any resolve-minutes value already typed
   // or previously saved for that level.
   useEffect(() => {
@@ -230,23 +218,19 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
     if (kind !== "slaRule") return;
     setEscalationLevels((prev) => {
       const prevByLevel = Object.fromEntries(prev.map((row) => [row.level, row]));
-      return [...hierarchyRows]
+      return hierarchyRows
+        .filter((row) => row.escalation_enabled !== false && row.is_active !== false)
         .sort((a, b) => a.level - b.level)
-        .map((row) => {
-          const carried = prevByLevel[row.level];
-          const saved = savedEscalationLevels[row.level];
-          return {
-            level: row.level,
-            staffusertype_name: row.staffusertype_name || "-",
-            enabled: carried?.enabled ?? saved?.enabled ?? true,
-            resolve_within_minutes:
-              carried?.resolve_within_minutes ?? saved?.resolve_within_minutes ?? "",
-          };
-        });
+        .map((row) => ({
+          level: row.level,
+          staffusertype_name: row.staffusertype_name || "-",
+          resolve_within_minutes:
+            prevByLevel[row.level]?.resolve_within_minutes ?? savedEscalationLevels[row.level] ?? "",
+        }));
     });
     // Only re-derive when the hierarchy itself changes (project switch or
-    // initial load) — not on every keystroke/toggle, which already updates
-    // `escalationLevels` directly via `setEscalationLevelField`.
+    // initial load) — not on every keystroke, which already updates
+    // `escalationLevels` directly via `setEscalationLevelMinutes`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, hierarchyRows, savedEscalationLevels]);
 
@@ -254,8 +238,6 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
     setEscalationLevels((prev) =>
       prev.map((row, i) => (i === index ? { ...row, resolve_within_minutes: value } : row)),
     );
-  const setEscalationLevelEnabled = (index: number, enabled: boolean) =>
-    setEscalationLevels((prev) => prev.map((row, i) => (i === index ? { ...row, enabled } : row)));
 
   const setValue = (key: keyof typeof emptyForm, value: string | boolean) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -316,7 +298,6 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
                       .filter((row) => row.resolve_within_minutes !== "")
                       .map((row) => ({
                         level: row.level,
-                        is_enabled: row.enabled,
                         resolve_within_minutes: Number(row.resolve_within_minutes),
                       })),
                   };
@@ -467,11 +448,10 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
             <div className="md:col-span-2">
               <Label>Escalation Levels</Label>
               <p className="mt-1 text-xs text-muted-foreground">
-                One row per level of the selected project&apos;s staff hierarchy — role and level
-                come from Project Staff Hierarchy. Enable only the levels that should take part:
-                a ticket starts at the lowest enabled level and, if not resolved in time, hops to
-                the next enabled level above it — disabled levels (e.g. Driver, Operator) are
-                skipped entirely.
+                One row per escalation level of the selected project&apos;s staff hierarchy — levels
+                with Complaint Escalation switched off in Project Staff Hierarchy (e.g. Driver,
+                Operator) are skipped and not shown. A ticket starts at the lowest level and, if not
+                resolved within that level&apos;s time, hops to the next one above it.
               </p>
               {!projectId && (
                 <p className="mt-2 text-sm text-muted-foreground">
@@ -480,20 +460,14 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
               )}
               {projectId && escalationLevels.length === 0 && (
                 <p className="mt-2 text-sm text-muted-foreground">
-                  This project has no staff hierarchy configured yet — set one up under Project
-                  Staff Hierarchy first.
+                  This project has no escalation levels yet — set up its Project Staff Hierarchy
+                  (with Complaint Escalation on) first.
                 </p>
               )}
               {escalationLevels.length > 0 && (
                 <div className="mt-2 space-y-2">
                   {escalationLevels.map((row, index) => (
                     <div key={row.level} className="flex items-center gap-2">
-                      <label className="flex w-10 items-center justify-center">
-                        <Checkbox
-                          checked={row.enabled}
-                          onCheckedChange={(checked) => setEscalationLevelEnabled(index, checked === true)}
-                        />
-                      </label>
                       <div className="w-16 text-sm font-medium text-muted-foreground">
                         L{row.level}
                       </div>
@@ -501,9 +475,8 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
                       <div className="flex-1">
                         <Input
                           type="number"
-                          min={0}
+                          min={1}
                           placeholder="Resolve within minutes"
-                          disabled={!row.enabled}
                           value={row.resolve_within_minutes}
                           onChange={(e) => setEscalationLevelMinutes(index, e.target.value)}
                         />

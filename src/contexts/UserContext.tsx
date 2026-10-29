@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { getStoredAuthUser } from "@/utils/authStorage";
+import { sessionStore } from "@/utils/sessionStore";
 
 type UserProfile = {
   name: string;
@@ -25,8 +26,8 @@ const getStoredUser = (): UserProfile | null => {
     };
   }
 
-  const name = localStorage.getItem(USER_NAME_KEY);
-  const email = localStorage.getItem(USER_EMAIL_KEY);
+  const name = sessionStore.getItem(USER_NAME_KEY);
+  const email = sessionStore.getItem(USER_EMAIL_KEY);
 
   if (name || email) {
     return { name: name ?? "", email: email ?? "" };
@@ -41,12 +42,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const setUser = (profile: UserProfile | null) => {
     if (profile) {
       setUserState(profile);
-      localStorage.setItem(USER_NAME_KEY, profile.name ?? "");
-      localStorage.setItem(USER_EMAIL_KEY, profile.email ?? "");
+      sessionStore.setItem(USER_NAME_KEY, profile.name ?? "");
+      sessionStore.setItem(USER_EMAIL_KEY, profile.email ?? "");
     } else {
       setUserState(null);
-      localStorage.removeItem(USER_NAME_KEY);
-      localStorage.removeItem(USER_EMAIL_KEY);
+      sessionStore.removeItem(USER_NAME_KEY);
+      sessionStore.removeItem(USER_EMAIL_KEY);
     }
   };
 

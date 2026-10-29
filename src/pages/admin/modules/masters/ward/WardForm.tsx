@@ -44,6 +44,7 @@ const WARD_FORM_FIELDS: Record<string, string[]> = {
 import type { SelectOption } from "@/types";
 import type { CountryMeta } from "./types";
 
+import { sessionStore } from "@/utils/sessionStore";
 
 /* ------------------------------
     TYPES
@@ -327,11 +328,11 @@ export default function WardForm() {
     const storedCompanyId =
       typeof window === "undefined"
         ? null
-        : localStorage.getItem("selected_company_unique_id");
+        : sessionStore.getItem("selected_company_unique_id");
     const storedProjectId =
       typeof window === "undefined"
         ? null
-        : localStorage.getItem("selected_project_id");
+        : sessionStore.getItem("selected_project_id");
     const routeCompanyId = normalizeNullable(
       routeState?.companyUniqueId ??
         searchParams.get("company_unique_id") ??

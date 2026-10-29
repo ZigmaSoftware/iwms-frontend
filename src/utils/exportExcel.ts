@@ -97,10 +97,13 @@ export const exportRecordsToExcel = async (
   records: ExportRow[],
   filename: string,
   sheetName = "Export",
+  /** Extra fields for the (single) download audit entry, e.g. `{ scope }`. */
+  auditDetails?: Record<string, unknown>,
 ) => {
   recordExcelAudit("download_all_excel", {
     file_name: filename,
     row_count: records.length,
+    ...auditDetails,
   });
   const XLSX = await loadXlsx();
   const rows = records.map((record) =>
@@ -185,16 +188,31 @@ export const excelFileToCsvFile = async (
   if (rows.length === 0) {
     throw new Error("The uploaded Excel file does not contain any data rows.");
   }
+  return recordsToCsvFile(rows, csvFilename);
+};
+
+/**
+ * Build a CSV file from already field-mapped payloads — the body of a
+ * `POST <resource>/bulk-upload/` (multipart field `file`). Header row is the
+ * union of every record's keys, in first-seen order.
+ */
+export const recordsToCsvFile = (
+  records: ExportRow[],
+  csvFilename: string,
+): File => {
+  if (records.length === 0) {
+    throw new Error("There are no data rows to upload.");
+  }
 
   const headers = Array.from(
-    rows.reduce<Set<string>>((fields, row) => {
+    records.reduce<Set<string>>((fields, row) => {
       Object.keys(row).forEach((field) => fields.add(field));
       return fields;
     }, new Set<string>()),
   );
   const csv = [
     headers.map(escapeCsvValue).join(","),
-    ...rows.map((row) =>
+    ...records.map((row) =>
       headers.map((header) => escapeCsvValue(row[header])).join(","),
     ),
   ].join("\r\n");

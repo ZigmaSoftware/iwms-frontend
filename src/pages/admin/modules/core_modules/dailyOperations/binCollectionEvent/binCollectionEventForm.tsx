@@ -23,6 +23,7 @@ import { binCollectionEventSchema } from "@/schemas/core_modules/dailyOperations
 import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
 import { FieldError } from "@/components/form/FieldError";
 import { FormSelect } from "@/components/common/FormSelect";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 
 // A5: BinCollectionEvent.STATUS_CHOICES.
@@ -507,11 +508,7 @@ export default function BinCollectionEventForm() {
   };
 
   if (loadingRecord) {
-    return (
-      <div className="flex items-center justify-center p-10">
-        <i className="pi pi-spin pi-spinner text-2xl text-blue-600" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   const title = isEdit

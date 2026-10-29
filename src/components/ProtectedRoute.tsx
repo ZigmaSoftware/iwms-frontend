@@ -4,7 +4,8 @@ import { Navigate } from "react-router-dom";
 import type { UserRole } from "@/types/roles";
 import { USER_ROLE_STORAGE_KEY, normalizeRole } from "@/types/roles";
 import { getStoredPermissions, hasAnyPermission } from "@/utils/permissions";
-import { getStoredAccessToken, isAccessTokenValid } from "@/utils/authStorage";
+import { isAuthSessionActive } from "@/utils/authStorage";
+import { sessionStore } from "@/utils/sessionStore";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -16,10 +17,9 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
 
   useEffect(() => {
     const validateSession = () => {
-      const token = getStoredAccessToken();
-      const role = normalizeRole(localStorage.getItem(USER_ROLE_STORAGE_KEY));
+      const role = normalizeRole(sessionStore.getItem(USER_ROLE_STORAGE_KEY));
 
-      if (!token) {
+      if (!isAuthSessionActive()) {
         setIsAllowed(false);
         return;
       }
@@ -44,7 +44,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
         }
       }
 
-      setIsAllowed(isAccessTokenValid(token));
+      setIsAllowed(true);
     };
 
     validateSession();

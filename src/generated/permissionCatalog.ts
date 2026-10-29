@@ -14,6 +14,17 @@ export const PERMISSION_CATALOG = {
     screens: {
       "admin-dashboard": { label: "Admin Dashboard", group: null },
       "superadmin-dashboard": { label: "Superadmin Dashboard", group: null },
+      "vehicle-status-dashboard": { label: "Vehicle Status Dashboard", group: null },
+    },
+  },
+  "user-dashboard": {
+    label: "User Dashboard",
+    section: "dashboard",
+    screens: {
+      "home-dashboard": { label: "Dashboard", group: null },
+      "dashboard-grievances": { label: "Grievances", group: null },
+      "dashboard-reports": { label: "Reports", group: null },
+      "dashboard-weighbridge": { label: "Weighbridge", group: null },
     },
   },
   "superadmin-masters": {
@@ -85,6 +96,7 @@ export const PERMISSION_CATALOG = {
       "permission-audit": { label: "User Access Audit", group: null },
       "static-route-audit": { label: "Static Route Audit", group: null },
       "complaint-audit": { label: "Complaint Audit", group: null },
+      "db-change-audit": { label: "DB Change Audit", group: null },
     },
   },
   "masters": {

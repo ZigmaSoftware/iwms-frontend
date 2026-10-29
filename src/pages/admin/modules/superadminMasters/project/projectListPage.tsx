@@ -11,7 +11,7 @@ import Swal from "@/lib/notify";
 import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 import { useTranslation } from "react-i18next";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -20,10 +20,13 @@ import { Switch } from "@/components/ui/switch";
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 const normalizeIsActive = (value: unknown): boolean => {
   if (typeof value === "boolean") return value;
@@ -52,6 +55,7 @@ export default function ProjectListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
+  const { canEdit } = useScreenAccess();
 
   const companyUniqueId = useMemo(() => {
     const params = new URLSearchParams(location.search);
@@ -67,7 +71,7 @@ export default function ProjectListPage() {
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters({
     initialFilters: {
       name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -178,7 +182,7 @@ export default function ProjectListPage() {
       <Switch
         checked={row.is_active}
         onCheckedChange={updateStatus}
-        disabled={updatingStatusId === row.unique_id}
+        disabled={!canEdit || updatingStatusId === row.unique_id}
       />
     );
   };
@@ -203,15 +207,18 @@ export default function ProjectListPage() {
           </p>
         </div>
 
-        <Button
-          label={t("common.add_item", { item: t("admin.nav.project") })}
-          icon="pi pi-plus"
-          className="p-button-success"
-          onClick={() => navigate(ENC_NEW_PATH(companyUniqueId))}
-        />
+        <Can action="add">
+          <Button
+            label={t("common.add_item", { item: t("admin.nav.project") })}
+            icon="pi pi-plus"
+            className="p-button-success"
+            onClick={() => navigate(ENC_NEW_PATH(companyUniqueId))}
+          />
+        </Can>
       </div>
 
       <DataTable
+        filterPanel={combineFilters(statusFilter)}
         loadExportRows={async () => getFilteredExportRows()}
         header={
           <FilterBar
@@ -220,8 +227,6 @@ export default function ProjectListPage() {
             searchPlaceholder={t("common.search_placeholder", {
               item: t("admin.nav.project"),
             })}
-            statusValue={statusValue}
-            onStatusChange={onStatusFilterChange}
             trailing={
               <div className="flex items-center gap-3">
                 {companyUniqueId ? (

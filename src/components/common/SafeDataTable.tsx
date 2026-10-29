@@ -14,11 +14,32 @@ import {
   type ReactNode,
 } from "react";
 import Swal from "@/lib/notify";
-import { cn } from "@/lib/utils";
-import { CONTROL_BUTTON } from "@/components/common/controlSizing";
+import {
+  ActiveFilterChips,
+  DocumentsMenu,
+  FilterPanel,
+  type ActiveFilterChip,
+  type DocumentActions,
+} from "@/components/common/ListToolbar";
 
 /** Which rows an Excel export covers. */
 type ExportScope = "page" | "all";
+
+/**
+ * The table toolbar's "Filters" button + panel. `content` is the panel's
+ * fields (e.g. `useCompanyProjectFilter().field` plus page-specific ones);
+ * the page owns draft/applied state and commits on `onApply`. Usually built
+ * with `combineFilters(...)` from components/filters/useOptionFilter.
+ */
+export type TableFilters = {
+  content: ReactNode;
+  activeCount: number;
+  onApply: () => void;
+  onReset: () => void;
+  /** "Company: Acme ✕" chips shown under the toolbar */
+  chips?: ActiveFilterChip[];
+  width?: number;
+};
 import {
   getCurrentAdminBulkImportApi,
   getCurrentAdminServerListApi,
@@ -36,8 +57,26 @@ import {
   exportTemplateToExcel,
   getAdminScreenExcelFilename,
   readExcelRows,
+  recordsToCsvFile,
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
+import {
+  NO_EXPORT_DATA_MESSAGE,
+  runBulkUpload,
+  type BulkUploadResponse,
+} from "@/utils/backgroundJobs";
+import {
+  clearBulkResult,
+  loadBulkResult,
+  normalizeBulkErrors,
+  saveBulkResult,
+  type BulkUploadResult,
+} from "@/utils/bulkUpload";
+import { decryptSegment } from "@/utils/routeCrypto";
+import { useScreenAccess } from "@/contexts/screenPermission";
+import BulkUploadResultDialog from "@/components/common/BulkUploadResultDialog";
+import BulkRejectedPanel from "@/components/common/BulkRejectedPanel";
+import { cn } from "@/lib/utils";
 
 type SafeTableRow = Record<string, unknown>;
 type SafeTableRows = SafeTableRow[];
@@ -65,7 +104,18 @@ type SafeDataTableProps<TValue extends SafeTableRows> =
      * this, "All data" falls back to whatever's already in `value`/`exportRows`.
      */
     loadExportRows?: () => Promise<SafeTableRows>;
+    /**
+     * Server-side "all data" export (e.g. `api.exportToExcel({ params },
+     * filename, sheetName)`): preferred over `loadExportRows`. Without either,
+     * a route-driven server list exports through its own API automatically.
+     */
+    onServerExport?: (filename: string, sheetName: string) => Promise<void>;
     onPdfRequest?: () => void | Promise<void>;
+    /**
+     * localStorage key for the persisted rejected-rows panel; defaults to the
+     * (decrypted) page path. Set it when one page has two importable tables.
+     */
+    importResultKey?: string;
     importApi?: CrudHelpers;
     importColumns?: ExcelTemplateColumn[];
     importDefaults?: SafeTableRow;
@@ -75,10 +125,25 @@ type SafeDataTableProps<TValue extends SafeTableRows> =
     onImportRows?: (rows: SafeTableRows) => Promise<void>;
     transformServerRows?: (rows: SafeTableRows) => SafeTableRows;
     /**
-     * Place the Excel/PDF buttons inside the page's own header instead of
-     * beside it: receives the buttons and returns the whole header.
+     * Place the Filters button and Documents menu inside the page's own
+     * header instead of beside it: receives them and returns the whole header.
      */
     renderHeaderWithActions?: (actions: ReactNode) => ReactNode;
+    /** Filters button + panel in the toolbar (see TableFilters). Named
+     *  filterPanel: `filters` is PrimeReact's own column-filter prop. */
+    filterPanel?: TableFilters;
+    /**
+     * Page-specific Documents menu actions; each one given replaces the
+     * built-in one (e.g. a server-side Excel export), and `downloadQr`
+     * adds a "Download QR" item for lists with QR codes.
+     */
+    documentActions?: DocumentActions;
+    /**
+     * Fit the table to the page width instead of scrolling sideways: fixed
+     * layout, so give each Column a percentage `style.width` and let cells
+     * wrap (group related fields into one stacked cell — see TableCells).
+     */
+    fitWidth?: boolean;
   };
 
 const toSafeRows = <TValue extends SafeTableRows>(
@@ -146,6 +211,9 @@ const readImportColumns = (children: ReactNode): ExcelTemplateColumn[] => {
   return columns;
 };
 
+// System/audit columns (mostly from BaseMaster) the server stamps itself —
+// never something an uploader fills in. Tenancy fields (company_id /
+// project_id) are deliberately NOT listed: they stay in the template.
 const METADATA_EXCLUDED_FIELDS = new Set([
   "id",
   "unique_id",
@@ -153,7 +221,14 @@ const METADATA_EXCLUDED_FIELDS = new Set([
   "updated_at",
   "created_by",
   "updated_by",
+  "created_by_id",
+  "updated_by_id",
+  "deleted_at",
+  "deleted_by",
+  "deleted_by_id",
+  "delete_reason",
   "is_deleted",
+  "is_active",
 ]);
 
 // Fields ending in `_id`/`_ids` that reference a master/lookup table accept
@@ -231,6 +306,28 @@ const mapExcelRowsToPayloads = (
   });
 };
 
+const errorStatus = (error: unknown) =>
+  (error as { response?: { status?: number } })?.response?.status;
+
+/** The backend's validation body when there is one, else the error message. */
+const describeRowError = (error: unknown): unknown => {
+  const data = (error as { response?: { data?: unknown } })?.response?.data;
+  if (data && typeof data === "object" && !(data instanceof Blob)) return data;
+  if (typeof data === "string" && data.trim() && data.length < 500) return data;
+  return error instanceof Error ? error.message : JSON.stringify(error);
+};
+
+/** Per-page localStorage key for the rejected-rows panel. */
+const defaultImportResultKey = (importSheetName?: string) => {
+  if (typeof window === "undefined") return importSheetName ?? "bulk-upload";
+  const path = window.location.pathname
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => decryptSegment(segment) ?? segment)
+    .join("/");
+  return importSheetName ? `${path}#${importSheetName}` : path;
+};
+
 type DataTableHeaderActionsProps = {
   header: ReactNode;
   /** Every row the export can cover (all pages / server-side full set). */
@@ -244,13 +341,21 @@ type DataTableHeaderActionsProps = {
   importDefaults?: SafeTableRow;
   importTemplateFilename?: string;
   importSheetName?: string;
+  importResultKey?: string;
   onImportRows?: (rows: SafeTableRows) => Promise<void>;
   onImportComplete?: () => void | Promise<void>;
+  /** Soft refresh of a route-driven server list (instead of a page reload). */
+  refreshRows?: () => Promise<void>;
   filename?: string;
   sheetName?: string;
   loadExportRows?: () => Promise<SafeTableRows>;
+  onServerExport?: (filename: string, sheetName: string) => Promise<void>;
   onPdfRequest?: () => void | Promise<void>;
   renderHeaderWithActions?: (actions: ReactNode) => ReactNode;
+  /** false when the table opted out of the built-in import/export actions */
+  builtIns: boolean;
+  filters?: TableFilters;
+  documentActions?: DocumentActions;
 };
 
 const DataTableHeaderActions = ({
@@ -265,18 +370,33 @@ const DataTableHeaderActions = ({
   importDefaults,
   importTemplateFilename,
   importSheetName,
+  importResultKey,
   onImportRows,
   onImportComplete,
+  refreshRows,
   filename,
   sheetName,
   loadExportRows,
+  onServerExport,
   onPdfRequest,
+  builtIns,
+  filters,
+  documentActions,
 }: DataTableHeaderActionsProps) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [importing, setImporting] = useState(false);
   const [resolvedColumns, setResolvedColumns] = useState(
     discoverImportColumns ? [] : importColumns,
   );
+
+  // Persisted per page so rejected rows survive table refetch / full reload.
+  const [moduleKey] = useState(
+    () => importResultKey ?? defaultImportResultKey(importSheetName),
+  );
+  const [importResult, setImportResult] = useState<BulkUploadResult | null>(
+    () => loadBulkResult(moduleKey),
+  );
+  const [resultOpen, setResultOpen] = useState(false);
 
   // `importColumns` is rebuilt on every parent render (it is derived from the
   // column children), so depending on the array *identity* re-ran this effect
@@ -293,7 +413,8 @@ const DataTableHeaderActions = ({
 
   useEffect(() => {
     const fallback = importColumnsRef.current ?? [];
-    if (!discoverImportColumns || !importApi) {
+    // No metadata request when the user cannot import here anyway.
+    if (!discoverImportColumns || !importApi || !bulkImportable) {
       setResolvedColumns(fallback);
       return;
     }
@@ -312,42 +433,22 @@ const DataTableHeaderActions = ({
     return () => {
       cancelled = true;
     };
-  }, [discoverImportColumns, importApi, importColumnsKey]);
+  }, [discoverImportColumns, importApi, importColumnsKey, bulkImportable]);
 
-  // Export scope is chosen in a popup rather than split across two buttons:
-  // pages previously showed their own "Download Excel" next to this one's
-  // "Download All Excel", which read as two unrelated actions.
-  const [exportOpen, setExportOpen] = useState(false);
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useState<ExportScope | null>(null);
   const [generatingPdf, setGeneratingPdf] = useState(false);
-  const exportMenuRef = useRef<HTMLDivElement | null>(null);
-
-  // Close the scope menu on an outside click or Escape, so it behaves like
-  // any other popover rather than sticking open.
-  useEffect(() => {
-    if (!exportOpen) return;
-    const onPointerDown = (event: MouseEvent) => {
-      if (!exportMenuRef.current?.contains(event.target as Node)) {
-        setExportOpen(false);
-      }
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setExportOpen(false);
-    };
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [exportOpen]);
 
   const handleExport = async (scope: ExportScope) => {
-    setExportOpen(false);
-    setExporting(true);
+    setExporting(scope);
     try {
-      // "all" prefers an explicit fetcher, else the full row set already
-      // held by the table; "page" uses only what is on screen.
+      // "all" prefers a server-side export, then an explicit fetcher, else
+      // the full row set already held by the table; "page" uses only what
+      // is on screen. Each path records exactly one download audit.
+      if (scope === "all" && onServerExport) {
+        await onServerExport(toExportFilename(filename), sheetName || "Data");
+        return;
+      }
+
       const visibleRows = pageRows ?? rows;
       const exportRows =
         scope === "all"
@@ -365,17 +466,18 @@ const DataTableHeaderActions = ({
         exportRows,
         toExportFilename(filename),
         sheetName || "Data",
+        { scope },
       );
-      recordExcelAudit("download_all_excel", {
-        scope,
-        row_count: exportRows.length,
-      });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Export failed.";
-      Swal.fire("Export failed", message, "error");
+      if (message === NO_EXPORT_DATA_MESSAGE) {
+        Swal.fire("Nothing to export", message, "info");
+      } else {
+        Swal.fire("Export failed", message, "error");
+      }
     } finally {
-      setExporting(false);
+      setExporting(null);
     }
   };
 
@@ -407,6 +509,29 @@ const DataTableHeaderActions = ({
     }
   };
 
+  const showImportResult = (result: BulkUploadResult | null) => {
+    saveBulkResult(moduleKey, result);
+    setImportResult(result);
+    setResultOpen(Boolean(result && result.errors.length > 0));
+  };
+
+  /**
+   * After an upload: the page's own hook, else a soft refresh of a server
+   * list, else — only when nothing was rejected — a full reload. Never
+   * hard-reload while rejected rows are on screen.
+   */
+  const refreshAfterImport = async (hasRejected: boolean) => {
+    if (onImportComplete) {
+      await onImportComplete();
+      return;
+    }
+    if (refreshRows) {
+      await refreshRows();
+      return;
+    }
+    if (!hasRejected) window.location.reload();
+  };
+
   const handleImport = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -434,54 +559,91 @@ const DataTableHeaderActions = ({
         return;
       }
 
+      // A page-owned import (custom endpoint / payload shaping).
       if (onImportRows) {
         await onImportRows(payloads);
-      } else if (importApi) {
-        const failures: string[] = [];
-        for (const [index, payload] of payloads.entries()) {
-          try {
-            await importApi.create(payload);
-          } catch (error) {
-            const message =
-              error instanceof Error ? error.message : JSON.stringify(error);
-            failures.push(`Row ${index + 2}: ${message}`);
-          }
-        }
-
-        if (failures.length > 0) {
-          Swal.fire({
-            icon: "warning",
-            title: "Upload completed with errors",
-            html: `<b>Success:</b> ${payloads.length - failures.length}<br/><b>Failed:</b> ${failures.length}<hr/><div style="text-align:left;font-size:12px">${failures
-              .slice(0, 5)
-              .join("<br/>")}</div>`,
-          });
-        } else {
-          await Swal.fire(
-            "Upload completed",
-            `${payloads.length} rows uploaded successfully.`,
-            "success",
-          );
-        }
-      }
-
-      if (onImportComplete) {
-        await onImportComplete();
-      } else if (!onImportRows) {
-        await recordExcelAudit("upload_excel", {
+        recordExcelAudit("upload_excel", {
           file_name: file.name,
           row_count: payloads.length,
           status: "completed",
         });
-        window.location.reload();
+        if (onImportComplete) await onImportComplete();
         return;
       }
 
+      if (!importApi) return;
+
+      // ── Server-side bulk upload ────────────────────────────────────────
+      // Excel -> CSV -> POST <resource>/bulk-upload/ -> one result with
+      // per-row errors (and the rejected row data). Falls back to the
+      // per-row create loop only when the resource has no bulk-upload
+      // endpoint (404/405).
+      let bulkResponse: BulkUploadResponse | null = null;
+      try {
+        const formData = new FormData();
+        formData.append("file", recordsToCsvFile(payloads, "bulk_upload.csv"));
+        bulkResponse = await runBulkUpload(importApi, formData);
+      } catch (bulkError) {
+        const status = errorStatus(bulkError);
+        if (status !== 404 && status !== 405) throw bulkError;
+      }
+
+      let result: BulkUploadResult;
+      if (bulkResponse) {
+        const errors = normalizeBulkErrors(bulkResponse.errors, excelRows);
+        result = {
+          fileName: file.name,
+          successCount: Number(bulkResponse.success_count ?? 0),
+          errors,
+          originalRows: excelRows,
+        };
+      } else {
+        const errors: BulkUploadResult["errors"] = [];
+        for (const [index, payload] of payloads.entries()) {
+          try {
+            await importApi.create(payload);
+          } catch (error) {
+            errors.push({
+              row: index + 1,
+              error: describeRowError(error),
+              data: excelRows[index] ?? {},
+            });
+          }
+        }
+        result = {
+          fileName: file.name,
+          successCount: payloads.length - errors.length,
+          errors,
+          originalRows: excelRows,
+        };
+      }
+
+      const rejected = result.errors.length;
       recordExcelAudit("upload_excel", {
         file_name: file.name,
         row_count: payloads.length,
         status: "completed",
+        mode: bulkResponse ? "bulk_upload" : "per_row",
+        success_count: result.successCount,
+        error_count: rejected,
       });
+
+      showImportResult(rejected > 0 ? result : null);
+      if (rejected > 0) {
+        Swal.fire({
+          icon: "warning",
+          title: "Upload completed with errors",
+          text: `Success: ${result.successCount} · Rejected: ${rejected}. See the rejected list on the page.`,
+        });
+      } else {
+        await Swal.fire(
+          "Upload completed",
+          `${result.successCount} rows uploaded successfully.`,
+          "success",
+        );
+      }
+
+      await refreshAfterImport(rejected > 0);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Upload failed.";
       recordExcelAudit("upload_excel", {
@@ -496,127 +658,177 @@ const DataTableHeaderActions = ({
     }
   };
 
-  // One button, two scopes. "Current page" always works from rows already
-  // on screen; "All data" needs loadExportRows, so it is only offered when
-  // the page supplied it.
-  // Offer the scope menu when "all" can yield more than the visible page —
-  // either via an explicit fetcher, or because `rows` already holds every
-  // record while only one page is rendered.
-  const visibleCount = (pageRows ?? rows).length;
-  const canExportAll = Boolean(loadExportRows) || rows.length > visibleCount;
-  const exportButton = (
-    <div className="relative w-full sm:w-auto" ref={exportMenuRef}>
-      <button
-        type="button"
-        onClick={() =>
-          canExportAll ? setExportOpen((open) => !open) : void handleExport("page")
-        }
-        disabled={rows.length === 0 || exporting}
-        aria-haspopup={canExportAll ? "menu" : undefined}
-        aria-expanded={canExportAll ? exportOpen : undefined}
-        className={cn(CONTROL_BUTTON, "border border-green-200 bg-green-600 text-white hover:bg-green-700")}
-      >
-        <i className={exporting ? "pi pi-spin pi-spinner" : "pi pi-download"} />
-        {exporting ? "Downloading..." : "Download Excel"}
-        {canExportAll ? <i className="pi pi-chevron-down text-xs" /> : null}
-      </button>
+  // Uploads need "add" AND "import"; downloads need "view" AND "export".
+  // Outside a permissioned page everything is allowed (the backend decides).
+  const {
+    canAdd: allowAdd,
+    canView: allowView,
+    canImport: allowImportGrant,
+    canExport: allowExportGrant,
+  } = useScreenAccess();
+  const allowImport = allowAdd && allowImportGrant;
+  const allowExport = allowView && allowExportGrant;
 
-      {canExportAll && exportOpen ? (
-        <div
-          role="menu"
-          className="absolute right-0 z-50 mt-1 w-60 overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
-        >
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => void handleExport("page")}
-            className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
-          >
-            <span className="font-medium text-gray-800 dark:text-gray-100">
-              Current page
-            </span>
-            <span className="text-xs text-gray-500">
-              {visibleCount} row{visibleCount === 1 ? "" : "s"} shown
-            </span>
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => void handleExport("all")}
-            className="flex w-full flex-col items-start gap-0.5 border-t border-gray-100 px-3 py-2 text-left text-sm hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800"
-          >
-            <span className="font-medium text-gray-800 dark:text-gray-100">
-              All data
-            </span>
-            <span className="text-xs text-gray-500">
-              Every record matching current filters
-            </span>
-          </button>
-        </div>
-      ) : null}
-    </div>
-  );
+  // "All data" is offered when it can yield more than the visible page —
+  // via a server-side export, an explicit fetcher, or because `rows`
+  // already holds every record while only one page is rendered.
+  const visibleCount = (pageRows ?? rows).length;
+  const canExportAll =
+    Boolean(onServerExport) ||
+    Boolean(loadExportRows) ||
+    rows.length > visibleCount;
   const canImport =
+    builtIns &&
     bulkImportable &&
+    allowImport &&
     resolvedColumns.length > 0 &&
     (Boolean(onImportRows) || Boolean(importApi));
 
+  // built-in actions first; the page's own `documentActions` replace them
+  const documentMenuActions: DocumentActions = {
+    ...(canImport
+      ? {
+          uploadExcel: {
+            onClick: () => fileInputRef.current?.click(),
+            busy: importing,
+          },
+          downloadTemplate: { onClick: () => void handleTemplate() },
+        }
+      : {}),
+    ...(builtIns
+      ? {
+          downloadExcel: {
+            onClick: () => void handleExport("page"),
+            busy: exporting === "page",
+            disabled: exporting !== null || visibleCount === 0,
+          },
+          ...(canExportAll
+            ? {
+                downloadExcelAll: {
+                  onClick: () => void handleExport("all"),
+                  busy: exporting === "all",
+                  disabled: exporting !== null,
+                },
+              }
+            : {}),
+        }
+      : {}),
+    ...(builtIns && onPdfRequest
+      ? {
+          downloadPdf: {
+            onClick: () => void handlePdf(),
+            busy: generatingPdf,
+          },
+        }
+      : {}),
+    ...(documentActions ?? {}),
+  };
+
+  // Enforce the grants on the merged menu (page-provided actions included):
+  // without "add"+"import" no upload, without "view"+"export" no downloads.
+  // The template serves both flows, so it stays when either grant is present.
+  if (documentMenuActions.uploadExcel && !allowImport) {
+    documentMenuActions.uploadExcel = {
+      ...documentMenuActions.uploadExcel,
+      hidden: true,
+    };
+  }
+  if (!allowExport) {
+    for (const key of [
+      "downloadExcel",
+      "downloadExcelAll",
+      "downloadPdf",
+      "downloadQr",
+    ] as const) {
+      const action = documentMenuActions[key];
+      if (action) documentMenuActions[key] = { ...action, hidden: true };
+    }
+    if (documentMenuActions.downloadTemplate && !allowImport) {
+      documentMenuActions.downloadTemplate = {
+        ...documentMenuActions.downloadTemplate,
+        hidden: true,
+      };
+    }
+  }
+
   const actions = (
-      <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:auto-cols-max sm:grid-flow-col sm:grid-cols-none sm:items-center">
-        {canImport && (
-          <>
-            <button
-              type="button"
-              onClick={handleTemplate}
-              className={cn(CONTROL_BUTTON, "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50")}
-            >
-              <i className="pi pi-file-excel" />
-              Download Template
-            </button>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={importing}
-              className={cn(CONTROL_BUTTON, "border border-blue-200 bg-blue-600 text-white hover:bg-blue-700")}
-            >
-              <i className="pi pi-upload" />
-              {importing ? "Uploading..." : "Upload Excel"}
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.xls"
-              hidden
-              onChange={handleImport}
-            />
-          </>
-        )}
-        {exportButton}
-        {onPdfRequest && (
-          <button
-            type="button"
-            onClick={() => void handlePdf()}
-            disabled={generatingPdf}
-            className={cn(CONTROL_BUTTON, "border border-red-200 bg-red-600 text-white hover:bg-red-700")}
-          >
-            <i className={generatingPdf ? "pi pi-spin pi-spinner" : "pi pi-file-pdf"} />
-            {generatingPdf ? "Generating..." : "Download PDF"}
-          </button>
-        )}
-      </div>
+    <div className="flex min-w-0 flex-wrap items-center gap-3">
+      {filters && (
+        <FilterPanel
+          activeCount={filters.activeCount}
+          onApply={filters.onApply}
+          onReset={filters.onReset}
+          width={filters.width}
+        >
+          {filters.content}
+        </FilterPanel>
+      )}
+      <DocumentsMenu {...documentMenuActions} />
+      {canImport && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.xls"
+          hidden
+          onChange={handleImport}
+        />
+      )}
+    </div>
+  );
+
+  const chips =
+    filters?.chips && filters.chips.length > 0 ? (
+      <ActiveFilterChips chips={filters.chips} onClearAll={filters.onReset} />
+    ) : null;
+
+  // Rejected rows of the last upload, persisted until dismissed or replaced
+  // by a clean upload; shown above the toolbar.
+  const rejectedPanel =
+    importResult && importResult.errors.length > 0 ? (
+      <BulkRejectedPanel
+        result={importResult}
+        onClear={() => {
+          clearBulkResult(moduleKey);
+          setImportResult(null);
+        }}
+        onReupload={
+          canImport ? () => fileInputRef.current?.click() : undefined
+        }
+        onViewAll={() => setResultOpen(true)}
+      />
+    ) : null;
+
+  const resultDialog = (
+    <BulkUploadResultDialog
+      visible={resultOpen}
+      onClose={() => setResultOpen(false)}
+      title="Bulk upload — rejected records"
+      result={importResult}
+    />
   );
 
   if (renderHeaderWithActions) {
-    return <div className="iwms-list-header min-w-0">{renderHeaderWithActions(actions)}</div>;
+    return (
+      <div className="iwms-list-header flex min-w-0 flex-col gap-2.5">
+        {rejectedPanel}
+        {renderHeaderWithActions(actions)}
+        {chips}
+        {resultDialog}
+      </div>
+    );
   }
 
+  // Search (the page's header) on the left, then the Filters button, the
+  // Documents menu pushed right, and the active-filter chips underneath.
   return (
-    <div className="iwms-list-header flex min-w-0 flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-start lg:justify-between">
-      {/* basis-full below lg keeps the page header on its own row: side by
-          side with the Excel buttons it was being squeezed narrow enough to
-          break long titles one word per line. */}
-      <div className="min-w-0 flex-1 lg:basis-auto">{header}</div>
-      {actions}
+    <div className="iwms-list-header flex min-w-0 flex-col gap-2.5">
+      {rejectedPanel}
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
+        <div className="min-w-0 flex-1">{header}</div>
+        <div className="ml-auto shrink-0">{actions}</div>
+      </div>
+      {chips}
+      {resultDialog}
     </div>
   );
 };
@@ -632,7 +844,9 @@ export const DataTable = <TValue extends SafeTableRows>(
     exportRows,
     exportSheetName,
     loadExportRows: loadExportRowsProp,
+    onServerExport: onServerExportProp,
     onPdfRequest,
+    importResultKey,
     importApi,
     importColumns,
     importDefaults,
@@ -642,8 +856,13 @@ export const DataTable = <TValue extends SafeTableRows>(
     onImportRows,
     transformServerRows,
     renderHeaderWithActions,
+    filterPanel,
+    documentActions,
+    fitWidth = false,
     ...tableProps
   } = props;
+  // Uploading a file needs "add" AND "import" together.
+  const { canAdd: canAddRecord, canImport: canImportFile } = useScreenAccess();
   const safeRows = toSafeRows(tableProps.value);
   const resolvedImportApi = importApi ?? getCurrentAdminBulkImportApi();
   // Pages that already own server-side pagination (readAllwithPaginated +
@@ -860,6 +1079,60 @@ export const DataTable = <TValue extends SafeTableRows>(
     // or the active company/project selection changes.
   }, [columnFilterKey, globalSearch, companyProjectKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The list's own query (company/project context, search, column filters,
+  // sort) without pagination — what an "all data" export must cover.
+  const buildExportParams = () => {
+    const companyProject = getListCompanyProjectContext();
+    const baseParams: Record<string, unknown> = { ...serverConfig?.params };
+    delete baseParams.page;
+    delete baseParams.limit;
+    delete baseParams.page_size;
+    return {
+      ...baseParams,
+      ...(companyProject.companyId
+        ? { company_id: companyProject.companyId }
+        : {}),
+      ...(companyProject.projectId
+        ? { project_id: companyProject.projectId }
+        : {}),
+      ...(globalSearch ? { search: globalSearch } : {}),
+      ...columnFilterParams,
+      ...(tableProps.sortField
+        ? {
+            ordering: `${tableProps.sortOrder === -1 ? "-" : ""}${tableProps.sortField}`,
+          }
+        : {}),
+    };
+  };
+
+  // Route-driven server list without a page-provided exporter: "Excel (all
+  // data)" is built on the server (POST /exports/excel/). Only when that
+  // endpoint is missing (404/405) are the rows fetched into the browser.
+  const serverExport = async (filename: string, sheetName: string) => {
+    if (!serverApi) return;
+    const params = buildExportParams();
+    try {
+      await serverApi.exportToExcel({ params }, filename, sheetName);
+    } catch (error) {
+      const status = (error as { status?: number })?.status;
+      if (status !== 404 && status !== 405) throw error;
+      const rows = (await serverApi.readAllForExport({
+        ...serverConfig,
+        params,
+      })) as SafeTableRows;
+      if (rows.length === 0) throw new Error(NO_EXPORT_DATA_MESSAGE);
+      await exportRecordsToExcel(rows, filename, sheetName, { scope: "all" });
+    }
+  };
+
+  const refreshServerRows = () =>
+    loadServerPage(
+      serverFirst,
+      serverPageSize,
+      tableProps.sortField,
+      tableProps.sortOrder,
+    );
+
   const rowsForExport = exportRows ?? (serverApi ? serverRows : safeRows);
   // Derived from the column children, so memoise it: a fresh array each render
   // would re-trigger the header's metadata fetch (see DataTableHeaderActions).
@@ -869,47 +1142,35 @@ export const DataTable = <TValue extends SafeTableRows>(
   );
   const resolvedImportColumns = importColumns ?? importColumnsFromChildren;
   const header =
-    exportable && typeof tableProps.header !== "function" ? (
+    (exportable || filterPanel || documentActions) &&
+    typeof tableProps.header !== "function" ? (
       <DataTableHeaderActions
         header={tableProps.header as ReactNode}
         rows={rowsForExport}
         pageRows={safeRows}
         importColumns={resolvedImportColumns}
         discoverImportColumns={!importColumns}
-        bulkImportable={bulkImportable}
+        bulkImportable={bulkImportable && canAddRecord && canImportFile}
         importApi={resolvedImportApi}
         importDefaults={importDefaults}
         importTemplateFilename={importTemplateFilename}
         importSheetName={importSheetName}
+        importResultKey={importResultKey}
         onImportRows={onImportRows}
         onImportComplete={onImportComplete}
         filename={exportFilename}
         sheetName={exportSheetName}
-        loadExportRows={
-          loadExportRowsProp
-            ? loadExportRowsProp
-            : serverApi
-              ? async () => {
-                  const companyProject = getListCompanyProjectContext();
-                  return (await serverApi.readAllForExport({
-                    ...serverConfig,
-                    params: {
-                      ...serverConfig?.params,
-                      ...(companyProject.companyId
-                        ? { company_id: companyProject.companyId }
-                        : {}),
-                      ...(companyProject.projectId
-                        ? { project_id: companyProject.projectId }
-                        : {}),
-                      ...(globalSearch ? { search: globalSearch } : {}),
-                      ...columnFilterParams,
-                    },
-                  })) as SafeTableRows;
-                }
-              : undefined
+        loadExportRows={loadExportRowsProp}
+        onServerExport={
+          onServerExportProp ??
+          (serverApi && !loadExportRowsProp ? serverExport : undefined)
         }
+        refreshRows={serverApi ? refreshServerRows : undefined}
         onPdfRequest={onPdfRequest}
         renderHeaderWithActions={renderHeaderWithActions}
+        builtIns={exportable}
+        filters={filterPanel}
+        documentActions={documentActions}
       />
     ) : (
       tableProps.header
@@ -953,6 +1214,20 @@ export const DataTable = <TValue extends SafeTableRows>(
         paginatorTemplate="CurrentPageReport FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink RowsPerPageDropdown"
         currentPageReportTemplate="{first}–{last} of {totalRecords} records"
         {...serverTableProps}
+        {...(fitWidth && {
+          tableStyle: {
+            tableLayout: "fixed",
+            width: "100%",
+            maxWidth: "100%",
+            ...serverTableProps.tableStyle,
+          },
+          // Gridline borders poke a few px past a full-width fixed table,
+          // which is enough to show a pointless horizontal scrollbar.
+          className: cn(
+            serverTableProps.className,
+            "[&_.p-datatable-wrapper]:overflow-x-hidden!",
+          ),
+        })}
         header={header}
         value={(serverApi ? serverRows : safeRows) as TValue}
       />

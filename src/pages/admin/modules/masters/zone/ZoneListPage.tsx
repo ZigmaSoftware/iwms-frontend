@@ -10,7 +10,7 @@ import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -18,10 +18,14 @@ import { ActionMenu } from "@/components/ui/ActionMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { zoneApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
@@ -39,6 +43,7 @@ const ZONE_COLUMN_FIELDS: Record<string, string[]> = {
 // ===========================
 export default function ZoneList() {
   const { t } = useTranslation();
+  const { canEdit } = useScreenAccess();
   const { showColumn: showCol } = useFieldVisibility(
     "masters",
     "zones",
@@ -56,7 +61,7 @@ export default function ZoneList() {
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters({
     initialFilters: {
       city_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -68,21 +73,12 @@ export default function ZoneList() {
     companyUniqueId?: string;
     projectId?: string;
   } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  const companyProject = useCompanyProjectFilter(undefined, {
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { companies, isSuperAdmin } = companyProject.selection;
 
   const navigate = useNavigate();
 
@@ -98,18 +94,6 @@ export default function ZoneList() {
       company_unique_id: companyId,
       project_id: selectedProjectId,
     });
-
-  // Deliberately in-memory only — writing this filter choice to
-  // "selected_company_unique_id"/"selected_project_id" would leak into every
-  // other page's initial company/project state, since useCompanyProjectSelection
-  // reads those same keys as a global session fallback.
-  const onFilterCompanyChange = (value: string) => {
-    onCompanyChange(value);
-  };
-
-  const onFilterProjectChange = (value: string) => {
-    setProjectId(value);
-  };
 
   useEffect(() => {
     if (isSuperAdmin && companies.length === 0) return;
@@ -214,7 +198,9 @@ export default function ZoneList() {
   const statusTemplate = (row: ZoneListRecord) => (
     <Switch
       checked={row.is_active}
-      disabled={isUpdating && pendingStatusId === String(row.unique_id)}
+      disabled={
+        !canEdit || (isUpdating && pendingStatusId === String(row.unique_id))
+      }
       onCheckedChange={(checked) => void updateStatus(row, checked)}
     />
   );
@@ -276,19 +262,21 @@ export default function ZoneList() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.zone") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() =>
-              navigate(ENC_NEW_PATH(companyUniqueId, projectId), {
-                state: {
-                  companyUniqueId,
-                  projectId,
-                },
-              })
-            }
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", { item: t("admin.nav.zone") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() =>
+                navigate(ENC_NEW_PATH(companyUniqueId, projectId), {
+                  state: {
+                    companyUniqueId,
+                    projectId,
+                  },
+                })
+              }
+            />
+          </Can>
         </div>
       </div>
 
@@ -300,27 +288,9 @@ export default function ZoneList() {
             searchPlaceholder={t("common.search_placeholder", {
               item: t("admin.nav.zone"),
             })}
-            statusValue={statusValue}
-            onStatusChange={onStatusFilterChange}
-          >
-            <FilterBarSelect
-              value={companyUniqueId || ""}
-              onChange={onFilterCompanyChange}
-              options={companies}
-              placeholder="All Companies"
-              disabled={!isSuperAdmin || companies.length === 0}
-            />
-            <FilterBarSelect
-              value={projectId || ""}
-              onChange={onFilterProjectChange}
-              options={projects}
-              placeholder={showAllProjectsOption ? "All Projects" : undefined}
-              disabled={
-                (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-              }
-            />
-          </FilterBar>
+          />
         }
+        filterPanel={combineFilters(companyProject, statusFilter)}
         loadExportRows={async () => getFilteredExportRows()}
         value={zones}
         dataKey="unique_id"
@@ -351,16 +321,15 @@ export default function ZoneList() {
           style={{ width: "80px" }}
         />
 
-        {showCol("city_name") && (
-          <Column
-            field="city_name"
-            header={t("admin.nav.city")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row) => cap(row.city_name)}
-          />
-        )}
+        {locationColumn<ZoneListRecord>({
+          header: t("common.location"),
+          levels: [
+            showCol("city_name") && {
+              label: t("admin.nav.city"),
+              value: (row) => cap(row.city_name),
+            },
+          ],
+        })}
 
         {showCol("zone_name") && (
           <Column

@@ -12,12 +12,17 @@ import { InputTextarea } from "primereact/inputtextarea";
 import { Dialog } from "primereact/dialog";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { api } from "@/api";
 import { tripDelayReportApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
+import { StackCell } from "@/components/common/TableCells";
+import { FilterSection } from "@/components/common/ListToolbar";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { useDraftFilter } from "@/components/filters/useDraftFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
+import { useScreenAccess } from "@/contexts/screenPermission";
 import { EvidenceImagePreview } from "@/components/common/EvidenceImagePreview";
 
 /**
@@ -64,6 +69,8 @@ const toRecordList = (value: unknown): TripDelayReportRecord[] => {
   }
   return [];
 };
+
+const STATUS_CHOICES = ["REPORTED", "ACKNOWLEDGED", "RESOLVED", ""] as const;
 
 // Must match TripDelayReportViewSet.ordering_fields — anything else is a no-op.
 const SORTABLE_FIELDS = new Set(["created_at", "status", "delay_reason"]);
@@ -145,23 +152,7 @@ function RemarksDialog({
 export default function TripDelayReportList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-
-  const {
-    companyUniqueId,
-    projectId,
-    companies,
-    projects,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
-    initialCompanyId: restoredState?.companyUniqueId,
-    initialProjectId: restoredState?.projectId,
-  });
+  const { canAdd, canEdit } = useScreenAccess();
 
   const { encScheduleOperations, encTripDelayReport } = getEncryptedRoute();
   const { newPath } = createCrudRoutePaths(encScheduleOperations, encTripDelayReport);
@@ -175,9 +166,34 @@ export default function TripDelayReportList() {
   const [totalRecords, setTotalRecords] = useState(0);
   const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  // Open delays first — that is what a supervisor is here to act on.
-  const [statusFilter, setStatusFilter] = useState<TripDelayStatus | "">("REPORTED");
   const requestIdRef = useRef(0);
+
+  const resetPage = () => setFirst(0);
+  const location = useLocation();
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
+  const companyProject = useCompanyProjectFilter(resetPage, {
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { companies, isSuperAdmin } = companyProject.selection;
+
+  // Open delays first — that is what a supervisor is here to act on, so
+  // "Reported" is the default (Reset returns to it; removing the chip = All).
+  const statusPart = useDraftFilter({
+    empty: { status: "REPORTED" },
+    chips: {
+      status: {
+        label: "Status",
+        format: (value) => DELAY_STATUS_LABELS[value as TripDelayStatus] ?? value,
+      },
+    },
+    onAppliedChange: resetPage,
+  });
+  const statusFilter = statusPart.applied.status as TripDelayStatus | "";
 
   const [target, setTarget] = useState<TripDelayReportRecord | null>(null);
   const [mode, setMode] = useState<"acknowledge" | "resolve">("acknowledge");
@@ -284,7 +300,7 @@ export default function TripDelayReportList() {
 
   const actionTemplate = (row: TripDelayReportRecord) => (
     <div className="flex items-center justify-center gap-3">
-      {row.status === "REPORTED" && (
+      {canEdit && row.status === "REPORTED" && (
         <button
           title="Acknowledge"
           onClick={() => {
@@ -296,7 +312,7 @@ export default function TripDelayReportList() {
           <i className="pi pi-check-circle" />
         </button>
       )}
-      {row.status !== "RESOLVED" && (
+      {canEdit && row.status !== "RESOLVED" && (
         <button
           title="Mark resolved"
           onClick={() => {
@@ -316,26 +332,30 @@ export default function TripDelayReportList() {
       searchValue={globalFilterValue}
       onSearchChange={setGlobalFilterValue}
       searchPlaceholder="Search delays…"
-      trailing={
-        <div className="flex flex-wrap items-center gap-2">
-          {(["REPORTED", "ACKNOWLEDGED", "RESOLVED", ""] as const).map((s) => (
-            <button
-              key={s || "all"}
-              type="button"
-              onClick={() => {
-                setFirst(0);
-                setStatusFilter(s);
-              }}
-              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                statusFilter === s ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
-            >
-              {s ? DELAY_STATUS_LABELS[s] : "All"}
-            </button>
-          ))}
-        </div>
-      }
     />
+  );
+
+  const statusField = (
+    <FilterSection label="Status">
+      <div role="radiogroup" aria-label="Status" className="flex flex-wrap gap-1.5">
+        {STATUS_CHOICES.map((s) => (
+          <button
+            key={s || "all"}
+            type="button"
+            role="radio"
+            aria-checked={statusPart.draft.status === s}
+            onClick={() => statusPart.setField("status", s)}
+            className={`h-9 rounded-lg border px-3.5 text-sm font-medium transition-colors ${
+              statusPart.draft.status === s
+                ? "border-green-600 bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-100"
+                : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+            }`}
+          >
+            {s ? DELAY_STATUS_LABELS[s] : "All"}
+          </button>
+        ))}
+      </div>
+    </FilterSection>
   );
 
   return (
@@ -348,40 +368,14 @@ export default function TripDelayReportList() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {isSuperAdmin && (
-            <select
-              value={companyUniqueId || ""}
-              onChange={(e) => onCompanyChange(e.target.value)}
-              disabled={companies.length === 0}
-              className="border rounded px-3 py-2 text-sm"
-            >
-              <option value="">All Companies</option>
-              {companies.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
+          {canAdd && (
+            <Button
+              label="Report Delay"
+              icon="pi pi-plus"
+              className="p-button-success p-button-sm"
+              onClick={() => navigate(newPath, { state: { companyUniqueId, projectId } })}
+            />
           )}
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Projects</option>
-            {projects.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-          <Button
-            label="Report Delay"
-            icon="pi pi-plus"
-            className="p-button-success p-button-sm"
-            onClick={() => navigate(newPath, { state: { companyUniqueId, projectId } })}
-          />
         </div>
       </div>
 
@@ -400,43 +394,74 @@ export default function TripDelayReportList() {
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={loading}
         header={header}
+        filterPanel={combineFilters(companyProject, {
+          ...statusPart,
+          // the default is applied before any commit captures a chip label
+          chips: statusPart.chips.map((chip) => ({
+            ...chip,
+            value: DELAY_STATUS_LABELS[statusFilter as TripDelayStatus] ?? chip.value,
+          })),
+          field: statusField,
+        })}
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         emptyMessage="No delays reported."
       >
-        <Column header={t("common.s_no")} body={(_: any, { rowIndex }: any) => rowIndex + 1} style={{ width: 60 }} />
-        <Column field="unique_id" header="Delay ID" style={{ minWidth: 150 }} />
+        <Column header={t("common.s_no")} body={(_: any, { rowIndex }: any) => rowIndex + 1} style={{ width: "4%" }} />
         <Column
-          field="trip_assignment_id"
-          header="Trip"
-          style={{ minWidth: 160 }}
+          field="unique_id"
+          header="Delay"
+          style={{ width: "18%" }}
           body={(r: TripDelayReportRecord) => (
-            <div className="text-sm text-gray-800">
-              {r.trip_assignment_id}
-              {r.trip_date && <div className="text-xs text-gray-400">{r.trip_date}</div>}
-            </div>
+            <StackCell
+              primary={r.unique_id}
+              lines={[
+                { label: "Trip", value: r.trip_assignment_id },
+                { icon: "pi-calendar", value: r.trip_date },
+                { icon: "pi-truck", value: r.vehicle_no },
+              ]}
+            />
           )}
         />
-        <Column field="vehicle_no" header="Vehicle" style={{ minWidth: 120 }} body={(r) => r.vehicle_no || "—"} />
-        <Column field="delay_reason" header="Reason" sortable style={{ minWidth: 150 }} body={(r) => r.delay_reason_display} />
+        <Column
+          field="delay_reason"
+          header="Reason"
+          sortable
+          style={{ width: "15%" }}
+          body={(r: TripDelayReportRecord) => (
+            <StackCell
+              primary={r.delay_reason_display}
+              lines={[
+                {
+                  label: "Est. delay",
+                  value: r.estimated_delay_minutes != null ? `${r.estimated_delay_minutes} min` : null,
+                },
+              ]}
+            />
+          )}
+        />
         <Column
           field="delay_remarks"
           header="Remarks"
-          style={{ minWidth: 260 }}
-          body={(r: TripDelayReportRecord) => <span className="text-sm text-gray-700">{r.delay_remarks}</span>}
+          style={{ width: "24%" }}
+          body={(r: TripDelayReportRecord) => <span className="wrap-break-word text-sm text-gray-700">{r.delay_remarks}</span>}
         />
         <Column
-          field="estimated_delay_minutes"
-          header="Est. delay"
-          style={{ minWidth: 110 }}
-          body={(r: TripDelayReportRecord) =>
-            r.estimated_delay_minutes != null ? `${r.estimated_delay_minutes} min` : "—"
-          }
+          field="reported_by_name"
+          header="Reported by"
+          style={{ width: "13%" }}
+          body={(r: TripDelayReportRecord) => (
+            <StackCell
+              primary={r.reported_by_name}
+              lines={[{ icon: "pi-clock", value: r.delay_time?.slice(0, 5) }]}
+            />
+          )}
         />
         <Column
           header="Evidence"
-          style={{ width: 100 }}
+          style={{ width: "8%" }}
           body={(r: TripDelayReportRecord) => (
             <EvidenceImagePreview
               url={r.evidence_image_url}
@@ -444,16 +469,14 @@ export default function TripDelayReportList() {
             />
           )}
         />
-        <Column field="reported_by_name" header="Reported by" style={{ minWidth: 150 }} body={(r) => r.reported_by_name || "—"} />
-        <Column field="delay_time" header="At" style={{ minWidth: 100 }} body={(r) => r.delay_time?.slice(0, 5) || "—"} />
         <Column
           field="status"
           header="Status"
           sortable
-          style={{ minWidth: 130 }}
+          style={{ width: "10%" }}
           body={(r: TripDelayReportRecord) => <StatusBadge value={r.status} />}
         />
-        <Column header={t("common.actions")} body={actionTemplate} style={{ width: 110 }} />
+        <Column header={t("common.actions")} body={actionTemplate} style={{ width: "8%" }} />
       </DataTable>
 
       {target && (

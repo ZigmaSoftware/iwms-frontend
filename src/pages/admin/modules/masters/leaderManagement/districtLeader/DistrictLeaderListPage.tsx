@@ -20,9 +20,14 @@ import { ActionMenu } from "@/components/ui/ActionMenu";
 import { districtLeaderApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
+import { StackCell } from "@/components/common/TableCells";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
@@ -54,6 +59,7 @@ const SORTABLE_FIELDS = new Set(["username", "leader_name", "district_name"]);
 
 export default function DistrictLeaderListPage() {
   const { t } = useTranslation();
+  const { canEdit } = useScreenAccess();
   const navigate = useNavigate();
   const location = useLocation();
   const restoredState = location.state as {
@@ -65,25 +71,16 @@ export default function DistrictLeaderListPage() {
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } =
     createCrudRoutePaths(encMasters, encDistrictLeaders);
 
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
-    initialCompanyId: restoredState?.companyUniqueId,
-    initialProjectId: restoredState?.projectId,
-  });
-
   const [rows, setRows] = useState<DistrictLeader[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [first, setFirst] = useState(0);
+
+  const companyProject = useCompanyProjectFilter(() => setFirst(0), {
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { companies, isSuperAdmin } = companyProject.selection;
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -96,7 +93,7 @@ export default function DistrictLeaderListPage() {
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters({
     initialFilters: {
       username: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -232,7 +229,7 @@ export default function DistrictLeaderListPage() {
     return (
       <Switch
         checked={row.is_active ?? row.active_status ?? false}
-        disabled={isUpdating && pendingStatusId === row.unique_id}
+        disabled={!canEdit || (isUpdating && pendingStatusId === row.unique_id)}
         onCheckedChange={(v) => void toggle(v)}
       />
     );
@@ -293,16 +290,18 @@ export default function DistrictLeaderListPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Button
-            label={t("common.add_item", {
-              item: t("admin.nav.district_leader"),
-            })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() =>
-              navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
-            }
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", {
+                item: t("admin.nav.district_leader"),
+              })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() =>
+                navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
+              }
+            />
+          </Can>
         </div>
       </div>
 
@@ -314,27 +313,9 @@ export default function DistrictLeaderListPage() {
             searchPlaceholder={t("common.search_placeholder", {
               item: t("admin.nav.district_leader"),
             })}
-            statusValue={statusValue}
-            onStatusChange={onStatusFilterChange}
-          >
-            <FilterBarSelect
-              value={companyUniqueId || ""}
-              onChange={onCompanyChange}
-              options={companies}
-              placeholder="All Companies"
-              disabled={!isSuperAdmin || companies.length === 0}
-            />
-            <FilterBarSelect
-              value={projectId || ""}
-              onChange={setProjectId}
-              options={projects}
-              placeholder={showAllProjectsOption ? "All Projects" : undefined}
-              disabled={
-                (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-              }
-            />
-          </FilterBar>
+          />
         }
+        filterPanel={combineFilters(companyProject, statusFilter)}
         loadExportRows={async () => getFilteredExportRows()}
         value={data}
         dataKey="unique_id"
@@ -351,6 +332,7 @@ export default function DistrictLeaderListPage() {
         onSort={onSort}
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage={t("common.no_items_found", {
           item: t("admin.nav.district_leader"),
         })}
@@ -359,50 +341,55 @@ export default function DistrictLeaderListPage() {
         <Column
           header={t("common.s_no")}
           body={indexTemplate}
-          style={{ width: "80px" }}
-        />
-        <Column
-          field="username"
-          header={t("common.username")}
-          sortable={SORTABLE_FIELDS.has("username")}
-          body={(r: DistrictLeader) => cap(r.username)}
+          style={{ width: "5%" }}
         />
         <Column
           field="leader_name"
           header={t("common.name")}
           sortable={SORTABLE_FIELDS.has("leader_name")}
-          body={(r: DistrictLeader) => cap(r.leader_name)}
+          style={{ width: "32%" }}
+          body={(r: DistrictLeader) => (
+            <StackCell
+              primary={cap(r.leader_name)}
+              lines={[
+                {
+                  icon: "pi-user",
+                  title: t("common.username"),
+                  value: cap(r.username),
+                },
+                { icon: "pi-envelope", title: t("common.email"), value: r.email },
+              ]}
+            />
+          )}
         />
-        <Column
-          field="district_name"
-          header={t("admin.nav.district")}
-          sortable={SORTABLE_FIELDS.has("district_name")}
-          body={(r: DistrictLeader) => cap(r.district_name)}
-        />
-        <Column
-          field="email"
-          header={t("common.email")}
-          body={(r: DistrictLeader) => r.email || "-"}
-        />
+        {locationColumn<DistrictLeader>({
+          header: t("common.location"),
+          style: { width: "20%" },
+          levels: [
+            { label: t("admin.nav.district"), value: (r) => cap(r.district_name) },
+          ],
+        })}
         <Column
           field="company_name"
           header={t("common.company")}
-          body={(r: DistrictLeader) => r.company_name || "-"}
-        />
-        <Column
-          field="project_name"
-          header={t("common.project")}
-          body={(r: DistrictLeader) => r.project_name || "-"}
+          style={{ width: "28%" }}
+          body={(r: DistrictLeader) => (
+            <StackCell
+              primary={r.company_name}
+              lines={[{ label: t("common.project"), value: r.project_name }]}
+            />
+          )}
         />
         <Column
           field="is_active"
           header={t("common.status")}
           body={statusTemplate}
+          style={{ width: "8%" }}
         />
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ width: "100px", textAlign: "center" }}
+          style={{ width: "7%", textAlign: "center" }}
         />
       </DataTable>
     </div>

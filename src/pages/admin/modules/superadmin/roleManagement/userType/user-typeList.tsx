@@ -10,7 +10,7 @@ import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -23,7 +23,10 @@ import type { UserType } from "../../screenManagement/shared/admin.types";
 import { userTypeApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 const USER_TYPE_SEARCH_FIELDS = ["name"];
 const SORTABLE_FIELDS = new Set(["name"]);
@@ -54,10 +57,11 @@ export default function UserTypePage() {
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters();
 
   const navigate = useNavigate();
+  const { canEdit } = useScreenAccess();
   const { encAdmins, encUserType } = getEncryptedRoute();
 
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -187,30 +191,26 @@ export default function UserTypePage() {
     return (
       <Switch
         checked={row.is_active}
-        disabled={isUpdating && pendingStatusId === id}
+        disabled={!canEdit || (isUpdating && pendingStatusId === id)}
         onCheckedChange={(checked) => void updateStatus(row, checked)}
       />
     );
   };
 
-  // Feeds the table's single "Download Excel" button: the "All data" option
-  // fetches every row matching the current filters, while "Current page"
-  // uses the rows already on screen.
-  const loadAllExportRows = async () => {
-    try {
-      const response = await userTypeApi.readAllForExport({
+  // Feeds the table's single "Download Excel" button: "All data" is built
+  // server-side for the current filters, while "Current page" uses the rows
+  // already on screen.
+  const onServerExport = (filename: string, sheetName: string) =>
+    userTypeApi.exportToExcel(
+      {
         params: {
           ...(searchTerm ? { search: searchTerm } : {}),
           ...(statusValue !== "all" ? { is_active: statusValue === "active" } : {}),
         },
-      });
-      const rows = toRecordList(response);
-      return rows;
-    } catch {
-      Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
-    }
-    return [];
-  };
+      },
+      filename,
+      sheetName,
+    );
 
   const header = (
     <FilterBar
@@ -219,8 +219,6 @@ export default function UserTypePage() {
       searchPlaceholder={t("common.search_placeholder", {
         item: t("admin.nav.user_type"),
       })}
-      statusValue={statusValue}
-      onStatusChange={onStatusFilterChange}
     />
   );
 
@@ -239,16 +237,19 @@ export default function UserTypePage() {
             </p>
           </div>
 
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.user_type") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", { item: t("admin.nav.user_type") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         </div>
 
         <DataTable
-          loadExportRows={loadAllExportRows}
+          filterPanel={combineFilters(statusFilter)}
+          onServerExport={onServerExport}
           value={userTypes}
           dataKey="unique_id"
           lazy

@@ -3,11 +3,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { applyTableFilters } from "@/utils/tableFilterMatch";
 import "./tripsummary.css";
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 import { DataTable } from "@/components/common/SafeDataTable";
+import { StackCell } from "@/components/common/TableCells";
 import { FilterBar } from "@/components/common/FilterBar";
+import { FormSelect } from "@/components/common/FormSelect";
+import { FilterSection, type ActiveFilterChip } from "@/components/common/ListToolbar";
+import { useDraftFilter } from "@/components/filters/useDraftFilter";
+import { combineFilters, type FilterPart } from "@/components/filters/useOptionFilter";
 import { Column } from "primereact/column";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
@@ -159,9 +164,22 @@ export default function TripSummary() {
   const TRIP_SUMMARY_API_URL = gpsTripSummaryApi;
   const initialRange = useMemo(() => computeInitialRange(), []);
   const [vehicles, setVehicles] = useState<VehicleOption[]>([]);
-  const [vehicleId, setVehicleId] = useState("");
-  const [fromDate, setFromDate] = useState(() => formatInput(initialRange.from));
-  const [toDate, setToDate] = useState(() => formatInput(initialRange.to));
+  // Vehicle + From / To are all required for a trip summary. The Filters
+  // panel edits a draft; Apply commits it and fetches (the old "Go"), Reset
+  // goes back to the defaults (first vehicle, last 6 hours from page load).
+  const defaultSelection = {
+    vehicle: vehicles[0]?.id ?? "",
+    from: formatInput(initialRange.from),
+    to: formatInput(initialRange.to),
+  };
+  // the vehicle starts empty and is set once the roster has loaded
+  const selection = useDraftFilter({ empty: defaultSelection });
+  const { vehicle: vehicleId, from: fromDate, to: toDate } = selection.applied;
+  // latest selection, for commits made after an await (roster / fallback)
+  const selectionRef = useRef(selection);
+  useEffect(() => {
+    selectionRef.current = selection;
+  });
   const [summary, setSummary] = useState<TripData | null>(null);
   const [loading, setLoading] = useState(false);
   const [rosterError, setRosterError] = useState("");
@@ -211,11 +229,14 @@ export default function TripSummary() {
         if (!aborted) {
           if (normalized.length) {
             setVehicles(normalized);
-            setVehicleId((prev) => (normalized.some((item) => item.id === prev) ? prev : normalized[0].id));
+            const current = selectionRef.current;
+            if (!normalized.some((item) => item.id === current.applied.vehicle)) {
+              current.commit({ ...current.applied, vehicle: normalized[0].id });
+            }
             setRosterError("");
           } else {
             setVehicles([]);
-            setVehicleId("");
+            selectionRef.current.commit({ ...selectionRef.current.applied, vehicle: "" });
             setRosterError("admin.reports.trip_summary.roster_no_live");
           }
         }
@@ -223,7 +244,7 @@ export default function TripSummary() {
         console.error("Trip summary roster failed:", error);
         if (!aborted) {
           setVehicles([]);
-          setVehicleId("");
+          selectionRef.current.commit({ ...selectionRef.current.applied, vehicle: "" });
           setRosterError("admin.reports.trip_summary.roster_unavailable");
         }
       } finally {
@@ -240,10 +261,12 @@ export default function TripSummary() {
   }, [TRACKING_API_URL]);
 
   const fetchSummary = async (options?: {
+    vehicle?: string;
     range?: { from: string; to: string };
     allowFallback?: boolean;
   }) => {
-    if (!vehicleId) {
+    const vehicle = options?.vehicle ?? vehicleId;
+    if (!vehicle) {
       setSummaryError("admin.reports.trip_summary.error_select_vehicle");
       return;
     }
@@ -267,7 +290,7 @@ export default function TripSummary() {
       const toUTC = toMs;
 
       const apiUrl = buildTripSummaryUrl(
-        vehicleId,
+        vehicle,
         fromUTC,
         toUTC,
         { userId: gpsTripUserId, duration: "0" },
@@ -292,9 +315,8 @@ export default function TripSummary() {
           ) {
             const fallbackRange = shiftRangeByDays(range.from, range.to, -1);
             fallbackAppliedRef.current = true;
-            setFromDate(fallbackRange.from);
-            setToDate(fallbackRange.to);
-            await fetchSummary({ range: fallbackRange, allowFallback: false });
+            selectionRef.current.commit({ vehicle, ...fallbackRange });
+            await fetchSummary({ vehicle, range: fallbackRange, allowFallback: false });
             return;
           }
           setSummaryError("admin.reports.trip_summary.error_no_records");
@@ -317,6 +339,62 @@ export default function TripSummary() {
     initialFetchRef.current = true;
     fetchSummary({ allowFallback: true });
   }, [rosterReady]);
+
+  // Commit a selection and load it right away, as "Go" used to.
+  const applySelection = (next: typeof selection.applied) => {
+    selection.commit(next);
+    fetchSummary({ vehicle: next.vehicle, range: { from: next.from, to: next.to } });
+  };
+
+  const selectionChips: ActiveFilterChip[] = (["vehicle", "from", "to"] as const)
+    .filter((key) => selection.applied[key] !== defaultSelection[key])
+    .map((key) => ({
+      key,
+      label: key === "vehicle" ? "Vehicle" : key === "from" ? "From date" : "To date",
+      value: key === "vehicle" ? selection.applied[key] : selection.applied[key].replace("T", " "),
+      onRemove: () => applySelection({ ...selection.applied, [key]: defaultSelection[key] }),
+    }));
+
+  const selectionFilter: FilterPart = {
+    field: (
+      <>
+        <FilterSection label={t("admin.reports.trip_summary.filters.vehicle_id")}>
+          <FormSelect
+            value={selection.draft.vehicle}
+            onChange={(value) => selection.setField("vehicle", value)}
+            options={vehicles.map((vehicle) => ({ value: vehicle.id, label: vehicle.label }))}
+            placeholder={null}
+          />
+        </FilterSection>
+        <FilterSection label="Date range">
+          <div className="grid grid-cols-2 gap-2">
+            <label className="text-xs text-gray-500">
+              {t("admin.reports.trip_summary.filters.from_date")}
+              <input
+                type="datetime-local"
+                value={selection.draft.from}
+                onChange={(e) => selection.setField("from", e.target.value)}
+                className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+              />
+            </label>
+            <label className="text-xs text-gray-500">
+              {t("admin.reports.trip_summary.filters.to_date")}
+              <input
+                type="datetime-local"
+                value={selection.draft.to}
+                onChange={(e) => selection.setField("to", e.target.value)}
+                className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+              />
+            </label>
+          </div>
+        </FilterSection>
+      </>
+    ),
+    chips: selectionChips,
+    count: selectionChips.length,
+    apply: () => applySelection(selection.draft),
+    reset: () => applySelection(defaultSelection),
+  };
 
   const onGlobalFilterChange = (value: string) => {
     const updatedFilters = { ...filters };
@@ -383,43 +461,6 @@ export default function TripSummary() {
           <h3>{t("admin.reports.trip_summary.title")}</h3>
         </div>
 
-        <div className="filter-row">
-          <div className="filter-field">
-            <label>{t("admin.reports.trip_summary.filters.vehicle_id")}</label>
-            <select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)}>
-              {vehicles.map((vehicle) => (
-                <option key={vehicle.id} value={vehicle.id}>
-                  {vehicle.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="filter-field">
-            <label>{t("admin.reports.trip_summary.filters.from_date")}</label>
-            <input
-              type="datetime-local"
-              className="trip-date-input"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-            />
-          </div>
-
-          <div className="filter-field">
-            <label>{t("admin.reports.trip_summary.filters.to_date")}</label>
-            <input
-              type="datetime-local"
-              className="trip-date-input"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-            />
-          </div>
-
-          <button className="btn-go" onClick={() => fetchSummary()} disabled={loading}>
-            {loading ? t("common.loading") : t("common.go")}
-          </button>
-        </div>
-
         {rosterError && <div className="trip-inline-alert">{t(rosterError)}</div>}
         {summaryError && <div className="trip-inline-alert warning">{t(summaryError)}</div>}
 
@@ -481,6 +522,8 @@ export default function TripSummary() {
             rows={10}
             filters={filters}
             globalFilterFields={["intLoc", "finLoc", "position"]}
+            filterPanel={combineFilters(selectionFilter)}
+            loading={loading}
             header={
               <FilterBar
                 searchValue={globalFilterValue}
@@ -498,52 +541,46 @@ export default function TripSummary() {
             stripedRows
             showGridlines
             className="p-datatable-sm"
+            fitWidth
           >
             <Column
               header={t("admin.reports.trip_summary.columns.s_no")}
               body={(_row, { rowIndex }) => rowIndex + 1}
-              style={{ width: "80px" }}
+              style={{ width: "5%" }}
             />
             <Column
               field="startTime"
               header={t("admin.reports.trip_summary.columns.start_time")}
-              body={(row: HistoryRow) => new Date(row.startTime).toLocaleString()}
+              body={(row: HistoryRow) => (
+                <StackCell
+                  primary={new Date(row.startTime).toLocaleString()}
+                  lines={[{ icon: "pi-map-marker", value: row.intLoc || "-" }]}
+                />
+              )}
               sortable
-              style={{ minWidth: "170px" }}
-              filter
-              showFilterMatchModes={false}
-            />
-            <Column
-              field="intLoc"
-              header={t("admin.reports.trip_summary.columns.start_address")}
-              body={(row: HistoryRow) => row.intLoc || "-"}
-              style={{ minWidth: "180px" }}
+              style={{ width: "24%" }}
               filter
               showFilterMatchModes={false}
             />
             <Column
               field="endTime"
               header={t("admin.reports.trip_summary.columns.end_time")}
-              body={(row: HistoryRow) => new Date(row.endTime).toLocaleString()}
+              body={(row: HistoryRow) => (
+                <StackCell
+                  primary={new Date(row.endTime).toLocaleString()}
+                  lines={[{ icon: "pi-map-marker", value: row.finLoc || "-" }]}
+                />
+              )}
               sortable
-              style={{ minWidth: "170px" }}
+              style={{ width: "24%" }}
               filter
               showFilterMatchModes={false}
-            />
-            <Column
-              field="finLoc"
-              header={t("admin.reports.trip_summary.columns.end_address")}
-              body={(row: HistoryRow) => row.finLoc || "-"}
-              style={{ minWidth: "180px" }}
-              filter
-              showFilterMatchModes={false}
-
             />
             <Column
               field="vehicleName"
               header={t("admin.reports.trip_summary.columns.vehicle_no")}
               body={() => displaySummary.vehicleName || vehicleId}
-              style={{ minWidth: "160px" }}
+              style={{ width: "14%" }}
               filter
               showFilterMatchModes={false}
             />
@@ -551,26 +588,26 @@ export default function TripSummary() {
               field="position"
               header={t("admin.reports.trip_summary.columns.position")}
               body={(row: HistoryRow) => row.position || "-"}
-              style={{ minWidth: "140px" }}
+              style={{ width: "13%" }}
               filter
               showFilterMatchModes={false}
 
             />
             <Column
-            field="duration"
-              header={t("admin.reports.trip_summary.columns.total_minutes")}
-              body={(row: HistoryRow) => Math.floor((row.duration ?? 0) / 60000)}
-              style={{ width: "150px" }}
-              filter
-              showFilterMatchModes={false}
-            />
-            <Column
               field="tripDistance"
               header={t("admin.reports.trip_summary.columns.distance")}
-              body={(row: HistoryRow) => row.tripDistance ?? 0}
-              style={{ width: "140px" }}
-              filter
-              showFilterMatchModes={false}
+              body={(row: HistoryRow) => (
+                <StackCell
+                  primary={row.tripDistance ?? 0}
+                  lines={[
+                    {
+                      label: t("admin.reports.trip_summary.columns.total_minutes"),
+                      value: String(Math.floor((row.duration ?? 0) / 60000)),
+                    },
+                  ]}
+                />
+              )}
+              style={{ width: "20%" }}
             />
           </DataTable>
         </div>

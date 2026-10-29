@@ -6,7 +6,7 @@ import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason"
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
+import { FilterBar } from "@/components/common/FilterBar";
 import type {
   DataTablePageEvent,
   DataTableSortEvent,
@@ -17,6 +17,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { asArray, errorText, yesNo } from "../utils";
 import { MASTER_CONFIG, type MasterKind } from "./masterConfig";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 type Props = {
   kind: MasterKind;
@@ -50,6 +51,7 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
   const navigate = useNavigate();
   const routes = getEncryptedRoute();
   const config = MASTER_CONFIG[kind];
+  const { canAdd } = useScreenAccess();
   const { newPath, editPath } = createCrudRoutePaths(
     moduleSegment ?? routes.encComplaintTicket,
     routes[config.routeKey],
@@ -151,14 +153,14 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
     }
   };
 
-  // "All data" re-fetches every row matching the active search, since the
+  // "All data" is exported on the server with the active search, since the
   // table is lazily paginated and only holds one page.
-  const loadAllExportRows = async () =>
-    asArray(
-      await api.readAllForExport({
-        params: { ...(searchTerm ? { search: searchTerm } : {}) },
-      }),
-    ) as unknown as Record<string, unknown>[];
+  const serverExport = (filename: string, sheetName: string) =>
+    api.exportToExcel(
+      { params: { ...(searchTerm ? { search: searchTerm } : {}) } },
+      filename,
+      sheetName,
+    );
 
   return (
     <div className="p-3">
@@ -173,15 +175,17 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
             </>
           )}
         </div>
-        <Button
-          label="Add New"
-          icon="pi pi-plus"
-          className="p-button-success"
-          onClick={() => navigate(newPath)}
-        />
+        {canAdd && (
+          <Button
+            label="Add New"
+            icon="pi pi-plus"
+            className="p-button-success"
+            onClick={() => navigate(newPath)}
+          />
+        )}
       </div>
       <DataTable
-        loadExportRows={loadAllExportRows}
+        onServerExport={serverExport}
         value={rows}
         dataKey="unique_id"
         lazy
@@ -196,24 +200,22 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading}
         header={
-          <div className="flex justify-end">
-            <InputText
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search"
-              className="p-inputtext-sm"
-            />
-          </div>
+          <FilterBar
+            searchValue={query}
+            onSearchChange={setQuery}
+            searchPlaceholder="Search"
+          />
         }
         emptyMessage="No records found"
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
       >
         <Column
           header="S.No"
           body={(_, options) => options.rowIndex + 1}
-          style={{ width: "80px" }}
+          style={{ width: "5%" }}
         />
         {kind === "module" && (
           <Column
@@ -355,16 +357,12 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
           <Column
             header="Escalation Levels"
             body={(row) => {
-              const levels = (row.escalation_levels ?? []) as {
+              const levels = [...((row.escalation_levels ?? []) as {
                 level: number;
-                is_enabled?: boolean;
                 resolve_within_minutes: number;
-              }[];
-              const enabled = levels
-                .filter((level) => level.is_enabled !== false)
-                .sort((a, b) => a.level - b.level);
-              if (enabled.length === 0) return "-";
-              return enabled
+              }[])].sort((a, b) => a.level - b.level);
+              if (levels.length === 0) return "-";
+              return levels
                 .map((level) => `L${level.level}: ${level.resolve_within_minutes}m`)
                 .join(", ");
             }}
@@ -379,6 +377,7 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
         <Column
           header="Active"
           body={(row) => yesNo(row.is_active !== false)}
+          style={{ width: "8%" }}
         />
         <Column
           header="Actions"
@@ -390,7 +389,7 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
               />
             </div>
           )}
-          style={{ width: "100px" }}
+          style={{ width: "8%" }}
         />
       </DataTable>
     </div>

@@ -11,7 +11,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { useTranslation } from "react-i18next";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -21,9 +21,12 @@ import { Switch } from "@/components/ui/switch";
 import { contractorUserTypeApi, staffUserTypeApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import { filterRowsForExport } from "@/utils/adminListExport";
 
 import type { StaffUserType } from "../../screenManagement/shared/admin.types";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 const STAFF_USER_TYPE_SEARCH_FIELDS = ["name", "usertype_name", "category"];
 
@@ -70,10 +73,11 @@ export default function StaffUserTypeList() {
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters();
 
   const navigate = useNavigate();
+  const { canEdit } = useScreenAccess();
   const { encAdmins, encStaffUserType } = getEncryptedRoute();
 
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -164,7 +168,7 @@ export default function StaffUserTypeList() {
     return (
       <Switch
         checked={row.is_active}
-        disabled={isPending}
+        disabled={!canEdit || isPending}
         onCheckedChange={(checked) => void updateStatus(row, checked)}
       />
     );
@@ -222,8 +226,6 @@ export default function StaffUserTypeList() {
       searchValue={globalFilterValue}
       onSearchChange={onGlobalFilterChange}
       searchPlaceholder={t("common.search_placeholder")}
-      statusValue={statusValue}
-      onStatusChange={onStatusFilterChange}
     />
   );
 
@@ -257,17 +259,20 @@ export default function StaffUserTypeList() {
             </p>
           </div>
 
-          <Button
-            label={t("common.add_item", {
-              item: t("admin.nav.staff_user_type"),
-            })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", {
+                item: t("admin.nav.staff_user_type"),
+              })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         </div>
 
         <DataTable
+          filterPanel={combineFilters(statusFilter)}
           value={records}
           exportRows={exportRows}
           paginator

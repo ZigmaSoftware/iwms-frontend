@@ -14,9 +14,9 @@ import type {
   SortOrder,
 } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -30,12 +30,26 @@ import {
   excelFileToCsvFile,
   exportTemplateToExcel,
   getAdminScreenExcelFilename,
+  readExcelRows,
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
+import BulkUploadResultDialog from "@/components/common/BulkUploadResultDialog";
+import BulkRejectedPanel from "@/components/common/BulkRejectedPanel";
+import {
+  clearBulkResult,
+  loadBulkResult,
+  normalizeBulkErrors,
+  saveBulkResult,
+  type BulkUploadResult,
+} from "@/utils/bulkUpload";
+import { runBulkUpload } from "@/utils/backgroundJobs";
 
 import type { ProjectPermissionSummaryRow } from "./types";
 
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 /* -----------------------------------------------------------
    CONSTANTS
@@ -88,6 +102,8 @@ const BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
   { field: "description", header: "description", sample: "" },
 ];
 
+const BULK_KEY = "user-screen-permissions";
+
 const toStrId = (value: unknown): string => {
   if (value === null || value === undefined) return "";
   return String(value).trim();
@@ -115,21 +131,20 @@ export default function UserScreenPermissionList() {
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { canAdd, canImport } = useScreenAccess();
+  const [uploadResult, setUploadResult] = useState<BulkUploadResult | null>(() =>
+    loadBulkResult(BULK_KEY),
+  );
+  const [resultOpen, setResultOpen] = useState(false);
 
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    onCompanyChange,
-    setProjectId,
-    isSuperAdmin,
-    showAllProjectsOption,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+  const companyProject = useCompanyProjectFilter(() => setFirst(0), {
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { isSuperAdmin } = companyProject.selection;
   const [records, setRecords] = useState<ProjectPermissionSummaryRow[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -318,44 +333,42 @@ export default function UserScreenPermissionList() {
     if (!file) return;
 
     try {
+      const originalRows = (await readExcelRows(file)) as Record<string, unknown>[];
       const csvFile = await excelFileToCsvFile(file, "screen_permission_bulk_upload.csv");
       const formData = new FormData();
       formData.append("file", csvFile);
 
-      const res = await adminApi.companyWiseScreenPermissions.action(
-        "bulk-upload",
+      const res = await runBulkUpload(
+        adminApi.companyWiseScreenPermissions,
         formData,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-        },
       );
 
-      const errors = Array.isArray(res.errors) ? res.errors : [];
+      const errors = normalizeBulkErrors(res.errors, originalRows);
+      const successCount = Number(res.success_count ?? 0);
       recordExcelAudit("upload_excel", {
         file_name: file.name,
         status: "completed",
-        success_count: Number(res.success_count ?? 0),
+        success_count: successCount,
         error_count: errors.length,
       });
 
-      const errorPreview =
-        errors.length > 0
-          ? `<hr/><div class="text-left text-xs mt-2">${errors
-              .slice(0, 3)
-              .map((entry: { row: number; error: unknown }) => {
-                const detail =
-                  typeof entry.error === "string"
-                    ? entry.error
-                    : JSON.stringify(entry.error);
-                return `Row ${entry.row}: ${detail}`;
-              })
-              .join("<br/>")}</div>`
-          : "";
+      const uploadSummary: BulkUploadResult = {
+        fileName: file.name,
+        successCount,
+        errors,
+        originalRows,
+      };
+      if (errors.length > 0) saveBulkResult(BULK_KEY, uploadSummary);
+      else clearBulkResult(BULK_KEY);
+      setUploadResult(uploadSummary);
+      setResultOpen(true);
 
       Swal.fire({
-        icon: "success",
+        icon: errors.length > 0 ? "warning" : "success",
         title: t("admin.user_screen_permission.upload_completed_title"),
-        html: `<b>Success:</b> ${res.success_count}<br/><b>Errors:</b> ${errors.length}${errorPreview}`,
+        text: `Success: ${successCount} · Rejected: ${errors.length}. ${
+          errors.length > 0 ? "See rejected list below." : ""
+        }`,
       });
 
       setRefetchTrigger((prev) => prev + 1);
@@ -416,27 +429,7 @@ export default function UserScreenPermissionList() {
       searchValue={globalFilterValue}
       onSearchChange={(value) => onGlobalFilterChange({ target: { value } })}
       searchPlaceholder={t("common.search_placeholder")}
-    >
-      {isSuperAdmin && (
-        <FilterBarSelect
-          value={companyUniqueId || ""}
-          onChange={onCompanyChange}
-          placeholder="All Companies"
-          disabled={companies.length === 0}
-          options={companies}
-        />
-      )}
-
-      {companyUniqueId && (
-        <FilterBarSelect
-          value={projectId || ""}
-          onChange={setProjectId}
-          placeholder={showAllProjectsOption ? "All Projects" : undefined}
-          disabled={projects.length === 0}
-          options={projects}
-        />
-      )}
-    </FilterBar>
+    />
   );
 
   const loadAllExportRows = async () => {
@@ -482,19 +475,6 @@ export default function UserScreenPermissionList() {
         </div>
 
         <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
-          <Button
-            label={t("admin.user_screen_permission.download_template")}
-            icon="pi pi-download"
-            severity="secondary"
-            className="p-button-sm"
-            onClick={downloadTemplate}
-          />
-          <Button
-            label={t("admin.user_screen_permission.upload_excel")}
-            icon="pi pi-upload"
-            className="p-button-sm"
-            onClick={() => fileInputRef.current?.click()}
-          />
           <input
             ref={fileInputRef}
             type="file"
@@ -503,25 +483,46 @@ export default function UserScreenPermissionList() {
             onChange={handleFileUpload}
           />
 
-          <Button
-            label={t("common.add_item", {
-              item: t("admin.user_screen_permission.permission_label"),
-            })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", {
+                item: t("admin.user_screen_permission.permission_label"),
+              })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+            />
+          </Can>
         </div>
       </div>
+
+      {uploadResult && uploadResult.errors.length > 0 && (
+        <BulkRejectedPanel
+          result={uploadResult}
+          onClear={() => {
+            clearBulkResult(BULK_KEY);
+            setUploadResult(null);
+          }}
+          onReupload={
+            canAdd && canImport ? () => fileInputRef.current?.click() : undefined
+          }
+          onViewAll={() => setResultOpen(true)}
+          downloadFilename="screen_permission_rejected.xlsx"
+        />
+      )}
 
       <DataTable
         value={records}
         loadExportRows={loadAllExportRows}
-        // This page ships its own Download Template / Upload Excel in the
-        // title row: the template uses BULK_TEMPLATE_COLUMNS and the upload
-        // posts CSV to the dedicated bulk-upload endpoint. Opt out of the
-        // generic pair so they are not rendered twice.
+        // This page ships its own Download Template / Upload Excel (in the
+        // Documents menu): the template uses BULK_TEMPLATE_COLUMNS and the
+        // upload posts CSV to the dedicated bulk-upload endpoint. Opt out of
+        // the generic pair so they are not offered twice.
         bulkImportable={false}
+        documentActions={{
+          downloadTemplate: { onClick: () => void downloadTemplate() },
+          uploadExcel: { onClick: () => fileInputRef.current?.click() },
+        }}
         dataKey="composite_key"
         lazy
         paginator
@@ -537,6 +538,7 @@ export default function UserScreenPermissionList() {
         rowsPerPageOptions={[5, 10, 25, 50]}
         globalFilterFields={PERMISSION_SEARCH_FIELDS}
         header={header}
+        filterPanel={combineFilters(companyProject)}
         stripedRows
         showGridlines
         emptyMessage={t("common.no_items_found", {
@@ -588,6 +590,14 @@ export default function UserScreenPermissionList() {
           style={{ width: 150 }}
         />
       </DataTable>
+
+      <BulkUploadResultDialog
+        visible={resultOpen}
+        onClose={() => setResultOpen(false)}
+        title="Screen permission bulk upload — rejected records"
+        result={uploadResult}
+        downloadFilename="screen_permission_rejected.xlsx"
+      />
     </div>
   );
 }

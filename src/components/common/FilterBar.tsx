@@ -1,4 +1,4 @@
-import type { ChangeEvent, ReactNode } from "react";
+import { useRef, type ChangeEvent, type ReactNode } from "react";
 import { InputText } from "primereact/inputtext";
 import { cn } from "@/lib/utils";
 import { CONTROL_HEIGHT, CONTROL_WIDTH } from "@/components/common/controlSizing";
@@ -131,6 +131,7 @@ export function FilterBar({
   trailing,
   className,
 }: FilterBarProps) {
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const labels = { ...DEFAULT_STATUS_LABELS, ...statusLabels };
   const showStatusFilter = statusValue !== undefined && !!onStatusChange;
 
@@ -152,14 +153,32 @@ export function FilterBar({
           >
             <i className="pi pi-search text-gray-500" />
             <InputText
+              ref={searchInputRef}
               value={searchValue}
               onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 onSearchChange(e.target.value)
               }
+              onKeyDown={(e) => {
+                if (e.key === "Escape" && searchValue) onSearchChange("");
+              }}
               placeholder={searchPlaceholder}
               aria-label={searchAriaLabel ?? searchPlaceholder}
               className="p-inputtext-sm h-full w-full !border-0 !bg-transparent !p-0 !shadow-none !outline-none"
             />
+            {searchValue && (
+              <button
+                type="button"
+                onClick={() => {
+                  onSearchChange("");
+                  searchInputRef.current?.focus();
+                }}
+                aria-label="Clear search"
+                title="Clear search"
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+              >
+                <i className="pi pi-times text-xs" />
+              </button>
+            )}
           </div>
         )}
 

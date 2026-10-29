@@ -68,6 +68,7 @@ import {
 import { FieldError } from "@/components/form/FieldError";
 import { TriStateCheckbox } from "@/components/form/TriStateCheckbox";
 import { groupActionState, groupScreens } from "@/utils/screenGroups";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 const { encAdmins, encStaffAccessConfiguration } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(
@@ -85,9 +86,9 @@ const TABS = [
 const DATA_SCOPE_TAB = 2;
 const PERMISSIONS_TAB = 3;
 const PRIMARY_BUTTON_CLASS =
-  "inline-flex items-center justify-center gap-1.5 rounded-md border !border-[#22a855] !bg-[#22a855] px-5 py-2 text-sm font-semibold !text-white shadow-sm transition hover:!bg-[#1a8a44] disabled:opacity-60";
+  "inline-flex items-center justify-center gap-1.5 rounded-md border !border-[#0d9488] !bg-[#0d9488] px-5 py-2 text-sm font-semibold !text-white shadow-sm transition hover:!bg-[#0f766e] disabled:opacity-60";
 const SECONDARY_BUTTON_CLASS =
-  "inline-flex items-center justify-center gap-1.5 rounded-md border !border-[#22a855] !bg-white px-4 py-2 text-sm font-semibold !text-[#22a855] transition hover:!bg-[#e8f8ee] dark:!bg-transparent dark:hover:!bg-[#22a855]/10";
+  "inline-flex items-center justify-center gap-1.5 rounded-md border !border-[#0d9488] !bg-white px-4 py-2 text-sm font-semibold !text-[#0d9488] transition hover:!bg-[#f0fdfa] dark:!bg-transparent dark:hover:!bg-[#0d9488]/10";
 const CANCEL_BUTTON_CLASS =
   "inline-flex items-center justify-center rounded-md border !border-[#f7192b] !bg-[#f7192b] px-4 py-2 text-sm font-semibold !text-white transition hover:!bg-[#d91626]";
 
@@ -1597,13 +1598,7 @@ export default function StaffAccessConfigForm() {
   );
 
   if (fetching) {
-    return (
-      <ComponentCard title="Staff Access Configuration">
-        <div className="flex justify-center items-center py-12 text-gray-500">
-          Loading
-        </div>
-      </ComponentCard>
-    );
+    return <PageLoader />;
   }
 
   return (
@@ -1620,9 +1615,9 @@ export default function StaffAccessConfigForm() {
               onClick={() => goToTab(index)}
               className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition ${
                 isActive
-                  ? "!bg-[#22a855] !text-white shadow-sm"
+                  ? "!bg-[#0d9488] !text-white shadow-sm"
                   : isCompleted
-                    ? "!bg-[#e8f8ee] !text-[#22a855] hover:opacity-90"
+                    ? "!bg-[#f0fdfa] !text-[#0d9488] hover:opacity-90"
                     : "bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-900 dark:text-gray-400"
               }`}
             >
@@ -1631,7 +1626,7 @@ export default function StaffAccessConfigForm() {
                   isActive
                     ? "bg-white/20 text-white"
                     : isCompleted
-                      ? "!bg-[#22a855] !text-white"
+                      ? "!bg-[#0d9488] !text-white"
                       : "bg-gray-300 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
                 }`}
               >

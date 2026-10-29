@@ -12,7 +12,7 @@ import { FilterMatchMode } from "primereact/api";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -20,11 +20,15 @@ import { ActionMenu } from "@/components/ui/ActionMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { wardApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { WardListRecord } from "./types";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 const WARD_COLUMN_FIELDS: Record<string, string[]> = {
   zone_name: ["zone_id"],
@@ -58,6 +62,7 @@ const extractErrorMessage = (error: unknown, fallbackMessage: string) => {
 
 export default function WardList() {
   const { t } = useTranslation();
+  const { canEdit } = useScreenAccess();
   const { showColumn: showCol } = useFieldVisibility(
     "masters",
     "wards",
@@ -77,7 +82,7 @@ export default function WardList() {
 
   const {
     filters, onFilter, globalFilterValue, onGlobalFilterChange,
-    statusValue, onStatusFilterChange,
+    statusValue, statusFilter,
   } = useFilterBarFilters({
     initialFilters: {
       zone_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -87,18 +92,27 @@ export default function WardList() {
   });
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  // Set when the user applies a company/project (Apply, chip ✕, Reset), so
+  // only their own choice is remembered — not the defaults as they load.
+  const userAppliedRef = useRef(false);
+  const companyProject = useCompanyProjectFilter(
+    () => {
+      userAppliedRef.current = true;
+      setFirst(0);
+    },
+    {
+      initialCompanyId: restoredState?.companyUniqueId,
+      initialProjectId: restoredState?.projectId,
+    },
+  );
+  const { companyId: companyUniqueId, projectId } = companyProject;
   const {
-    companyUniqueId,
-    projectId,
-    projects,
     companies,
     isSuperAdmin,
-    showAllProjectsOption,
+    projects,
+    projectId: draftProjectId,
     setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+  } = companyProject.selection;
 
   const navigate = useNavigate();
 
@@ -120,27 +134,29 @@ export default function WardList() {
   // leaked into every other form's initial company/project state.
   const WARD_FILTER_PROJECT_KEY = "ward_list_selected_project_id";
 
+  // Restore the remembered project once the project list has loaded.
+  const projectRestoredRef = useRef(false);
   useEffect(() => {
     if (typeof window === "undefined" || projects.length === 0) return;
+    if (projectRestoredRef.current) return;
+    projectRestoredRef.current = true;
     const storedProjectId = localStorage.getItem(WARD_FILTER_PROJECT_KEY);
     if (
       storedProjectId &&
-      storedProjectId !== projectId &&
+      storedProjectId !== draftProjectId &&
       projects.some((project) => project.value === storedProjectId)
     ) {
       setProjectId(storedProjectId);
     }
-  }, [projectId, projects, setProjectId]);
+  }, [draftProjectId, projects, setProjectId]);
 
-  const onFilterCompanyChange = (value: string) => {
-    localStorage.removeItem(WARD_FILTER_PROJECT_KEY);
-    onCompanyChange(value);
-  };
-
-  const onFilterProjectChange = (value: string) => {
-    localStorage.setItem(WARD_FILTER_PROJECT_KEY, value);
-    setProjectId(value);
-  };
+  // Remember the applied project (a company change applies with no project,
+  // which forgets it).
+  useEffect(() => {
+    if (!userAppliedRef.current) return;
+    if (projectId) localStorage.setItem(WARD_FILTER_PROJECT_KEY, projectId);
+    else localStorage.removeItem(WARD_FILTER_PROJECT_KEY);
+  },[companyUniqueId, projectId]);
 
   const toRecordList = (value: unknown): WardListRecord[] => {
     if (Array.isArray(value)) return value as WardListRecord[];
@@ -263,7 +279,9 @@ export default function WardList() {
   const statusTemplate = (row: WardListRecord) => (
     <Switch
       checked={row.is_active}
-      disabled={isUpdating && pendingStatusId === String(row.unique_id)}
+      disabled={
+        !canEdit || (isUpdating && pendingStatusId === String(row.unique_id))
+      }
       onCheckedChange={(checked) => {
         void updateStatus(row, checked);
       }}
@@ -327,34 +345,31 @@ export default function WardList() {
           </div>
 
           <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
-            <Button
-              label={t("common.add_item", { item: t("admin.nav.ward") })}
-              icon="pi pi-plus"
-              className="p-button-success"
+            <Can action="add">
+              <Button
+                label={t("common.add_item", { item: t("admin.nav.ward") })}
+                icon="pi pi-plus"
+                className="p-button-success"
              
-              onClick={() =>
-                navigate(ENC_NEW_PATH(companyUniqueId, projectId), {
-                  state: {
-                    companyUniqueId,
-                    projectId,
-                  },
-                })
-              }
-            />
+                onClick={() =>
+                  navigate(ENC_NEW_PATH(companyUniqueId, projectId), {
+                    state: {
+                      companyUniqueId,
+                      projectId,
+                    },
+                  })
+                }
+              />
+            </Can>
           </div>
         </div>
 
-        <FilterBar searchValue={globalFilterValue} onSearchChange={onGlobalFilterChange}
-          searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.ward") })}
-          statusValue={statusValue} onStatusChange={onStatusFilterChange} className="mb-4">
-          <FilterBarSelect value={companyUniqueId || ""} onChange={onFilterCompanyChange} options={companies}
-            placeholder="All Companies" disabled={!isSuperAdmin || companies.length === 0} />
-          <FilterBarSelect value={projectId || ""} onChange={onFilterProjectChange} options={projects}
-            placeholder={showAllProjectsOption ? "All Projects" : undefined}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0} />
-        </FilterBar>
-
         <DataTable
+          header={
+            <FilterBar searchValue={globalFilterValue} onSearchChange={onGlobalFilterChange}
+              searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.ward") })} />
+          }
+          filterPanel={combineFilters(companyProject, statusFilter)}
           value={wards}
           exportRows={exportRows}
           exportSheetName="Wards"
@@ -379,23 +394,19 @@ export default function WardList() {
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
 
-          {showCol("zone_name") && (
-            <Column
-              field="zone_name"
-              header={t("admin.nav.zone")}
-              sortable={SORTABLE_FIELDS.has("zone_name")}
-              body={(row) => cap(row.zone_name)}
-            />
-          )}
-
-          {showCol("city_name") && (
-            <Column
-              field="city_name"
-              header={t("admin.nav.city")}
-              sortable={SORTABLE_FIELDS.has("city_name")}
-              body={(row) => cap(row.city_name)}
-            />
-          )}
+          {locationColumn<WardListRecord>({
+            header: t("common.location"),
+            levels: [
+              showCol("city_name") && {
+                label: t("admin.nav.city"),
+                value: (row) => cap(row.city_name ?? undefined),
+              },
+              showCol("zone_name") && {
+                label: t("admin.nav.zone"),
+                value: (row) => cap(row.zone_name ?? undefined),
+              },
+            ],
+          })}
 
           {showCol("ward_name") && (
             <Column

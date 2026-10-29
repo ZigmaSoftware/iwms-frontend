@@ -55,6 +55,7 @@ export default function ProjectStaffHierarchyForm() {
   const [staffUserTypeId, setStaffUserTypeId] = useState("");
   const [reportsToId, setReportsToId] = useState("");
   const [level, setLevel] = useState("1");
+  const [escalationEnabled, setEscalationEnabled] = useState(true);
   const [isActive, setIsActive] = useState(true);
 
   const [pageReady, setPageReady] = useState(false);
@@ -79,6 +80,7 @@ export default function ProjectStaffHierarchyForm() {
           setStaffUserTypeId(normalizeIdValue(record.staffusertype_id));
           setReportsToId(normalizeIdValue(record.reports_to_staffusertype_id));
           setLevel(String(record.level ?? "1"));
+          setEscalationEnabled(record.escalation_enabled !== false);
           setIsActive(Boolean(record.is_active));
         }
       })
@@ -113,6 +115,7 @@ export default function ProjectStaffHierarchyForm() {
       staffusertype_id: staffUserTypeId,
       reports_to_staffusertype_id: reportsToId || null,
       level: Number(level) || 1,
+      escalation_enabled: escalationEnabled,
       is_active: isActive,
     };
 
@@ -251,6 +254,27 @@ export default function ProjectStaffHierarchyForm() {
                 value={level}
                 onChange={(e) => setLevel(e.target.value)}
               />
+            </div>
+
+            {/* COMPLAINT ESCALATION — off for field roles (Driver, Operator):
+                complaints start at the next enabled level and escalate past
+                this one. Only enabled levels show on the SLA rule screen. */}
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                {t("admin.project_staff_hierarchy.escalation")}
+              </label>
+              <Select
+                value={escalationEnabled ? "true" : "false"}
+                onValueChange={(v) => setEscalationEnabled(v === "true")}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="true">{t("admin.project_staff_hierarchy.escalation_yes")}</SelectItem>
+                  <SelectItem value="false">{t("admin.project_staff_hierarchy.escalation_no")}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

@@ -7,8 +7,9 @@ import type {
   DataTableSortEvent,
   SortOrder,
 } from "primereact/datatable";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import { complaintFeedbackApi } from "@/features/complaintTicketing/api";
 import type { ComplaintFeedback } from "@/features/complaintTicketing/types";
 import { asArray, errorText, formatDateTime, yesNo } from "../utils";
@@ -29,25 +30,10 @@ export default function FeedbackList() {
   // Feedback has no company column of its own — it hangs off a ticket, which
   // does — so `ComplaintFeedbackViewSet` filters through `ticket__company_id`.
   // The pickers are the same ones every company-scoped list uses.
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false, defaultToAll: true });
-
-  const selectedProjectId =
-    projectId && projects.some((project) => project.value === projectId)
-      ? projectId
-      : "";
-  const scopeParams = {
-    ...(companyUniqueId ? { company_id: companyUniqueId } : {}),
-    ...(selectedProjectId ? { project_id: selectedProjectId } : {}),
-  };
+  const companyProject = useCompanyProjectFilter(() => setFirst(0));
+  const companyUniqueId = companyProject.companyId;
+  const selectedProjectId = companyProject.projectId;
+  const scopeParams = companyProject.applied;
 
   const ordering =
     sortField && SORTABLE_FIELDS.has(sortField)
@@ -110,14 +96,16 @@ export default function FeedbackList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  // "All data" re-fetches every feedback row matching the active search,
+  // "All data" is exported on the server with the active scope + search,
   // since the table is lazily paginated and only holds one page.
-  const loadAllExportRows = async () =>
-    asArray<ComplaintFeedback>(
-      await complaintFeedbackApi.readAllForExport({
+  const serverExport = (filename: string, sheetName: string) =>
+    complaintFeedbackApi.exportToExcel(
+      {
         params: { ...scopeParams, ...(searchTerm ? { search: searchTerm } : {}) },
-      }),
-    ) as unknown as Record<string, unknown>[];
+      },
+      filename,
+      sheetName,
+    );
 
   return (
     <div className="p-3">
@@ -130,7 +118,7 @@ export default function FeedbackList() {
         </p>
       </div>
       <DataTable
-        loadExportRows={loadAllExportRows}
+        onServerExport={serverExport}
         value={rows}
         dataKey="unique_id"
         lazy
@@ -148,57 +136,54 @@ export default function FeedbackList() {
             searchValue={globalFilterValue}
             onSearchChange={(value) => setGlobalFilterValue(value)}
             searchPlaceholder="Search Feedback..."
-          >
-            <FilterBarSelect
-              value={companyUniqueId || ""}
-              onChange={(value) => onCompanyChange(value)}
-              options={companies}
-              placeholder="All Companies"
-              disabled={!isSuperAdmin || companies.length === 0}
-            />
-            <FilterBarSelect
-              value={selectedProjectId}
-              onChange={(value) => setProjectId(value)}
-              options={projects.map((project) => ({
-                value: String(project.value),
-                label: project.label || project.value,
-              }))}
-              placeholder={showAllProjectsOption ? "All Projects" : undefined}
-              disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            />
-          </FilterBar>
+          />
         }
+        filterPanel={combineFilters(companyProject)}
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage="No feedback found"
         className="p-datatable-sm"
       >
         <Column
           header="S.No"
           body={(_, options) => options.rowIndex + 1}
-          style={{ width: "80px" }}
+          style={{ width: "5%" }}
         />
         <Column
           field="ticket_no"
           header="Ticket"
           body={(row) => row.ticket_no || row.ticket || "-"}
+          style={{ width: "14%" }}
         />
         <Column
           field="customer_name"
           header="Customer"
           body={(row) => row.customer_name || row.customer || "-"}
+          style={{ width: "16%" }}
         />
-        <Column field="rating" header="Rating" sortable />
+        <Column
+          field="rating"
+          header="Rating"
+          sortable
+          style={{ width: "8%" }}
+        />
         <Column
           header="Issue Solved"
           body={(row) => yesNo(row.is_issue_solved)}
+          style={{ width: "10%" }}
         />
-        <Column field="feedback_text" header="Feedback" />
+        <Column
+          field="feedback_text"
+          header="Feedback"
+          style={{ width: "31%" }}
+        />
         <Column
           field="submitted_at"
           header="Submitted"
           sortable={SORTABLE_FIELDS.has("submitted_at")}
           body={(row) => formatDateTime(row.submitted_at)}
+          style={{ width: "16%" }}
         />
       </DataTable>
     </div>

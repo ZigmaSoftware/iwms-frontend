@@ -1,7 +1,4 @@
-import type {
-  CollectionPointCollectionType,
-  CollectionPointRecord,
-} from "./types";
+import type { CollectionPointRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -19,12 +16,20 @@ import type {
 } from "primereact/datatable";
 
 import { ActionMenu } from "@/components/ui/ActionMenu";
+import { useScreenAccess } from "@/contexts/screenPermission";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { collectionPointApi } from "@/helpers/admin";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
+import { StackCell } from "@/components/common/TableCells";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import {
+  combineFilters,
+  useOptionFilter,
+  useStatusFilter,
+} from "@/components/filters/useOptionFilter";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
@@ -66,6 +71,7 @@ const COLLECTION_POINT_COLUMN_FIELDS: Record<string, string[]> = {
   district_name: ["district_id", "district_name"],
   city_name: ["city_id", "city_name"],
   panchayat_name: ["panchayat_id", "panchayat_name"],
+  zone_name: ["zone_id", "zone_name"],
   ward_name: ["ward_id", "ward_name"],
   latitude: ["latitude"],
   longitude: ["longitude"],
@@ -75,6 +81,7 @@ const COLLECTION_POINT_COLUMN_FIELDS: Record<string, string[]> = {
 export default function CollectionPointListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { canAdd, canEdit } = useScreenAccess();
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [records, setRecords] = useState<CollectionPointRecord[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -82,14 +89,8 @@ export default function CollectionPointListPage() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [collectionTypeFilter, setCollectionTypeFilter] = useState<
-    "all" | CollectionPointCollectionType
-  >("all");
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusValue, setStatusValue] = useState<"all" | "active" | "inactive">(
-    "all",
-  );
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const requestIdRef = useRef(0);
@@ -98,21 +99,26 @@ export default function CollectionPointListPage() {
     companyUniqueId?: string;
     projectId?: string;
   } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  const resetPage = () => setFirst(0);
+  const companyProject = useCompanyProjectFilter(resetPage, {
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
+  const companyUniqueId = companyProject.companyId;
+  const projectId = companyProject.projectId;
+  const { companies, isSuperAdmin } = companyProject.selection;
+
+  const collectionTypeFilter = useOptionFilter({
+    param: "collection_type",
+    label: "Collection type",
+    options: [
+      { value: "bin_collection", label: "Secondary Collection Point" },
+      { value: "bulk_waste_collection", label: "Bulk Waste Collection" },
+    ],
+    allLabel: "All Types",
+    onAppliedChange: resetPage,
+  });
+  const statusFilter = useStatusFilter(resetPage);
 
   const { encScheduleSetup, encCollectionPoints } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } =
@@ -146,9 +152,7 @@ export default function CollectionPointListPage() {
           params: {
             company_id: companyUniqueId,
             project_id: projectId || undefined,
-            ...(collectionTypeFilter !== "all"
-              ? { collection_type: collectionTypeFilter }
-              : {}),
+            ...collectionTypeFilter.applied,
             ...(search ? { search } : {}),
             ...(order ? { ordering: order } : {}),
           },
@@ -180,7 +184,7 @@ export default function CollectionPointListPage() {
     projectId,
     isSuperAdmin,
     companies.length,
-    collectionTypeFilter,
+    collectionTypeFilter.value,
     first,
     rowsPerPage,
     searchTerm,
@@ -197,10 +201,7 @@ export default function CollectionPointListPage() {
       return [] as CollectionPointRecord[];
     if (!companyUniqueId && !isSuperAdmin) return [] as CollectionPointRecord[];
 
-    if (statusValue === "all") return records;
-
-    const wantActive = statusValue === "active";
-    return records.filter((row) => Boolean(row.is_active) === wantActive);
+    return records.filter(statusFilter.matches);
   })();
 
   const onPage = (event: DataTablePageEvent) => {
@@ -216,10 +217,6 @@ export default function CollectionPointListPage() {
 
   const onGlobalFilterChange = (value: string) => {
     setGlobalFilterValue(value);
-  };
-
-  const onStatusFilterChange = (value: "all" | "active" | "inactive") => {
-    setStatusValue(value);
   };
 
   useEffect(() => {
@@ -238,18 +235,13 @@ export default function CollectionPointListPage() {
       params: {
         company_id: companyUniqueId,
         project_id: projectId || undefined,
-        ...(collectionTypeFilter !== "all"
-          ? { collection_type: collectionTypeFilter }
-          : {}),
+        ...collectionTypeFilter.applied,
         ...(searchTerm ? { search: searchTerm } : {}),
         ...(ordering ? { ordering } : {}),
       },
     });
     const exportRows = data as CollectionPointRecord[];
-    if (statusValue === "all") return exportRows;
-
-    const wantActive = statusValue === "active";
-    return exportRows.filter((row) => Boolean(row.is_active) === wantActive);
+    return exportRows.filter(statusFilter.matches);
   };
 
   const indexTemplate = (
@@ -319,7 +311,9 @@ export default function CollectionPointListPage() {
     return (
       <Switch
         checked={Boolean(row.is_active)}
-        disabled={isUpdating && pendingStatusId === String(row.unique_id)}
+        disabled={
+          !canEdit || (isUpdating && pendingStatusId === String(row.unique_id))
+        }
         onCheckedChange={updateStatus}
       />
     );
@@ -342,63 +336,36 @@ export default function CollectionPointListPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button
-            label={t("common.add_item", {
-              item: t("admin.nav.collection_point"),
-            })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() =>
-              navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
-            }
-          />
+          {canAdd && (
+            <Button
+              label={t("common.add_item", {
+                item: t("admin.nav.collection_point"),
+              })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() =>
+                navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
+              }
+            />
+          )}
         </div>
       </div>
 
-      <FilterBar
-        searchValue={globalFilterValue}
-        onSearchChange={onGlobalFilterChange}
-        searchPlaceholder={t("common.search_placeholder", {
-          item: t("admin.nav.collection_point"),
-        })}
-        statusValue={statusValue}
-        onStatusChange={onStatusFilterChange}
-        className="mb-4"
-      >
-        <FilterBarSelect
-          value={companyUniqueId || ""}
-          onChange={onCompanyChange}
-          options={companies}
-          placeholder="All Companies"
-          disabled={!isSuperAdmin || companies.length === 0}
-        />
-        <FilterBarSelect
-          value={projectId || ""}
-          onChange={setProjectId}
-          options={projects}
-          placeholder={showAllProjectsOption ? "All Projects" : undefined}
-          disabled={
-            (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-          }
-        />
-        <FilterBarSelect
-          value={collectionTypeFilter}
-          onChange={(value) => {
-            setFirst(0);
-            setCollectionTypeFilter(
-              value as "all" | CollectionPointCollectionType,
-            );
-          }}
-          aria-label="Collection type filter"
-          options={[
-            { value: "all", label: "All Types" },
-            { value: "bin_collection", label: "Secondary Collection Point" },
-            { value: "bulk_waste_collection", label: "Bulk Waste Collection" },
-          ]}
-        />
-      </FilterBar>
-
       <DataTable
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={onGlobalFilterChange}
+            searchPlaceholder={t("common.search_placeholder", {
+              item: t("admin.nav.collection_point"),
+            })}
+          />
+        }
+        filterPanel={combineFilters(
+          companyProject,
+          collectionTypeFilter,
+          statusFilter,
+        )}
         loadExportRows={async () => getFilteredExportRows()}
         value={rows}
         dataKey="unique_id"
@@ -415,6 +382,7 @@ export default function CollectionPointListPage() {
         loading={isLoading}
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         emptyMessage={t("common.no_items_found", {
           item: t("admin.nav.collection_point"),
@@ -423,120 +391,119 @@ export default function CollectionPointListPage() {
         <Column
           header={t("common.s_no")}
           body={indexTemplate}
-          style={{ width: "80px" }}
+          style={{ width: "5%" }}
         />
         <Column
-          header="Collection Type"
-          style={{ minWidth: 160 }}
-          sortable={SORTABLE_FIELDS.has("collection_type")}
-          field="collection_type"
+          field={showCol("cp_name") ? "cp_name" : "collection_type"}
+          header={
+            showCol("cp_name") ? t("admin.nav.collection_point") : "Collection Type"
+          }
+          sortable={SORTABLE_FIELDS.has(
+            showCol("cp_name") ? "cp_name" : "collection_type",
+          )}
+          style={{ width: "28%" }}
           body={(row: CollectionPointRecord) => {
             const type = row.collection_type;
             const isBin = !type || type === "bin_collection";
             return (
-              <span
-                className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${isBin ? "bg-blue-100 text-blue-800" : "bg-purple-100 text-purple-800"}`}
-              >
-                {COLLECTION_TYPE_LABELS[type ?? "bin_collection"]}
-              </span>
+              <StackCell
+                primary={
+                  showCol("cp_name") &&
+                  cap(toOptionalString(row.cp_name ?? row.collection_point_name))
+                }
+                lines={[
+                  <span
+                    key="type"
+                    className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${isBin ? "bg-blue-100 text-blue-800" : "bg-purple-100 text-purple-800"}`}
+                  >
+                    {COLLECTION_TYPE_LABELS[type ?? "bin_collection"]}
+                  </span>,
+                ]}
+              />
             );
           }}
         />
-        {showCol("cp_name") && (
-          <Column
-            field="cp_name"
-            header={t("admin.nav.collection_point")}
-            sortable={SORTABLE_FIELDS.has("cp_name")}
-            body={(row: CollectionPointRecord) =>
-              cap(toOptionalString(row.cp_name ?? row.collection_point_name))
-            }
-          />
-        )}
-        {showCol("state_name") && (
-          <Column
-            field="state_name"
-            header={t("common.state")}
-            body={(row: CollectionPointRecord) =>
-              cap(toOptionalString(row.state_name))
-            }
-          />
-        )}
-        {showCol("district_name") && (
-          <Column
-            field="district_name"
-            header={t("common.district")}
-            body={(row: CollectionPointRecord) =>
-              cap(toOptionalString(row.district_name))
-            }
-          />
-        )}
-        {showCol("city_name") && (
-          <Column
-            field="city_name"
-            header={t("common.city")}
-            body={(row: CollectionPointRecord) =>
-              cap(toOptionalString(row.city_name))
-            }
-          />
-        )}
-        {showCol("panchayat_name") && (
-          <Column
-            field="panchayat_name"
-            header={t("admin.nav.panchayat")}
-            body={(row: CollectionPointRecord) => toDisplay(row.panchayat_name)}
-          />
-        )}
-        {showCol("ward_name") && (
-          <Column
-            field="ward_name"
-            header={t("admin.nav.ward")}
-            body={(row: CollectionPointRecord) => {
-              const wards = row.wards as
-                | { unique_id: string; ward_name: string }[]
-                | undefined;
-              if (wards && wards.length > 0) {
-                return (
-                  <div className="flex flex-wrap gap-1">
-                    {wards.map((w) => (
-                      <span
-                        key={w.unique_id}
-                        className="inline-block bg-green-100 text-green-800 text-xs font-medium px-2 py-0.5 rounded-full"
-                      >
-                        {cap(w.ward_name)}
-                      </span>
-                    ))}
-                  </div>
-                );
-              }
-              return <span>{toDisplay(row.ward_name)}</span>;
-            }}
-          />
-        )}
-        {showCol("latitude") && (
+        {locationColumn<CollectionPointRecord>({
+          header: t("common.location"),
+          style: { width: "32%" },
+          levels: [
+            showCol("state_name") && {
+              label: t("common.state"),
+              value: (row) => cap(toOptionalString(row.state_name)),
+            },
+            showCol("district_name") && {
+              label: t("common.district"),
+              value: (row) => cap(toOptionalString(row.district_name)),
+            },
+            showCol("city_name") && {
+              label: t("common.city"),
+              value: (row) => cap(toOptionalString(row.city_name)),
+            },
+            showCol("panchayat_name") && {
+              label: t("common.panchayat"),
+              value: (row) => toOptionalString(row.panchayat_name),
+            },
+            showCol("zone_name") && {
+              label: t("admin.nav.zone"),
+              value: (row) => toOptionalString(row.zone_name),
+            },
+            showCol("ward_name") && {
+              label: t("admin.nav.ward"),
+              value: (row) => {
+                const wards = row.wards as
+                  | { unique_id: string; ward_name: string }[]
+                  | undefined;
+                if (wards && wards.length > 0) {
+                  return (
+                    <div className="flex flex-wrap gap-1">
+                      {wards.map((w) => (
+                        <span
+                          key={w.unique_id}
+                          className="inline-block bg-green-100 text-green-800 text-xs font-medium px-2 py-0.5 rounded-full"
+                        >
+                          {cap(w.ward_name)}
+                        </span>
+                      ))}
+                    </div>
+                  );
+                }
+                return toOptionalString(row.ward_name);
+              },
+            },
+          ],
+        })}
+        {(showCol("latitude") || showCol("longitude")) && (
           <Column
             field="latitude"
-            header="Latitude"
-            body={(row: CollectionPointRecord) => toDisplay(row.latitude)}
-          />
-        )}
-        {showCol("longitude") && (
-          <Column
-            field="longitude"
-            header="Longitude"
-            body={(row: CollectionPointRecord) => toDisplay(row.longitude)}
+            header="Coordinates"
+            style={{ width: "17%" }}
+            body={(row: CollectionPointRecord) => (
+              <StackCell
+                lines={[
+                  showCol("latitude") && {
+                    label: "Lat",
+                    value: toDisplay(row.latitude),
+                  },
+                  showCol("longitude") && {
+                    label: "Long",
+                    value: toDisplay(row.longitude),
+                  },
+                ]}
+              />
+            )}
           />
         )}
         {showCol("is_active") && (
           <Column
             header={t("common.status")}
             body={statusTemplate}
-            style={{ width: "140px" }}
+            style={{ width: "10%" }}
           />
         )}
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ width: "150px", textAlign: "center" }}
+          style={{ width: "8%", textAlign: "center" }}
         />
       </DataTable>
     </div>
