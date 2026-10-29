@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { PageLoader } from "@/components/ui/PageLoader";
 
@@ -145,8 +145,10 @@ function DashboardRouteGuard({ children }: { children: ReactNode }) {
 }
 
 export default function App() {
+  // No loading card while a sign-in page downloads.
+  const onAuthPage = useLocation().pathname.startsWith("/auth");
   return (
-    <Suspense fallback={<PageLoader fullHeight />}>
+    <Suspense fallback={onAuthPage ? null : <PageLoader fullHeight />}>
       <SessionIdleGuard />
       <Routes>
         {/* ── Public auth routes ── */}

@@ -1,5 +1,6 @@
 import { LoadingCard } from "@/components/common/LoadingCard";
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { useLocation } from "react-router-dom";
 
 import { getPendingMutations, subscribePendingMutations } from "@/api";
 
@@ -17,7 +18,9 @@ export function GlobalRequestLoader() {
     subscribePendingMutations,
     getPendingMutations,
   );
-  const busy = pending > 0;
+  // Sign-in pages show progress on their own buttons, so no overlay there.
+  const onAuthPage = useLocation().pathname.startsWith("/auth");
+  const busy = pending > 0 && !onAuthPage;
   const [showSpinner, setShowSpinner] = useState(false);
 
   useEffect(() => {
