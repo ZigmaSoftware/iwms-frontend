@@ -17,6 +17,7 @@ import { Can } from "@/contexts/ScreenPermissionContext";
 import { dailyTripCollectionPointApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { FilterBar } from "@/components/common/FilterBar";
+import { StackCell } from "@/components/common/TableCells";
 import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
 import { combineFilters, useOptionFilter } from "@/components/filters/useOptionFilter";
 
@@ -248,20 +249,51 @@ export default function DailyTripCollectionPointList() {
         filterPanel={combineFilters(companyProject, statusPart)}
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage="No daily trip collection points found."
         globalFilterFields={["unique_id", "_trip", "_collection_point", "_bin", "_waste_type", "status"]}
         className="p-datatable-sm"
       >
-        <Column header={t("common.s_no")} body={(_, options: { rowIndex: number }) => options.rowIndex + 1} style={{ width: 60 }} />
-        <Column field="unique_id" header="ID" sortable filter showFilterMatchModes={false} style={{ minWidth: 150 }} />
-        <Column field="_trip" header="Trip" sortable filter showFilterMatchModes={false} style={{ minWidth: 170 }} />
-        <Column field="_collection_point" header="Collection Point" sortable filter showFilterMatchModes={false} style={{ minWidth: 180 }} />
-        <Column field="_bin" header="Bin" sortable filter showFilterMatchModes={false} />
-        <Column field="_waste_type" header="Waste Type" sortable />
-        <Column field="sequence" header="Seq" sortable style={{ width: 90 }} />
-        <Column field="collected_weight_kg" header="Weight (kg)" sortable body={(row: DailyTripCollectionPointRecord) => text(row.collected_weight_kg)} />
-        <Column field="status" header="Status" body={(row: DailyTripCollectionPointRecord) => <Badge value={row.status} />} sortable filter showFilterMatchModes={false} />
-        <Column field="status_reason" header="Status Reason" body={(row: DailyTripCollectionPointRecord) => text(row.status_reason)} style={{ minWidth: 160 }} />
+        <Column header={t("common.s_no")} body={(_, options: { rowIndex: number }) => options.rowIndex + 1} style={{ width: "5%" }} />
+        <Column
+          field="unique_id"
+          header="ID"
+          sortable
+          filter
+          showFilterMatchModes={false}
+          style={{ width: "20%" }}
+          body={(row: (typeof rows)[number]) => (
+            <StackCell primary={row.unique_id} lines={[{ label: "Trip", value: row._trip }]} />
+          )}
+        />
+        <Column
+          field="_collection_point"
+          header="Collection Point"
+          sortable
+          style={{ width: "30%" }}
+          body={(row: (typeof rows)[number]) => (
+            <StackCell
+              primary={row._collection_point}
+              lines={[
+                { label: "Bin", value: row._bin },
+                { label: "Waste Type", value: row._waste_type },
+                { label: "Seq", value: text(row.sequence) },
+              ]}
+            />
+          )}
+        />
+        <Column field="collected_weight_kg" header="Weight (kg)" sortable body={(row: DailyTripCollectionPointRecord) => text(row.collected_weight_kg)} style={{ width: "12%" }} />
+        <Column
+          field="status"
+          header="Status"
+          body={(row: DailyTripCollectionPointRecord) => (
+            <StackCell primary={<Badge value={row.status} />} lines={[{ label: "Reason", value: text(row.status_reason) }]} />
+          )}
+          sortable
+          filter
+          showFilterMatchModes={false}
+          style={{ width: "25%" }}
+        />
         <Column
           header={t("common.actions")}
           body={(row: DailyTripCollectionPointRecord) => (
@@ -274,7 +306,7 @@ export default function DailyTripCollectionPointList() {
               />
             </div>
           )}
-          style={{ width: 120 }}
+          style={{ width: "8%" }}
         />
       </DataTable>
     </div>

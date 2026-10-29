@@ -1,10 +1,10 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
-import { ACCESS_TOKEN_STORAGE_KEY, clearAuthSession } from "@/utils/authStorage";
+import { clearAuthSession } from "@/utils/authStorage";
 import { useIdleLogout, type SessionEndCause } from "@/hooks/useIdleLogout";
 
-// The leader portals keep their own tokens and run their own guard.
+// The leader portals keep their own sessions and run their own guard.
 const UNGUARDED_PREFIXES = ["/auth", "/localbody", "/district"];
 
 const SESSION_END_MESSAGES: Partial<Record<SessionEndCause, string>> = {
@@ -31,6 +31,6 @@ export default function SessionIdleGuard() {
     [navigate, setUser],
   );
 
-  useIdleLogout({ tokenKey: ACCESS_TOKEN_STORAGE_KEY, onSessionEnd });
+  useIdleLogout({ portal: "admin", onSessionEnd });
   return null;
 }

@@ -36,7 +36,7 @@ export function ThemeToggleButton({
       <span
         className={cn(
           "flex items-center justify-center rounded-full transition",
-          showLabel ? "h-8 w-8" : "h-9 w-9",
+          "h-8 w-8",
           isDark
             ? "bg-white/10 text-white"
             : "bg-[var(--admin-primarySoft)]/80 text-[var(--admin-primary)]",

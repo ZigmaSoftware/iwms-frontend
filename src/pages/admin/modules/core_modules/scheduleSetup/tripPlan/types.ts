@@ -44,7 +44,16 @@ export type TripPlanRecord = {
   zone?: { name?: string };
   wards?: { unique_id?: string; ward_name?: string }[];
   staff_template?: { display_code?: string; driver?: string | null; operator?: string | null };
-  vehicle?: { vehicle_no?: string };
+  vehicle?: { vehicle_no?: string; operational_status?: "ACTIVE" | "BREAKDOWN" };
+  // Stand-in vehicle while the plan's own vehicle is under breakdown.
+  vehicle_substitution?: {
+    unique_id: string;
+    replacement_vehicle_id: string;
+    replacement_vehicle_no: string | null;
+    from_date: string;
+    to_date: string | null;
+    vehicle_breakdown_id: string | null;
+  } | null;
   waste_type?: { waste_type_name?: string };
   waste_types?: { unique_id?: string; waste_type_name?: string }[];
   plan_collection_points?: unknown[];

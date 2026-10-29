@@ -22,6 +22,8 @@ import { combineFilters } from "@/components/filters/useOptionFilter";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { PanchayatListRecord } from "./types";
 import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
+import { StackCell } from "@/components/common/TableCells";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import { Can } from "@/contexts/ScreenPermissionContext";
 import { useScreenAccess } from "@/contexts/screenPermission";
@@ -341,6 +343,7 @@ export default function PanchayatListPage() {
         onFilter={onFilter}
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage={t("common.no_items_found", {
           item: t("admin.nav.panchayat"),
         })}
@@ -362,7 +365,7 @@ export default function PanchayatListPage() {
         <Column
           header={t("common.s_no")}
           body={indexTemplate}
-          style={{ width: "80px" }}
+          style={{ width: "5%" }}
         />
         {showCol("panchayat_name") && (
           <Column
@@ -372,85 +375,68 @@ export default function PanchayatListPage() {
             filter
             showFilterMatchModes={false}
             body={(row: PanchayatListRecord) => cap(row.panchayat_name)}
+            style={{ width: "28%" }}
           />
         )}
-        {showCol("state_name") && (
-          <Column
-            field="state_name"
-            header={t("common.state")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row: PanchayatListRecord) => cap(row.state_name)}
-          />
-        )}
-        {showCol("district_name") && (
-          <Column
-            field="district_name"
-            header={t("common.district")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row: PanchayatListRecord) => cap(row.district_name)}
-          />
-        )}
-        {showCol("city_name") && (
-          <Column
-            field="city_name"
-            header={t("common.city")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row: PanchayatListRecord) => cap(row.city_name)}
-          />
-        )}
-        {showCol("agreed_weight_kg") && (
+        {locationColumn<PanchayatListRecord>({
+          header: t("common.location"),
+          style: { width: "27%" },
+          levels: [
+            showCol("state_name") && {
+              label: t("common.state"),
+              value: (row) => cap(row.state_name),
+            },
+            showCol("district_name") && {
+              label: t("common.district"),
+              value: (row) => cap(row.district_name),
+            },
+            showCol("city_name") && {
+              label: t("common.city"),
+              value: (row) => cap(row.city_name),
+            },
+          ],
+        })}
+        {(showCol("agreed_weight_kg") ||
+          showCol("weight_unit") ||
+          showCol("effective_from")) && (
           <Column
             field="agreed_weight_kg"
             header="Agreed Weight"
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row: PanchayatListRecord) =>
-              displayValue(row.agreed_weight_kg)
-            }
-          />
-        )}
-        {showCol("weight_unit") && (
-          <Column
-            field="weight_unit"
-            header="Weight Unit"
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row: PanchayatListRecord) =>
-              displayValue(row.weight_unit).toUpperCase()
-            }
-          />
-        )}
-        {showCol("effective_from") && (
-          <Column
-            field="effective_from"
-            header="Effective From"
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row: PanchayatListRecord) =>
-              displayValue(row.effective_from)
-            }
+            style={{ width: "25%" }}
+            body={(row: PanchayatListRecord) => (
+              <StackCell
+                primary={
+                  showCol("agreed_weight_kg") &&
+                  displayValue(row.agreed_weight_kg)
+                }
+                lines={[
+                  showCol("weight_unit") && {
+                    label: "Unit",
+                    value: displayValue(row.weight_unit).toUpperCase(),
+                  },
+                  showCol("effective_from") && {
+                    label: "Effective From",
+                    value: displayValue(row.effective_from),
+                  },
+                ]}
+              />
+            )}
           />
         )}
         {showCol("is_active") && (
           <Column
             header={t("common.status")}
             body={statusTemplate}
-            style={{ width: "140px" }}
+            style={{ width: "8%" }}
           />
         )}
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ width: "150px", textAlign: "center" }}
+          style={{ width: "7%", textAlign: "center" }}
         />
       </DataTable>
     </div>

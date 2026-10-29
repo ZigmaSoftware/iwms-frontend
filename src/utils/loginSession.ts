@@ -1,31 +1,46 @@
-import { jwtDecode } from "jwt-decode";
 import { isAxiosError } from "axios";
-import { api } from "@/api";
+import { apiForPortal, type Portal } from "@/api";
+import { sessionStore } from "@/utils/sessionStore";
 
 /* --------------------------------------------------------
    Login session lifecycle (logout audit + idle timeout).
 
    The backend stamps logout time, logout type and used hours on the
-   LoginAudit row the token points at (`login_audit_id` claim). Each portal
-   keeps its token under its own localStorage key, so everything here is
-   keyed by that token key.
+   LoginAudit row behind the portal's auth cookie. The token itself is
+   HttpOnly, so the session facts the browser needs (expiry, idle limit)
+   come from the login / me response and are kept in memory per portal.
 -------------------------------------------------------- */
 
 export type LogoutReason = "manual" | "idle_timeout" | "token_expired";
 
-type SessionClaims = {
-  exp?: number;
-  login_audit_id?: string;
-  idle_timeout?: number;
+export type SessionInfo = {
+  /** Token expiry, epoch seconds. */
+  exp?: number | null;
+  login_audit_id?: string | null;
+  /** Idle limit in seconds; null for sessions without one. */
+  idle_timeout?: number | null;
 };
 
-/** Fallback when the token predates session tracking (no `idle_timeout`). */
+/** The login / me response fields describing the session. */
+export type SessionResponse = {
+  expires_at?: number | null;
+  login_audit_id?: string | null;
+  idle_timeout_seconds?: number | null;
+};
+
+/** Fired when another tab ends a portal's session (detail: { portal }). */
+export const SESSION_ENDED_EVENT = "iwms:session-ended";
+
+/** Fallback when the session carries no idle limit. */
 export const DEFAULT_IDLE_TIMEOUT_SECONDS = 40 * 60;
 
 const LOGOUT_REQUEST_TIMEOUT_MS = 5000;
 
-const lastActivityKey = (tokenKey: string) => `${tokenKey}__last_activity`;
-const lastHeartbeatKey = (tokenKey: string) => `${tokenKey}__last_heartbeat`;
+const sessionKey = (portal: Portal) => `${portal}__session`;
+// Activity timestamps are not user data, so they stay in localStorage where
+// every tab shares them: activity in any tab keeps the session alive.
+const lastActivityKey = (portal: Portal) => `${portal}__last_activity`;
+const lastHeartbeatKey = (portal: Portal) => `${portal}__last_heartbeat`;
 
 const readNumber = (key: string): number | null => {
   try {
@@ -44,68 +59,93 @@ const writeNumber = (key: string, value: number) => {
   }
 };
 
-export const readSessionClaims = (token: string | null): SessionClaims => {
-  if (!token) return {};
+// Memory is per tab, so a logout is announced to the portal's other tabs.
+const channel =
+  typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("iwms-auth") : null;
+
+channel?.addEventListener("message", (event: MessageEvent<{ portal?: Portal }>) => {
+  const portal = event.data?.portal;
+  if (!portal) return;
+  sessionStore.removeItem(sessionKey(portal));
+  window.dispatchEvent(new CustomEvent(SESSION_ENDED_EVENT, { detail: { portal } }));
+});
+
+export const getSessionInfo = (portal: Portal): SessionInfo | null => {
+  const raw = sessionStore.getItem(sessionKey(portal));
+  if (!raw) return null;
   try {
-    return jwtDecode<SessionClaims>(token);
+    return JSON.parse(raw) as SessionInfo;
   } catch {
-    return {};
+    return null;
   }
 };
 
-export const getIdleTimeoutMs = (token: string | null): number =>
-  (readSessionClaims(token).idle_timeout ?? DEFAULT_IDLE_TIMEOUT_SECONDS) * 1000;
+export const hasSession = (portal: Portal): boolean => getSessionInfo(portal) !== null;
 
-export const getLastActivity = (tokenKey: string): number | null =>
-  readNumber(lastActivityKey(tokenKey));
+export const getIdleTimeoutMs = (info: SessionInfo | null): number =>
+  (info?.idle_timeout ?? DEFAULT_IDLE_TIMEOUT_SECONDS) * 1000;
 
-/** Shared across tabs via localStorage, so activity in any tab counts. */
-export const recordActivity = (tokenKey: string, at = Date.now()) =>
-  writeNumber(lastActivityKey(tokenKey), at);
+export const getLastActivity = (portal: Portal): number | null =>
+  readNumber(lastActivityKey(portal));
 
-export const getLastHeartbeat = (tokenKey: string): number | null =>
-  readNumber(lastHeartbeatKey(tokenKey));
+export const recordActivity = (portal: Portal, at = Date.now()) =>
+  writeNumber(lastActivityKey(portal), at);
 
-export const markHeartbeat = (tokenKey: string, at = Date.now()) =>
-  writeNumber(lastHeartbeatKey(tokenKey), at);
+export const getLastHeartbeat = (portal: Portal): number | null =>
+  readNumber(lastHeartbeatKey(portal));
 
-/** Call right after storing a fresh login token. */
-export const startLoginSession = (tokenKey: string) => {
-  recordActivity(tokenKey);
-  markHeartbeat(tokenKey);
+export const markHeartbeat = (portal: Portal, at = Date.now()) =>
+  writeNumber(lastHeartbeatKey(portal), at);
+
+/** Remember the session's facts (after login, or after a reload's restore). */
+export const setSessionInfo = (portal: Portal, response: SessionResponse) => {
+  const info: SessionInfo = {
+    exp: response.expires_at ?? null,
+    login_audit_id: response.login_audit_id ?? null,
+    idle_timeout: response.idle_timeout_seconds ?? null,
+  };
+  sessionStore.setItem(sessionKey(portal), JSON.stringify(info));
 };
 
-export const clearLoginSessionTracking = (tokenKey: string) => {
+/** Call right after a successful login. */
+export const startLoginSession = (portal: Portal, response: SessionResponse) => {
+  setSessionInfo(portal, response);
+  recordActivity(portal);
+  markHeartbeat(portal);
+};
+
+/** Forget the portal's session here and in the portal's other tabs. */
+export const clearLoginSessionTracking = (portal: Portal) => {
+  const hadSession = hasSession(portal);
+  sessionStore.removeItem(sessionKey(portal));
   try {
-    localStorage.removeItem(lastActivityKey(tokenKey));
-    localStorage.removeItem(lastHeartbeatKey(tokenKey));
+    localStorage.removeItem(lastActivityKey(portal));
+    localStorage.removeItem(lastHeartbeatKey(portal));
   } catch {
     /* ignore */
   }
+  if (hadSession) channel?.postMessage({ portal });
 };
-
-const authHeaders = (token: string) => ({ Authorization: `Bearer ${token}` });
 
 /**
  * Tell the backend this session ended so the logout date/time and used hours
- * are audited. Never throws: the caller always clears local storage after.
+ * are audited, and so it drops the auth cookie. Never throws: the caller
+ * always clears the in-memory session after.
  */
 export const endLoginSession = async (
-  tokenKey: string,
+  portal: Portal,
   reason: LogoutReason = "manual",
 ): Promise<void> => {
-  const token = localStorage.getItem(tokenKey);
-  const lastActivity = getLastActivity(tokenKey);
-  clearLoginSessionTracking(tokenKey);
-  if (!token) return;
+  const lastActivity = getLastActivity(portal);
+  clearLoginSessionTracking(portal);
   try {
-    await api.post(
+    await apiForPortal(portal).post(
       "/login/logout/",
       {
         reason,
         last_activity_at: lastActivity ? new Date(lastActivity).toISOString() : null,
       },
-      { headers: authHeaders(token), timeout: LOGOUT_REQUEST_TIMEOUT_MS },
+      { timeout: LOGOUT_REQUEST_TIMEOUT_MS, silent: true },
     );
   } catch (error) {
     console.warn("[Session] Logout audit request failed:", error);
@@ -116,16 +156,16 @@ export const endLoginSession = async (
  * Report user activity to the backend. Resolves to false when the server
  * says the session has already ended (logged out elsewhere / idle).
  */
-export const sendSessionHeartbeat = async (tokenKey: string): Promise<boolean> => {
-  const token = localStorage.getItem(tokenKey);
-  if (!token) return false;
-  const lastActivity = getLastActivity(tokenKey);
-  markHeartbeat(tokenKey);
+export const sendSessionHeartbeat = async (portal: Portal): Promise<boolean> => {
+  if (!hasSession(portal)) return false;
+  const lastActivity = getLastActivity(portal);
+  markHeartbeat(portal);
   try {
-    await api.post(
+    await apiForPortal(portal).post(
       "/login/heartbeat/",
       { last_activity_at: lastActivity ? new Date(lastActivity).toISOString() : null },
-      { headers: authHeaders(token) },
+      // Background ping: never block the screen for it.
+      { silent: true },
     );
     return true;
   } catch (error) {

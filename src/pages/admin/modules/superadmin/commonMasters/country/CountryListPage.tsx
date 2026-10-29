@@ -16,7 +16,7 @@ import type {
 } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -26,6 +26,7 @@ import { Switch } from "@/components/ui/switch";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { countryApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import { combineFilters } from "@/components/filters/useOptionFilter";
 import { Can } from "@/contexts/ScreenPermissionContext";
@@ -333,13 +334,15 @@ export default function CountryList() {
           style={{ width: "80px" }}
         />
 
-        {showCol("continent_name") && (
-          <Column
-            field="continent_name"
-            header={t("admin.nav.continent")}
-            body={(r) => cap(r.continent_name)}
-          />
-        )}
+        {locationColumn<CountryRecord>({
+          header: t("common.location"),
+          levels: [
+            showCol("continent_name") && {
+              label: t("admin.nav.continent"),
+              value: (row) => cap(row.continent_name ?? undefined),
+            },
+          ],
+        })}
 
         {showCol("name") && (
           <Column

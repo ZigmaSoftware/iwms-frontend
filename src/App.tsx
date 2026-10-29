@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { PageLoader } from "@/components/ui/PageLoader";
 
@@ -21,6 +21,7 @@ const NotFound = lazy(() => import("@/pages/dashboard/pages/NotFound"));
 const DashboardHome = lazy(() => import("@/layouts/dashboard/DashboardHome"));
 const AdminDashboard = lazy(() => import("@/pages/admin/dashboards/AdminDashboard"));
 const SuperadminDashboard = lazy(() => import("@/pages/admin/dashboards/SuperadminDashboard"));
+const VehicleStatusDashboard = lazy(() => import("@/pages/admin/dashboards/vehicleStatus/VehicleStatusDashboard"));
 const AdminEncryptedRouter = lazy(() => import("@/layouts/admin/encryptedRouting/AdminEncryptedRouter"));
 const CommonAuditList = lazy(
   () => import("@/pages/admin/modules/superadmin/audits/commonAudit/commonAuditList"),
@@ -51,6 +52,7 @@ import {
 } from "@/types/roles";
 import { adminLandingPath, hasAnyPermission } from "@/utils/permissions";
 import { useDashboardMenuItems } from "@/layouts/dashboard/dashboardMenu";
+import { sessionStore } from "@/utils/sessionStore";
 
 const ADMIN_ACCESS_ROLES: UserRole[] = [DEFAULT_ROLE, ...ADMIN_ROLES];
 
@@ -81,7 +83,7 @@ function HomeRedirect() {
     return null;
   }
 
-  const storedRole = normalizeRole(localStorage.getItem(USER_ROLE_STORAGE_KEY));
+  const storedRole = normalizeRole(sessionStore.getItem(USER_ROLE_STORAGE_KEY));
   const preference = getAdminViewPreference();
 
   if (isAdmin(storedRole, hasAnyPermission("view"))) {
@@ -112,7 +114,7 @@ function DashboardRouteGuard({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     try {
-      const storedRole = normalizeRole(localStorage.getItem(USER_ROLE_STORAGE_KEY));
+      const storedRole = normalizeRole(sessionStore.getItem(USER_ROLE_STORAGE_KEY));
       setRole(storedRole);
       setAdminViewPreferenceState(getAdminViewPreference());
     } finally {
@@ -143,8 +145,10 @@ function DashboardRouteGuard({ children }: { children: ReactNode }) {
 }
 
 export default function App() {
+  // No loading card while a sign-in page downloads.
+  const onAuthPage = useLocation().pathname.startsWith("/auth");
   return (
-    <Suspense fallback={<PageLoader fullHeight />}>
+    <Suspense fallback={onAuthPage ? null : <PageLoader fullHeight />}>
       <SessionIdleGuard />
       <Routes>
         {/* ── Public auth routes ── */}
@@ -170,6 +174,7 @@ export default function App() {
         {/* ── Admin panel (Company Admin, superadmin, etc.) ── */}
         <Route path="/admin" element={withAdmin(<AdminDashboard />)} />
         <Route path="/admin/superadmin-dashboard" element={withAdmin(<SuperadminDashboard />)} />
+        <Route path="/admin/vehicle-status" element={withAdmin(<VehicleStatusDashboard />)} />
         <Route path="/audits/common-audit" element={withAdmin(<CommonAuditList />)} />
         <Route path="/:encMaster/:encModule" element={withAdmin(<AdminEncryptedRouter />)} />
         <Route path="/:encMaster/:encModule/new" element={withAdmin(<AdminEncryptedRouter />)} />

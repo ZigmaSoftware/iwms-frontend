@@ -10,7 +10,7 @@ import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -22,6 +22,7 @@ import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectF
 import { combineFilters } from "@/components/filters/useOptionFilter";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import { Can } from "@/contexts/ScreenPermissionContext";
 import { useScreenAccess } from "@/contexts/screenPermission";
@@ -320,16 +321,15 @@ export default function ZoneList() {
           style={{ width: "80px" }}
         />
 
-        {showCol("city_name") && (
-          <Column
-            field="city_name"
-            header={t("admin.nav.city")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row) => cap(row.city_name)}
-          />
-        )}
+        {locationColumn<ZoneListRecord>({
+          header: t("common.location"),
+          levels: [
+            showCol("city_name") && {
+              label: t("admin.nav.city"),
+              value: (row) => cap(row.city_name),
+            },
+          ],
+        })}
 
         {showCol("zone_name") && (
           <Column

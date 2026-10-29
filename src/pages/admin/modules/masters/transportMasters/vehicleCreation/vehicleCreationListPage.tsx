@@ -1,4 +1,4 @@
-import type { VehicleCreationRecord } from "./types";
+import type { VehicleCreationRecord, VehicleDocumentHistoryRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -9,16 +9,18 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
+import { Dialog } from "primereact/dialog";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 import { FilterBar } from "@/components/common/FilterBar";
+import { StackCell } from "@/components/common/TableCells";
 import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
 import {
   combineFilters,
   useOptionFilter,
 } from "@/components/filters/useOptionFilter";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -28,6 +30,7 @@ import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { vehicleCreationApi } from "@/helpers/admin";
+import { fileNameFromUrl, resolveMediaUrl } from "@/utils/mediaUrl";
 import { adminApi } from "@/helpers/admin/registry";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 import {
@@ -69,8 +72,6 @@ const VEHICLE_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const FILE_ICON = "/images/pdfimage/download.png";
-
 const VEHICLE_BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
   { field: "vehicle_no", header: "vehicle_no", required: true, sample: "KA01AB1234" },
   {
@@ -111,6 +112,148 @@ const isImageUrl = (url?: string | null) => {
   );
 };
 
+const toHistoryList = (value: unknown): VehicleDocumentHistoryRecord[] => {
+  if (Array.isArray(value)) return value as VehicleDocumentHistoryRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: VehicleDocumentHistoryRecord[] }).results;
+  }
+  return [];
+};
+
+/** View + download buttons for one stored document. */
+function FileActions({
+  value,
+  onOpenFile,
+}: {
+  value?: string | null;
+  onOpenFile: (fileUrl?: string | null) => void;
+}) {
+  const url = resolveMediaUrl(value);
+  if (!url) return <span className="text-gray-400">-</span>;
+  const name = fileNameFromUrl(value);
+  return (
+    <div className="flex items-center justify-center gap-1.5">
+      <button
+        type="button"
+        aria-label={`View ${name}`}
+        title="View"
+        onClick={() => onOpenFile(url)}
+        className="inline-flex h-8 w-8 items-center justify-center rounded border border-blue-100 text-blue-700 hover:bg-blue-50 hover:text-blue-900"
+      >
+        <span className={isImageUrl(url) ? "pi pi-image" : "pi pi-file-pdf"} aria-hidden="true" />
+      </button>
+      <a
+        href={url}
+        download={name}
+        aria-label={`Download ${name}`}
+        title="Download"
+        className="inline-flex h-8 w-8 items-center justify-center rounded border border-green-100 text-green-700 hover:bg-green-50 hover:text-green-900"
+      >
+        <span className="pi pi-download" aria-hidden="true" />
+      </a>
+    </div>
+  );
+}
+
+function DocumentHistoryDialog({
+  vehicle,
+  rows,
+  loading,
+  error,
+  onClose,
+  onOpenFile,
+}: {
+  vehicle: VehicleCreationRecord;
+  rows: VehicleDocumentHistoryRecord[];
+  loading: boolean;
+  error: string | null;
+  onClose: () => void;
+  onOpenFile: (fileUrl?: string | null) => void;
+}) {
+  const documentLabel = (value?: string | null) => {
+    if (value === "INSURANCE") return "Insurance";
+    if (value === "RC") return "RC";
+    return value || "-";
+  };
+
+  return (
+    <Dialog
+      visible
+      onHide={onClose}
+      header={
+        <div>
+          <p className="text-lg font-semibold text-gray-800">Document History</p>
+          <p className="mt-0.5 text-xs font-normal text-gray-500">{vehicle.vehicle_no}</p>
+        </div>
+      }
+      style={{ width: "min(980px, 94vw)" }}
+      modal
+      draggable={false}
+      resizable={false}
+    >
+      <div className="pt-2">
+        {loading && (
+          <div className="space-y-3" aria-busy="true" aria-label="Loading document history">
+            {[0, 1, 2].map((item) => (
+              <div key={item} className="h-12 rounded-md bg-gray-100 animate-pulse" />
+            ))}
+          </div>
+        )}
+
+        {!loading && error && (
+          <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        {!loading && !error && rows.length === 0 && (
+          <div className="rounded-md border border-gray-200 bg-gray-50 px-4 py-8 text-center">
+            <p className="text-sm font-medium text-gray-700">No document history yet</p>
+            <p className="mt-1 text-xs text-gray-500">
+              Renewed insurance or RC changes will appear here after the vehicle is updated.
+            </p>
+          </div>
+        )}
+
+        {!loading && !error && rows.length > 0 && (
+          <div className="max-h-[60vh] overflow-auto rounded-md border border-gray-200">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="sticky top-0 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="px-3 py-2">Document</th>
+                  <th className="px-3 py-2">Old No.</th>
+                  <th className="px-3 py-2">New No.</th>
+                  <th className="px-3 py-2">Old Expiry</th>
+                  <th className="px-3 py-2">New Expiry</th>
+                  <th className="px-3 py-2">Old File</th>
+                  <th className="px-3 py-2">New File</th>
+                  <th className="px-3 py-2">Updated By</th>
+                  <th className="px-3 py-2">Updated At</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 bg-white">
+                {rows.map((item) => (
+                  <tr key={item.unique_id} className="align-top">
+                    <td className="px-3 py-3 font-medium text-gray-800">{documentLabel(item.document_type)}</td>
+                    <td className="px-3 py-3 text-gray-600">{item.previous_document_number || "-"}</td>
+                    <td className="px-3 py-3 text-gray-800">{item.new_document_number || "-"}</td>
+                    <td className="px-3 py-3 text-gray-600">{formatDate(item.previous_expiry_date)}</td>
+                    <td className="px-3 py-3 text-gray-800">{formatDate(item.new_expiry_date)}</td>
+                    <td className="px-3 py-3"><FileActions value={item.previous_file} onOpenFile={onOpenFile} /></td>
+                    <td className="px-3 py-3"><FileActions value={item.new_file} onOpenFile={onOpenFile} /></td>
+                    <td className="px-3 py-3 text-gray-600">{item.changed_by_name || item.changed_by_id || "-"}</td>
+                    <td className="px-3 py-3 text-gray-600">{formatDate(item.changed_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </Dialog>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function VehicleCreationListPage() {
@@ -124,6 +267,10 @@ export default function VehicleCreationListPage() {
   );
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [modalImage, setModalImage] = useState<string | null>(null);
+  const [historyVehicle, setHistoryVehicle] = useState<VehicleCreationRecord | null>(null);
+  const [historyRows, setHistoryRows] = useState<VehicleDocumentHistoryRecord[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filteredRows, setFilteredRows] = useState<VehicleCreationRecord[]>([]);
   const [filters, setFilters] = useState<DataTableFilterMeta>({
@@ -390,17 +537,26 @@ export default function VehicleCreationListPage() {
     }
   };
 
-  const renderFilePreview = (value?: string | null) =>
-    value ? (
-      <button onClick={() => openFile(value)}>
-        <img
-          src={isImageUrl(value) ? value : FILE_ICON}
-          className="w-28 h-16 object-cover rounded border"
-        />
-      </button>
-    ) : (
-      "-"
-    );
+  const renderFilePreview = (value?: string | null) => (
+    <FileActions value={value} onOpenFile={openFile} />
+  );
+
+  const openDocumentHistory = async (row: VehicleCreationRecord) => {
+    setHistoryVehicle(row);
+    setHistoryRows([]);
+    setHistoryError(null);
+    setHistoryLoading(true);
+
+    try {
+      const response = await vehicleCreationApi.read(`${row.unique_id}/document-history/`);
+      setHistoryRows(toHistoryList(response));
+    } catch (error) {
+      console.error("Failed to load vehicle document history:", error);
+      setHistoryError(t("common.request_failed"));
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   // ── Status toggle ─────────────────────────────────────────────────────────
   const statusTemplate = (row: VehicleCreationRecord) => {
@@ -459,6 +615,14 @@ export default function VehicleCreationListPage() {
       <ActionMenu
         onEdit={() => navigate(ENC_EDIT_PATH(row.unique_id))}
         onDelete={() => void handleDelete(row.unique_id)}
+        actions={[
+          {
+            key: "document-history",
+            label: "Document History",
+            icon: <span className="pi pi-history text-sm" aria-hidden="true" />,
+            onClick: () => void openDocumentHistory(row),
+          },
+        ]}
       />
     </div>
   );
@@ -548,6 +712,7 @@ export default function VehicleCreationListPage() {
         }}
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         globalFilterFields={[
           ...(showCol("vehicle_no") ? ["vehicle_no"] : []),
@@ -564,96 +729,106 @@ export default function VehicleCreationListPage() {
             _: VehicleCreationRecord,
             { rowIndex }: { rowIndex: number },
           ) => rowIndex + 1}
-          style={{ width: "80px" }}
+          style={{ width: "5%" }}
         />
         {showCol("vehicle_no") && (
           <Column
             field="vehicle_no"
             header={t("admin.vehicle_creation.vehicle_no")}
             sortable
-            filter
-            showFilterMatchModes={false}
+            style={{ width: "20%" }}
+            body={(row: VehicleCreationRecord) => (
+              <StackCell
+                primary={row.vehicle_no}
+                lines={[
+                  showCol("vehicle_type_name") && {
+                    icon: "pi-truck",
+                    value: row.vehicle_type_name,
+                  },
+                  showCol("vehicle_condition") && {
+                    label: t("admin.vehicle_creation.vehicle_condition"),
+                    value: conditionLabel(row.vehicle_condition),
+                  },
+                ]}
+              />
+            )}
           />
         )}
-        {showCol("vehicle_type_name") && (
-          <Column
-            field="vehicle_type_name"
-            header={t("admin.vehicle_creation.vehicle_type")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-          />
-        )}
-        {showCol("fuel_type_name") && (
-          <Column
-            field="fuel_type_name"
-            header={t("admin.vehicle_creation.fuel_type")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-          />
-        )}
-        {showCol("capacity") && (
-          <Column
-            field="capacity"
-            header={t("admin.vehicle_creation.capacity")}
-            sortable
-          />
-        )}
-        {showCol("mileage_per_liter") && (
-          <Column
-            field="mileage_per_liter"
-            header={t("admin.vehicle_creation.mileage_per_liter")}
-            sortable
-          />
-        )}
-        {showCol("fuel_tank_capacity") && (
-          <Column
-            field="fuel_tank_capacity"
-            header={t("admin.vehicle_creation.fuel_tank_capacity")}
-            sortable
-          />
-        )}
-        {showCol("vehicle_condition") && (
-          <Column
-            field="vehicle_condition"
-            header={t("admin.vehicle_creation.vehicle_condition")}
-            body={(row: VehicleCreationRecord) =>
-              conditionLabel(row.vehicle_condition)
-            }
-            sortable
-            filter
-            showFilterMatchModes={false}
-          />
-        )}
+        <Column
+          field="fuel_type_name"
+          header="Specifications"
+          style={{ width: "22%" }}
+          body={(row: VehicleCreationRecord) => (
+            <StackCell
+              lines={[
+                showCol("fuel_type_name") && {
+                  label: t("admin.vehicle_creation.fuel_type"),
+                  value: row.fuel_type_name,
+                },
+                showCol("capacity") && {
+                  label: t("admin.vehicle_creation.capacity"),
+                  value: row.capacity,
+                },
+                showCol("mileage_per_liter") && {
+                  label: t("admin.vehicle_creation.mileage_per_liter"),
+                  value: row.mileage_per_liter,
+                },
+                showCol("fuel_tank_capacity") && {
+                  label: t("admin.vehicle_creation.fuel_tank_capacity"),
+                  value: row.fuel_tank_capacity,
+                },
+              ]}
+            />
+          )}
+        />
+        <Column
+          field="operational_status"
+          header={t("admin.vehicle_creation.operational_status")}
+          style={{ width: "12%" }}
+          body={(row: VehicleCreationRecord) =>
+            row.operational_status === "BREAKDOWN" ? (
+              <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
+                {t("admin.vehicle_creation.operational_status_breakdown")}
+              </span>
+            ) : (
+              <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                {t("admin.vehicle_creation.operational_status_active")}
+              </span>
+            )
+          }
+          sortable
+        />
         {showCol("insurance_expiry_date") && (
           <Column
             field="insurance_expiry_date"
             header={t("admin.vehicle_creation.insurance_expiry_date")}
+            style={{ width: "12%" }}
             body={(row: VehicleCreationRecord) =>
               formatDate(row.insurance_expiry_date)
             }
             sortable
-            filter
-            showFilterMatchModes={false}
           />
         )}
-        {showCol("rc_upload") && (
+        {(showCol("rc_upload") || showCol("vehicle_insurance_file")) && (
           <Column
-            field="rc_upload"
-            header={t("admin.vehicle_creation.rc_upload")}
-            body={(row: VehicleCreationRecord) =>
-              renderFilePreview(row.rc_upload)
-            }
-          />
-        )}
-        {showCol("vehicle_insurance_file") && (
-          <Column
-            field="vehicle_insurance_file"
-            header={t("admin.vehicle_creation.vehicle_insurance_file")}
-            body={(row: VehicleCreationRecord) =>
-              renderFilePreview(row.vehicle_insurance_file)
-            }
+            header="Documents"
+            style={{ width: "14%" }}
+            body={(row: VehicleCreationRecord) => (
+              <StackCell
+                lines={[
+                  showCol("rc_upload") && {
+                    label: t("admin.vehicle_creation.rc_upload"),
+                    value: row.rc_upload ? renderFilePreview(row.rc_upload) : null,
+                  },
+                  showCol("vehicle_insurance_file") && {
+                    label: t("admin.vehicle_creation.vehicle_insurance_file"),
+                    value: row.vehicle_insurance_file
+                      ? renderFilePreview(row.vehicle_insurance_file)
+                      : null,
+                  },
+                ]}
+              />
+            )}
           />
         )}
         {showCol("is_active") && (
@@ -661,13 +836,13 @@ export default function VehicleCreationListPage() {
             field="is_active"
             header={t("common.status")}
             body={statusTemplate}
-            style={{ width: "150px" }}
+            style={{ width: "8%" }}
           />
         )}
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ width: "150px" }}
+          style={{ width: "7%" }}
         />
       </DataTable>
       <input
@@ -699,6 +874,17 @@ export default function VehicleCreationListPage() {
             <img src={modalImage} className="w-[400px] h-[400px] rounded" />
           </div>
         </div>
+      )}
+
+      {historyVehicle && (
+        <DocumentHistoryDialog
+          vehicle={historyVehicle}
+          rows={historyRows}
+          loading={historyLoading}
+          error={historyError}
+          onClose={() => setHistoryVehicle(null)}
+          onOpenFile={openFile}
+        />
       )}
     </div>
   );

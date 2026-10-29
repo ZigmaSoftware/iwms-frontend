@@ -31,6 +31,12 @@ import type {
 } from "primereact/datatable";
 
 import { commonAuditApi } from "@/helpers/admin";
+import { Download, Eye, FileText, Paperclip } from "lucide-react";
+import {
+  collectAuditFiles,
+  countAuditFiles,
+  type AuditFileRef,
+} from "@/utils/auditFiles";
 import { FilterBar } from "@/components/common/FilterBar";
 import { FormSelect } from "@/components/common/FormSelect";
 import { FilterSection } from "@/components/common/ListToolbar";
@@ -83,7 +89,7 @@ const JsonViewer = ({
 }) => (
   <div className="min-w-0">
     <h3 className="mb-2 text-sm font-semibold text-gray-700">{title}</h3>
-    <pre className="max-h-[420px] overflow-auto rounded-md border bg-gray-50 p-3 text-xs leading-relaxed text-gray-800">
+    <pre className="max-h-[260px] overflow-auto rounded-md border bg-gray-50 p-3 text-xs leading-relaxed text-gray-800">
       {formatJson(value)}
     </pre>
   </div>
@@ -230,16 +236,99 @@ const DiffJsonViewer = ({
     <div className="min-w-0">
       <h3 className="mb-2 text-sm font-semibold text-gray-700">{title}</h3>
       {lines === null ? (
-        <pre className="max-h-[420px] overflow-auto rounded-md border bg-gray-50 p-3 text-xs leading-relaxed text-gray-800">
+        <pre className="max-h-[260px] overflow-auto rounded-md border bg-gray-50 p-3 text-xs leading-relaxed text-gray-800">
           -
         </pre>
       ) : (
-        <div className="max-h-[420px] overflow-auto rounded-md border bg-gray-50 p-3 text-xs leading-relaxed text-gray-800 font-mono whitespace-pre">
+        <div className="max-h-[260px] overflow-auto rounded-md border bg-gray-50 p-3 text-xs leading-relaxed text-gray-800 font-mono whitespace-pre">
           {lines.map((line, i) => (
             <div key={i} className={line.changed ? "bg-green-200 rounded" : ""}>
               {line.content || " "}
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/** Documents & images referenced by an audit record — viewable and downloadable. */
+const AuditFilesSection = ({ record }: { record: CommonAuditRecord }) => {
+  const files = useMemo(() => collectAuditFiles(record), [record]);
+  const [previewImage, setPreviewImage] = useState<AuditFileRef | null>(null);
+  if (files.length === 0) return null;
+
+  return (
+    <div className="rounded-md border bg-white px-3 py-2">
+      <h3 className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+        <Paperclip className="h-3.5 w-3.5" />
+        Documents &amp; images ({files.length})
+      </h3>
+
+      {/* One compact row per file, two per line; an image's thumbnail opens the preview. */}
+      <div className="grid gap-x-4 sm:grid-cols-2">
+        {files.map((file) => (
+          <div key={file.url} className="flex min-w-0 items-center gap-2 py-1 text-sm">
+            {file.kind === "image" ? (
+              <button
+                type="button"
+                onClick={() => setPreviewImage(file)}
+                title="Preview"
+                className="shrink-0 overflow-hidden rounded border border-gray-200 hover:ring-2 hover:ring-blue-300"
+              >
+                <img src={file.url} alt="" className="h-8 w-8 object-cover" loading="lazy" />
+              </button>
+            ) : (
+              <FileText className="h-5 w-5 shrink-0 text-gray-400" />
+            )}
+            <div className="min-w-0 flex-1 leading-tight">
+              <div className="truncate text-sm font-medium text-gray-800" title={file.name}>
+                {file.name}
+              </div>
+              <div className="truncate text-[11px] text-gray-500" title={file.field}>
+                {file.field} · {file.source === "previous" ? "before" : "after"}
+              </div>
+            </div>
+            <a
+              href={file.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="View"
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-blue-100 text-blue-700 hover:bg-blue-50"
+            >
+              <Eye className="h-3.5 w-3.5" />
+            </a>
+            <a
+              href={file.url}
+              download={file.name}
+              title="Download"
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-green-100 text-green-700 hover:bg-green-50"
+            >
+              <Download className="h-3.5 w-3.5" />
+            </a>
+          </div>
+        ))}
+      </div>
+
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div className="max-h-[90vh] max-w-[90vw] overflow-auto rounded-lg bg-white p-3">
+            <img src={previewImage.url} alt={previewImage.name} className="max-h-[75vh] w-auto" />
+            <div className="mt-2 flex items-center justify-between gap-3 text-sm">
+              <span className="truncate text-gray-600">{previewImage.name}</span>
+              <a
+                href={previewImage.url}
+                download={previewImage.name}
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex shrink-0 items-center gap-1 rounded bg-green-700 px-3 py-1.5 font-medium text-white hover:bg-green-800"
+              >
+                <Download className="h-4 w-4" /> Download
+              </a>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -679,6 +768,24 @@ export default function CommonAuditList() {
           }
         />
         <Column
+          header={t("admin.common_audit.files", "Files")}
+          body={(r: CommonAuditRecord) => {
+            const count = countAuditFiles(r);
+            if (!count) return <span className="text-gray-300">-</span>;
+            return (
+              <span
+                title={t("admin.common_audit.files_attached", `${count} file(s) attached — open details to view`)}
+                className="inline-flex items-center gap-1 rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
+              >
+                <Paperclip className="h-3 w-3" />
+                {count}
+              </span>
+            );
+          }}
+          style={{ width: 90 }}
+          bodyStyle={{ textAlign: "center" }}
+        />
+        <Column
           field="createdAt"
           header={t("admin.common_audit.created_at")}
           body={(r: CommonAuditRecord) => formatDateTime(r.createdAt)}
@@ -701,7 +808,7 @@ export default function CommonAuditList() {
             <DialogTitle>{t("admin.common_audit.detail_title")}</DialogTitle>
           </DialogHeader>
 
-          <div className="grid gap-3 rounded-md border bg-gray-50 p-3 text-sm sm:grid-cols-2">
+          <div className="grid gap-x-3 gap-y-2 rounded-md border bg-gray-50 px-3 py-2 text-sm sm:grid-cols-2">
             <div>
               <div className="text-xs text-gray-500">
                 {t("admin.common_audit.status")}
@@ -750,7 +857,7 @@ export default function CommonAuditList() {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2">
             <JsonViewer
               title={t("admin.common_audit.previous_data")}
               value={selectedRecord?.previous_data}
@@ -761,6 +868,12 @@ export default function CommonAuditList() {
               previousData={selectedRecord?.previous_data}
             />
           </div>
+
+          {selectedRecord && (
+            <div className="mt-1">
+              <AuditFilesSection record={selectedRecord} />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

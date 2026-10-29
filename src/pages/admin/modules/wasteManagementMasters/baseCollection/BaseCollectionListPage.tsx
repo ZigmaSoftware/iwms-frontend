@@ -15,6 +15,8 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { useTranslation } from "react-i18next";
 import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
+import { StackCell } from "@/components/common/TableCells";
 import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
 import { combineFilters } from "@/components/filters/useOptionFilter";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
@@ -24,7 +26,7 @@ import {
 } from "@/utils/exportExcel";
 import Swal from "@/lib/notify";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -323,6 +325,7 @@ export default function BaseCollectionListPage({ scope }: Props) {
   const scopeLabel =
     scope === "panchayat" ? "PLB (Participating Local Bodies)" : "Ward";
   const isWard = scope === "ward";
+  const scopeShortLabel = scope === "panchayat" ? "Panchayat" : "Ward";
   const locationField = scope === "panchayat" ? "panchayat_name" : "ward_name";
   const weightField =
     scope === "panchayat" ? "panchayat_total_weight" : "ward_total_weight";
@@ -430,34 +433,34 @@ export default function BaseCollectionListPage({ scope }: Props) {
           emptyMessage={`No ${scopeLabel.toLowerCase()} collection records found.`}
           stripedRows
           showGridlines
+          fitWidth
           className="p-datatable-sm"
         >
           <Column
             header="S.No"
             body={indexTemplate}
-            style={{ width: "80px" }}
+            style={{ width: "5%" }}
           />
 
           <Column
             field="company_names"
-            header="Company"
+            header="Company / Project"
             sortable
-            body={(row: SummaryRow) =>
-              row.company_names.length ? row.company_names.join(", ") : "-"
-            }
-          />
-          <Column
-            field="project_names"
-            header="Project"
-            sortable
-            body={(row: SummaryRow) =>
-              row.project_names.length ? row.project_names.join(", ") : "-"
-            }
+            style={{ width: "22%" }}
+            body={(row: SummaryRow) => (
+              <StackCell
+                primary={row.company_names.join(", ")}
+                lines={[
+                  { label: "Project", value: row.project_names.join(", ") },
+                ]}
+              />
+            )}
           />
           <Column
             field="collection_dates"
             header="Date"
             sortable
+            style={{ width: "22%" }}
             body={(row: SummaryRow) =>
               row.collection_dates.length
                 ? [...row.collection_dates].sort().reverse().join(", ")
@@ -465,31 +468,30 @@ export default function BaseCollectionListPage({ scope }: Props) {
             }
           />
 
-          <Column field="name" header={scopeLabel} sortable />
-          {isWard && (
-            <Column
-              field="zone_name"
-              header="Zone"
-              sortable
-              body={(row: SummaryRow) => cap(row.zone_name)}
-            />
-          )}
+          {locationColumn<SummaryRow>({
+            header: "Location",
+            style: { width: "20%" },
+            levels: [
+              isWard && { label: "Zone", value: (row) => cap(row.zone_name) },
+              { label: scopeShortLabel, value: (row) => row.name },
+            ],
+          })}
           <Column
             field="count"
             header="Records"
             sortable
-            style={{ width: "120px" }}
+            style={{ width: "10%" }}
           />
           <Column
             field="total_weight"
             header="Total Weight"
             sortable
             body={(row: SummaryRow) => row.total_weight.toFixed(2)}
-            style={{ width: "150px" }}
+            style={{ width: "13%" }}
           />
           <Column
             header="Actions"
-            style={{ textAlign: "center", width: "100px" }}
+            style={{ textAlign: "center", width: "8%" }}
             body={(row: SummaryRow) =>
               viewActionTemplate(() => drillToRecords(row))
             }
@@ -523,41 +525,42 @@ export default function BaseCollectionListPage({ scope }: Props) {
             emptyMessage={`No records found for this ${scopeLabel.toLowerCase()}.`}
             stripedRows
             showGridlines
+            fitWidth
             className="p-datatable-sm"
           >
             <Column
               header="S.No"
               body={indexTemplate}
-              style={{ width: "80px" }}
+              style={{ width: "5%" }}
             />
-            <Column
-              field={locationField}
-              header={scopeLabel}
-              sortable
-              body={(row: CollectionRecord) =>
-                normalizeText(row[locationField])
-              }
-            />
-            {isWard && (
-              <Column
-                field="zone_name"
-                header="Zone"
-                sortable
-                body={(row: CollectionRecord) => cap(row.zone_name)}
-              />
-            )}
+            {locationColumn<CollectionRecord>({
+              header: "Location",
+              style: { width: "14%" },
+              levels: [
+                isWard && { label: "Zone", value: (row) => cap(row.zone_name) },
+                {
+                  label: scopeShortLabel,
+                  value: (row) => normalizeText(row[locationField]),
+                },
+              ],
+            })}
             <Column
               field="collection_date"
               header="Date"
               sortable
-              body={(row: CollectionRecord) =>
-                normalizeText(row.collection_date)
-              }
+              style={{ width: "14%" }}
+              body={(row: CollectionRecord) => (
+                <StackCell
+                  primary={normalizeText(row.collection_date)}
+                  lines={[{ label: "Trip", value: normalizeText(row.trip_id) }]}
+                />
+              )}
             />
             <Column
               field="wastetype_name"
               header="Waste Type"
               sortable
+              style={{ width: "12%" }}
               body={(row: CollectionRecord) =>
                 normalizeText(row.wastetype_name)
               }
@@ -566,51 +569,54 @@ export default function BaseCollectionListPage({ scope }: Props) {
               field={weightField}
               header="Weight"
               sortable
+              style={{ width: "9%" }}
               body={(row: CollectionRecord) =>
                 getRecordWeight(row, scope).toFixed(2)
               }
             />
             <Column
               field="bin_name"
-              header="Bin"
+              header="Bin / Collection Point"
               sortable
-              body={(row: CollectionRecord) => normalizeText(row.bin_name)}
-            />
-            <Column
-              field="collection_point_name"
-              header="Collection Point"
-              sortable
-              body={(row: CollectionRecord) =>
-                normalizeText(row.collection_point_name)
-              }
-            />
-            <Column
-              field="trip_id"
-              header="Trip"
-              sortable
-              body={(row: CollectionRecord) => normalizeText(row.trip_id)}
+              style={{ width: "18%" }}
+              body={(row: CollectionRecord) => (
+                <StackCell
+                  lines={[
+                    { label: "Bin", value: normalizeText(row.bin_name) },
+                    {
+                      label: "Collection Point",
+                      value: normalizeText(row.collection_point_name),
+                    },
+                  ]}
+                />
+              )}
             />
             <Column
               field="company_name"
-              header="Company"
+              header="Company / Project"
               sortable
-              body={(row: CollectionRecord) => normalizeText(row.company_name)}
-            />
-            <Column
-              field="project_name"
-              header="Project"
-              sortable
-              body={(row: CollectionRecord) => normalizeText(row.project_name)}
+              style={{ width: "16%" }}
+              body={(row: CollectionRecord) => (
+                <StackCell
+                  primary={normalizeText(row.company_name)}
+                  lines={[
+                    { label: "Project", value: normalizeText(row.project_name) },
+                  ]}
+                />
+              )}
             />
             <Column
               field="latitude"
-              header="Latitude"
-              body={(row: CollectionRecord) => normalizeText(row.latitude)}
-            />
-            <Column
-              field="longitude"
-              header="Longitude"
-              body={(row: CollectionRecord) => normalizeText(row.longitude)}
+              header="Coordinates"
+              style={{ width: "12%" }}
+              body={(row: CollectionRecord) => (
+                <StackCell
+                  lines={[
+                    { label: "Lat", value: normalizeText(row.latitude) },
+                    { label: "Long", value: normalizeText(row.longitude) },
+                  ]}
+                />
+              )}
             />
           </DataTable>
           {backButton}

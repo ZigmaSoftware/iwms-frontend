@@ -7,42 +7,33 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import { FilterBar } from "@/components/common/FilterBar";
 import { FilterSection, type ActiveFilterChip } from "@/components/common/ListToolbar";
 import { useDraftFilter } from "@/components/filters/useDraftFilter";
-import { combineFilters, type FilterPart } from "@/components/filters/useOptionFilter";
-import { Column } from "primereact/column";
+import {
+  combineFilters,
+  useOptionFilter,
+  type FilterPart,
+} from "@/components/filters/useOptionFilter";
 import { FilterMatchMode } from "primereact/api";
 import { Button } from "primereact/button";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
 import "./dayreport.css";
 import { useTranslation } from "react-i18next";
 import { applyTableFilters } from "@/utils/tableFilterMatch";
+import {
+  DAY_REPORT_GLOBAL_FIELDS,
+  dayTicketColumns,
+  fetchDayTickets,
+  type DayTicketRow,
+} from "./dayTickets";
 
-// Matches the actual day-wise API response shape
-type ApiRow = {
-  Ticket_No: string;
-  date: string;
-  Start_Time: string | null;
-  Vehicle_No: string;
-  Loaded_Wt_W1: number;
-  Wet_Wt_with_Vehicle_W2: number;
-  Vehicle_Tare_Wt_W3: number;
-  Dry_Wt: number;
-  Wet_Wt: number;
-  Mix_Wt: number;
-  Net_Wt: number;
-};
-
-const DAY_REPORT_GLOBAL_FIELDS = ["Ticket_No", "Vehicle_No", "date"];
+type ApiRow = DayTicketRow;
 
 // ---------- Helpers ----------
 const today = new Date();
 const getLastDayOfMonth = (y: number, m: number) => new Date(y, m, 0).getDate();
-const parseNum = (v: string | undefined) => Number((v ?? "0").replace(/,/g, ""));
-const fmtNum = (v: number) => v.toLocaleString();
-const fmtTime = (v: string | null) => v ?? "-";
 
 export default function DayReport() {
   const { t } = useTranslation();
@@ -116,6 +107,38 @@ export default function DayReport() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // ---------- Vehicle filter (options from the loaded tickets) ----------
+  const vehicleOptions = useMemo(
+    () =>
+      [...new Set(rows.map((r) => r.Vehicle_No).filter((v) => v && v !== "-"))]
+        .sort()
+        .map((v) => ({ label: v, value: v })),
+    [rows],
+  );
+  const vehicleFilter = useOptionFilter({
+    param: "vehicle",
+    label: "Vehicle",
+    options: vehicleOptions,
+    allLabel: "All vehicles",
+  });
+  const vehicleRows = useMemo(
+    () =>
+      vehicleFilter.value
+        ? rows.filter((r) => r.Vehicle_No === vehicleFilter.value)
+        : rows,
+    [rows, vehicleFilter.value],
+  );
+  const vehicleTotals = useMemo(
+    () => ({
+      trips: vehicleRows.length,
+      net: vehicleRows.reduce((sum, r) => sum + r.Net_Wt, 0),
+      dry: vehicleRows.reduce((sum, r) => sum + r.Dry_Wt, 0),
+      wet: vehicleRows.reduce((sum, r) => sum + r.Wet_Wt, 0),
+      mix: vehicleRows.reduce((sum, r) => sum + r.Mix_Wt, 0),
+    }),
+    [vehicleRows],
+  );
+
   // ---------- Filters ----------
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<any>({
@@ -151,43 +174,13 @@ export default function DayReport() {
     setError(null);
 
     try {
-      const url = `${API_BASE}?action=day_wise_data&from_date=${fromDate}&to_date=${toDate}&key=${API_KEY}`;
-      console.log("📡 DayReport fetch URL:", url);
+      const mapped = await fetchDayTickets(API_BASE, API_KEY, fromDate, toDate);
 
-      const res = await fetch(url);
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-
-      const json = await res.json();
-      console.log("📡 DayReport response:", json);
-
-      if (!json.status || !Array.isArray(json.data)) {
-        throw new Error("Invalid API response");
-      }
-
-      if (json.data.length === 0) {
+      if (mapped.length === 0) {
         setRows([]);
         setError("admin.workforce_management.day_report.error_no_data");
         return;
       }
-
-      const mapped: ApiRow[] = json.data.map((row: any) => {
-        const [datePart, timePart] = (row.Date ?? "").split(" ");
-        return {
-          Ticket_No: row.Ticket_No ?? "-",
-          date: datePart ?? "",
-          Start_Time: timePart ?? null,
-          Vehicle_No: row.Vehicle_No ?? "-",
-          Loaded_Wt_W1: parseNum(row.Loaded_Wt_W1),
-          Wet_Wt_with_Vehicle_W2: parseNum(row.Wet_Wt_with_Vehicle_W2),
-          Vehicle_Tare_Wt_W3: parseNum(row.Vehicle_Tare_Wt_W3),
-          Dry_Wt: parseNum(row.Dry_Wt),
-          Wet_Wt: parseNum(row.Wet_Wt),
-          Mix_Wt: parseNum(row.Mix_Wt),
-          Net_Wt: parseNum(row.Net_Wt),
-        };
-      });
 
       setRows(mapped);
     } catch (err: any) {
@@ -211,10 +204,9 @@ export default function DayReport() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dayWiseWeighmentApiUrl, contextLoading, fromDate, toDate]);
 
-  const indexTemplate = (_: ApiRow, { rowIndex }: any) => rowIndex + 1;
   const exportRows = useMemo(
-    () => applyTableFilters(rows, filters, DAY_REPORT_GLOBAL_FIELDS),
-    [filters, rows],
+    () => applyTableFilters(vehicleRows, filters, DAY_REPORT_GLOBAL_FIELDS),
+    [filters, vehicleRows],
   );
 
   // ---------- UI ----------
@@ -264,63 +256,38 @@ export default function DayReport() {
 
         {error && <p className="text-red-600 mb-3">{t(error)}</p>}
 
+        {vehicleFilter.value && (
+          <div className="mb-3 flex flex-wrap items-center gap-x-6 gap-y-1 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-gray-700 dark:border-green-900 dark:bg-green-950 dark:text-gray-200">
+            <span className="font-semibold">
+              <i className="pi pi-truck mr-2" />
+              {vehicleFilter.value}
+            </span>
+            <span>Trips: {vehicleTotals.trips.toLocaleString()}</span>
+            <span>Net Wt: {vehicleTotals.net.toLocaleString()}</span>
+            <span>Dry: {vehicleTotals.dry.toLocaleString()}</span>
+            <span>Wet: {vehicleTotals.wet.toLocaleString()}</span>
+            <span>Mix: {vehicleTotals.mix.toLocaleString()}</span>
+          </div>
+        )}
+
         <DataTable
-          value={rows}
+          value={vehicleRows}
           exportRows={exportRows}
           paginator
           rows={10}
           rowsPerPageOptions={[5, 10, 25, 50]}
           filters={filters}
           header={renderHeader()}
-          filterPanel={combineFilters(dateFilter)}
+          filterPanel={combineFilters(dateFilter, vehicleFilter)}
           loading={loading}
           globalFilterFields={DAY_REPORT_GLOBAL_FIELDS}
           stripedRows
           showGridlines
           emptyMessage={t("admin.workforce_management.day_report.empty_message")}
           className="p-datatable-sm"
+          fitWidth
         >
-          <Column
-            header="#"
-            body={indexTemplate}
-            style={{ width: "60px" }}
-          />
-          <Column field="date" header="Date" sortable />
-          <Column
-            header="Time"
-            body={(r: ApiRow) => fmtTime(r.Start_Time)}
-          />
-          <Column field="Ticket_No" header="Ticket No" sortable />
-          <Column field="Vehicle_No" header="Vehicle No" sortable />
-          <Column
-            header="Loaded Wt (W1)"
-            body={(r: ApiRow) => fmtNum(r.Loaded_Wt_W1)}
-          />
-          <Column
-            header="Wet Wt + Vehicle (W2)"
-            body={(r: ApiRow) => fmtNum(r.Wet_Wt_with_Vehicle_W2)}
-          />
-          <Column
-            header="Tare Wt (W3)"
-            body={(r: ApiRow) => fmtNum(r.Vehicle_Tare_Wt_W3)}
-          />
-          <Column
-            header="Dry Wt"
-            body={(r: ApiRow) => fmtNum(r.Dry_Wt)}
-          />
-          <Column
-            header="Wet Wt"
-            body={(r: ApiRow) => fmtNum(r.Wet_Wt)}
-          />
-          <Column
-            header="Mix Wt"
-            body={(r: ApiRow) => fmtNum(r.Mix_Wt)}
-          />
-          <Column
-            header="Net Wt"
-            body={(r: ApiRow) => fmtNum(r.Net_Wt)}
-            sortable
-          />
+          {dayTicketColumns()}
         </DataTable>
       </div>
     </>

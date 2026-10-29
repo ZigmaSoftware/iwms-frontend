@@ -2,6 +2,7 @@ import type {
   VehicleBreakdownRecord,
   BreakdownStatus,
   ApprovalStatus,
+  VerifyPreview,
 } from "./types";
 import { BREAKDOWN_REASON_LABELS } from "./types";
 import { useEffect, useRef, useState } from "react";
@@ -30,6 +31,8 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { api } from "@/api";
 import { vehicleBreakdownApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
+import { StackCell } from "@/components/common/TableCells";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
@@ -360,24 +363,69 @@ function VerifyDialog({
 }: {
   row: VehicleBreakdownRecord;
   onClose: () => void;
-  onConfirm: (remarks: string, collectionPointIds?: string[]) => void;
+  onConfirm: (
+    remarks: string,
+    collectionPointIds: string[] | undefined,
+    moveAssignmentIds: string[],
+    substitutePlanIds: string[],
+  ) => void;
   isLoading: boolean;
 }) {
   const [remarks, setRemarks] = useState("");
+  const [preview, setPreview] = useState<VerifyPreview | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  // Defaults come from the preview: a trip / plan is ticked only when the
+  // replacement vehicle has no other work then.
+  const [selectedTrips, setSelectedTrips] = useState<string[]>([]);
+  const [selectedPlans, setSelectedPlans] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get<VerifyPreview>(
+        `/schedule-operations/vehicle-breakdowns/${row.unique_id}/verify-preview/`,
+      )
+      .then(({ data }) => {
+        if (cancelled) return;
+        setPreview(data);
+        setSelectedTrips(
+          data.upcoming_trips.filter((t) => t.default_move).map((t) => t.unique_id),
+        );
+        setSelectedPlans(
+          data.plans
+            .filter((p) => p.default_substitute)
+            .map((p) => p.trip_plan_id),
+        );
+      })
+      .catch((err) => {
+        if (!cancelled) setPreviewError(extractError(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [row.unique_id]);
+
+  const toggle =
+    (setter: React.Dispatch<React.SetStateAction<string[]>>) => (id: string) =>
+      setter((prev) =>
+        prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id],
+      );
+  const toggleTrip = toggle(setSelectedTrips);
+  const togglePlan = toggle(setSelectedPlans);
+
   const pending = row.pending_stops;
   const isBinTrip = !!pending && pending.collection_points.length > 0;
   const isHouseholdTrip = !!pending && pending.households.length > 0;
   const [selectedCps, setSelectedCps] = useState<string[]>(
     () => pending?.collection_points.map((cp) => cp.unique_id) ?? [],
   );
+  const toggleCp = toggle(setSelectedCps);
 
-  const toggleCp = (id: string) => {
-    setSelectedCps((prev) =>
-      prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id],
-    );
-  };
-
-  const canConfirm = !isBinTrip || selectedCps.length > 0;
+  const canConfirm = !!preview && (!isBinTrip || selectedCps.length > 0);
+  const replacementNo =
+    row.replacement_vehicle_detail?.vehicle_no ?? "the replacement vehicle";
+  // Nobody picked at report time: the same crew carries on (backend default).
+  const sameCrew = !row.replacement_driver_id && !row.replacement_operator_id;
 
   const footer = (
     <div className="flex justify-end gap-2 pt-2">
@@ -393,7 +441,14 @@ function VerifyDialog({
         className="p-button-success"
         loading={isLoading}
         disabled={!canConfirm}
-        onClick={() => onConfirm(remarks, isBinTrip ? selectedCps : undefined)}
+        onClick={() =>
+          onConfirm(
+            remarks,
+            isBinTrip ? selectedCps : undefined,
+            selectedTrips,
+            selectedPlans,
+          )
+        }
       />
     </div>
   );
@@ -412,7 +467,7 @@ function VerifyDialog({
         </div>
       }
       footer={footer}
-      style={{ width: "560px" }}
+      style={{ width: "620px" }}
       modal
       draggable={false}
       resizable={false}
@@ -432,10 +487,17 @@ function VerifyDialog({
               row.replacement_vehicle_detail?.vehicle_no ??
                 row.replacement_vehicle_id,
             ],
-            ["Replacement Driver", row.replacement_driver_detail?.name ?? "-"],
+            [
+              "Replacement Driver",
+              sameCrew
+                ? `${preview?.original_crew?.driver ?? "-"} (same crew)`
+                : (row.replacement_driver_detail?.name ?? "-"),
+            ],
             [
               "Replacement Operator",
-              row.replacement_operator_detail?.name ?? "-",
+              sameCrew
+                ? `${preview?.original_crew?.operator ?? "-"} (same crew)`
+                : (row.replacement_operator_detail?.name ?? "-"),
             ],
           ].map(([label, value]) => (
             <div key={label} className="flex gap-2">
@@ -469,7 +531,7 @@ function VerifyDialog({
                 </label>
               ))}
             </div>
-            {!canConfirm && (
+            {isBinTrip && selectedCps.length === 0 && (
               <p className="text-xs text-red-500 mt-2">
                 Select at least one collection point to carry over.
               </p>
@@ -481,6 +543,118 @@ function VerifyDialog({
           <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 text-xs text-blue-800">
             <strong>{pending!.households.length}</strong> un-collected house(s)
             will automatically carry over to the replacement trip.
+          </div>
+        )}
+
+        {previewError && (
+          <p className="text-xs text-red-600">
+            Could not load the vehicle's other trips: {previewError}
+          </p>
+        )}
+        {!preview && !previewError && (
+          <p className="text-xs text-gray-400">Checking the replacement vehicle…</p>
+        )}
+
+        {preview && preview.upcoming_trips.length > 0 && (
+          <div className="rounded-lg border border-gray-200 p-3">
+            <p className="text-sm font-medium text-gray-700">
+              Other trips of{" "}
+              {row.breakdown_vehicle_detail?.vehicle_no ?? "this vehicle"} (
+              {preview.upcoming_trips.length})
+            </p>
+            <p className="text-xs text-gray-500 mb-2">
+              Ticked trips move to {replacementNo} with their own crew. Unticked
+              trips stay on the broken vehicle and cannot start — move them with
+              "Change Vehicle" on the Daily Trip Plan.
+            </p>
+            <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+              {preview.upcoming_trips.map((trip) => (
+                <div key={trip.unique_id}>
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={selectedTrips.includes(trip.unique_id)}
+                      onChange={() => toggleTrip(trip.unique_id)}
+                    />
+                    <span>Move to {replacementNo}</span>
+                    <span className="font-mono text-xs text-blue-700">
+                      {trip.unique_id}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      {trip.trip_date}
+                      {trip.scheduled_time
+                        ? ` · ${trip.scheduled_time.slice(0, 5)}`
+                        : ""}
+                      {trip.trip_plan_display_code
+                        ? ` · ${trip.trip_plan_display_code}`
+                        : ""}
+                    </span>
+                  </label>
+                  {trip.replacement_busy.length > 0 && (
+                    <p className="ml-6 text-xs text-amber-700">
+                      ⚠ {replacementNo} already has{" "}
+                      {trip.replacement_busy
+                        .map(
+                          (b) =>
+                            `${b.unique_id}${b.scheduled_time ? ` at ${b.scheduled_time.slice(0, 5)}` : ""}`,
+                        )
+                        .join(", ")}{" "}
+                      that day.
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {preview && preview.plans.length > 0 && (
+          <div className="rounded-lg border border-gray-200 p-3">
+            <p className="text-sm font-medium text-gray-700">
+              Use {replacementNo} for upcoming days until repaired
+            </p>
+            <p className="text-xs text-gray-500 mb-2">
+              From {preview.substitute_from_date}, ticked trip plans run on{" "}
+              {replacementNo} with their own crew until{" "}
+              {row.breakdown_vehicle_detail?.vehicle_no ?? "the vehicle"} is
+              marked repaired. Unticked plans get no trip until then.
+            </p>
+            <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+              {preview.plans.map((plan) => (
+                <div key={plan.trip_plan_id}>
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={selectedPlans.includes(plan.trip_plan_id)}
+                      onChange={() => togglePlan(plan.trip_plan_id)}
+                    />
+                    <span className="font-medium">
+                      {plan.display_code ?? plan.trip_plan_id}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      {plan.scheduled_time ? plan.scheduled_time.slice(0, 5) : ""}
+                      {plan.days.length ? ` · ${plan.days.join(", ")}` : ""}
+                    </span>
+                  </label>
+                  {plan.clashes.map((clash) => (
+                    <p
+                      key={`${clash.kind}-${clash.trip_plan_id}`}
+                      className="ml-6 text-xs text-amber-700"
+                    >
+                      ⚠ {replacementNo}{" "}
+                      {clash.kind === "own_plan"
+                        ? "runs its own plan"
+                        : "already stands in for"}{" "}
+                      {clash.display_code ?? clash.trip_plan_id}
+                      {clash.scheduled_time
+                        ? ` at ${clash.scheduled_time.slice(0, 5)}`
+                        : ""}{" "}
+                      on {clash.days.join(", ")}.
+                    </p>
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -591,6 +765,82 @@ function RejectDialog({
   );
 }
 
+/* ── Mark Repaired Dialog ──────────────────────────────────────── */
+function MarkRepairedDialog({
+  row,
+  onClose,
+  onConfirm,
+  isLoading,
+}: {
+  row: VehicleBreakdownRecord;
+  onClose: () => void;
+  onConfirm: (remarks: string) => void;
+  isLoading: boolean;
+}) {
+  const [remarks, setRemarks] = useState("");
+  const footer = (
+    <div className="flex justify-end gap-2 pt-2">
+      <Button
+        label="Cancel"
+        className="p-button-text p-button-secondary"
+        onClick={onClose}
+        disabled={isLoading}
+      />
+      <Button
+        label="Mark Repaired"
+        icon="pi pi-wrench"
+        className="p-button-success"
+        loading={isLoading}
+        onClick={() => onConfirm(remarks)}
+      />
+    </div>
+  );
+  return (
+    <Dialog
+      visible
+      onHide={onClose}
+      header={
+        <div>
+          <p className="text-lg font-bold text-gray-800">Mark Vehicle Repaired</p>
+          <p className="text-xs text-gray-400 font-normal mt-0.5">
+            {row.unique_id}
+          </p>
+        </div>
+      }
+      footer={footer}
+      style={{ width: "460px" }}
+      modal
+      draggable={false}
+      resizable={false}
+    >
+      <div className="flex flex-col gap-4 pt-2">
+        <p className="text-sm text-gray-600">
+          Vehicle{" "}
+          <strong className="text-green-700">
+            {row.breakdown_vehicle_detail?.vehicle_no ??
+              row.breakdown_vehicle_id}
+          </strong>{" "}
+          will move from Breakdown back to Active and can be assigned to trips
+          again.
+        </p>
+        <div>
+          <p className="text-sm font-medium text-gray-700 mb-1.5">
+            Repair Remarks
+          </p>
+          <InputTextarea
+            value={remarks}
+            onChange={(e) => setRemarks(e.target.value)}
+            rows={3}
+            className="w-full text-sm"
+            placeholder="What was repaired…"
+            autoResize
+          />
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
 /* ── Main Component ─────────────────────────────────────────────── */
 export default function VehicleBreakdownList() {
   const { t } = useTranslation();
@@ -636,6 +886,9 @@ export default function VehicleBreakdownList() {
   const [rejectTarget, setRejectTarget] =
     useState<VehicleBreakdownRecord | null>(null);
   const [isRejecting, setIsRejecting] = useState(false);
+  const [repairTarget, setRepairTarget] =
+    useState<VehicleBreakdownRecord | null>(null);
+  const [isRepairing, setIsRepairing] = useState(false);
   const [viewTarget, setViewTarget] = useState<VehicleBreakdownRecord | null>(
     null,
   );
@@ -762,7 +1015,9 @@ export default function VehicleBreakdownList() {
   /* ── Verify ─────────────────────────────────────────────────────── */
   const handleVerifyConfirm = async (
     remarks: string,
-    collectionPointIds?: string[],
+    collectionPointIds: string[] | undefined,
+    moveAssignmentIds: string[],
+    substitutePlanIds: string[],
   ) => {
     if (!verifyTarget) return;
     setIsVerifying(true);
@@ -774,6 +1029,8 @@ export default function VehicleBreakdownList() {
           ...(collectionPointIds
             ? { collection_point_ids: collectionPointIds }
             : {}),
+          move_assignment_ids: moveAssignmentIds,
+          substitute_plan_ids: substitutePlanIds,
         },
       );
       setRawRows((prev) =>
@@ -784,20 +1041,49 @@ export default function VehicleBreakdownList() {
                 status: "REPLACEMENT_ARRANGED",
                 approval_status: "APPROVED",
                 new_assignment_id: data?.new_assignment_id ?? null,
+                moved_assignment_ids: data?.moved_assignment_ids ?? [],
+                upcoming_trips: [],
               }
             : r,
         ),
       );
       setVerifyTarget(null);
-      Swal.fire({
-        icon: "success",
-        title: "Approved",
-        text: data?.new_assignment_id
-          ? `Replacement trip ${data.new_assignment_id} created.`
-          : "Replacement vehicle assigned to the trip.",
-        timer: 2500,
-        showConfirmButton: false,
-      });
+      const summary = data?.new_assignment_id
+        ? `Replacement trip ${data.new_assignment_id} created.`
+        : "Replacement vehicle assigned to the trip.";
+      const movedCount = data?.moved_assignment_ids?.length ?? 0;
+      const substitutedCount = data?.substituted_plan_ids?.length ?? 0;
+      const upcomingDays = substitutedCount
+        ? ` ${substitutedCount} trip plan(s) will run on the replacement vehicle until the repair.`
+        : "";
+      const skipped: { trip_id: string; reason: string }[] =
+        data?.skipped_moves ?? [];
+      if (skipped.length) {
+        // Needs reading — no auto-close.
+        Swal.fire({
+          icon: "warning",
+          title: "Approved — some trips were not moved",
+          text: [
+            summary,
+            `${movedCount} other trip(s) moved to the replacement vehicle.${upcomingDays}`,
+            "",
+            ...skipped.map((s) => `${s.trip_id}: ${s.reason}`),
+            "",
+            "Move these from the Daily Trip list.",
+          ].join("\n"),
+        });
+      } else {
+        Swal.fire({
+          icon: "success",
+          title: "Approved",
+          text:
+            (movedCount
+              ? `${summary} ${movedCount} other trip(s) moved to the replacement vehicle.`
+              : summary) + upcomingDays,
+          timer: 2500,
+          showConfirmButton: false,
+        });
+      }
     } catch (err: any) {
       Swal.fire(t("common.error"), extractError(err), "error");
     } finally {
@@ -833,6 +1119,35 @@ export default function VehicleBreakdownList() {
       Swal.fire(t("common.error"), extractError(err), "error");
     } finally {
       setIsRejecting(false);
+    }
+  };
+
+  /* ── Mark Repaired ──────────────────────────────────────────────── */
+  const handleRepairConfirm = async (remarks: string) => {
+    if (!repairTarget) return;
+    setIsRepairing(true);
+    try {
+      const { data } = await api.patch(
+        `/schedule-operations/vehicle-breakdowns/${repairTarget.unique_id}/mark-repaired/`,
+        { repair_remarks: remarks },
+      );
+      setRawRows((prev) =>
+        prev.map((r) =>
+          r.unique_id === repairTarget.unique_id ? { ...r, ...data } : r,
+        ),
+      );
+      setRepairTarget(null);
+      Swal.fire({
+        icon: "success",
+        title: "Repaired",
+        text: "Vehicle is back to Active.",
+        timer: 2000,
+        showConfirmButton: false,
+      });
+    } catch (err) {
+      Swal.fire(t("common.error"), extractError(err), "error");
+    } finally {
+      setIsRepairing(false);
     }
   };
 
@@ -897,6 +1212,15 @@ export default function VehicleBreakdownList() {
           onClick: () => setRejectTarget(row),
         },
       );
+    }
+
+    if (row.approval_status === "APPROVED" && !row.repaired_at && canEdit) {
+      extraActions.push({
+        key: "mark-repaired",
+        label: "Mark Vehicle Repaired",
+        icon: <i className="pi pi-wrench" />,
+        onClick: () => setRepairTarget(row),
+      });
     }
 
     return (
@@ -982,107 +1306,101 @@ export default function VehicleBreakdownList() {
         filterPanel={combineFilters(companyProject)}
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         emptyMessage="No breakdown records found."
       >
         <Column
           header={t("common.s_no")}
           body={(_: any, { rowIndex }: any) => rowIndex + 1}
-          style={{ width: 60 }}
+          style={{ width: "4%" }}
         />
         <Column
           field="unique_id"
-          header="Breakdown ID"
-          style={{ minWidth: 150 }}
+          header="Breakdown"
+          style={{ width: "19%" }}
+          body={(r: any) => (
+            <StackCell
+              primary={r.unique_id}
+              lines={[
+                { label: "Trip", value: r.trip_assignment_id },
+                { icon: "pi-calendar", value: r._trip_date },
+                r.new_assignment_id
+                  ? {
+                      label: "New Trip",
+                      value: (
+                        <span className="font-mono text-green-700">
+                          {r.new_assignment_id}
+                        </span>
+                      ),
+                    }
+                  : null,
+              ]}
+            />
+          )}
         />
-        <Column
-          field="trip_assignment_id"
-          header="Trip ID"
-          style={{ minWidth: 150 }}
-        />
-        <Column
-          field="_trip_date"
-          header="Trip Date"
-          style={{ minWidth: 110 }}
-          body={(r: any) => r._trip_date || "-"}
-        />
-        <Column
-          field="_panchayat"
-          header="Panchayat"
-          style={{ minWidth: 140 }}
-          body={(r: any) => r._panchayat || "-"}
-        />
+        {locationColumn<(typeof rows)[number]>({
+          header: "Location",
+          style: { width: "14%" },
+          levels: [{ label: "Panchayat", value: (r) => r._panchayat }],
+        })}
         <Column
           field="_breakdown_vehicle"
-          header="Broken Vehicle"
-          style={{ minWidth: 140 }}
+          header="Vehicle & Crew"
+          style={{ width: "21%" }}
           body={(r: any) => (
-            <span className="font-semibold text-red-700">
-              {r._breakdown_vehicle}
-            </span>
+            <StackCell
+              primary={
+                <span className="text-red-700" title="Broken Vehicle">
+                  {r._breakdown_vehicle}
+                </span>
+              }
+              lines={[
+                {
+                  label: "Replacement",
+                  value: r._replacement_vehicle && (
+                    <span className="font-semibold text-green-700">
+                      {r._replacement_vehicle}
+                    </span>
+                  ),
+                },
+                { label: "Repl. Driver", value: r._repl_driver },
+                { label: "Repl. Operator", value: r._repl_operator },
+              ]}
+            />
           )}
-        />
-        <Column
-          field="_replacement_vehicle"
-          header="Replacement Vehicle"
-          style={{ minWidth: 160 }}
-          body={(r: any) => (
-            <span className="font-semibold text-green-700">
-              {r._replacement_vehicle}
-            </span>
-          )}
-        />
-        <Column
-          field="_repl_driver"
-          header="Repl. Driver"
-          style={{ minWidth: 130 }}
-          body={(r: any) => r._repl_driver || "-"}
-        />
-        <Column
-          field="_repl_operator"
-          header="Repl. Operator"
-          style={{ minWidth: 130 }}
-          body={(r: any) => r._repl_operator || "-"}
         />
         <Column
           field="_breakdown_reason"
           header="Reason"
-          style={{ minWidth: 140 }}
+          style={{ width: "18%" }}
           body={(r: any) => r._breakdown_reason}
         />
         <Column
           field="status"
           header="Status"
           sortable
-          style={{ minWidth: 170 }}
-          body={(r: VehicleBreakdownRecord) => <StatusBadge value={r.status} />}
-        />
-        <Column
-          field="approval_status"
-          header="Approval"
-          sortable
-          style={{ minWidth: 110 }}
+          style={{ width: "17%" }}
           body={(r: VehicleBreakdownRecord) => (
-            <ApprovalBadge value={r.approval_status} />
+            <div className="flex flex-col items-start gap-1">
+              <StatusBadge value={r.status} />
+              <ApprovalBadge value={r.approval_status} />
+              {r.status === "REJECTED" ? null : r.repaired_at ? (
+                <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                  Repaired
+                </span>
+              ) : (
+                <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
+                  Under Breakdown
+                </span>
+              )}
+            </div>
           )}
-        />
-        <Column
-          header="New Trip"
-          style={{ minWidth: 130 }}
-          body={(r: VehicleBreakdownRecord) =>
-            r.new_assignment_id ? (
-              <span className="font-mono text-xs text-green-700">
-                {r.new_assignment_id}
-              </span>
-            ) : (
-              <span className="text-xs text-gray-300">—</span>
-            )
-          }
         />
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ minWidth: 220 }}
+          style={{ width: "7%" }}
         />
       </DataTable>
 
@@ -1108,6 +1426,16 @@ export default function VehicleBreakdownList() {
           onClose={() => setRejectTarget(null)}
           onConfirm={handleRejectConfirm}
           isLoading={isRejecting}
+        />
+      )}
+
+      {/* Mark Repaired Dialog */}
+      {repairTarget && (
+        <MarkRepairedDialog
+          row={repairTarget}
+          onClose={() => setRepairTarget(null)}
+          onConfirm={handleRepairConfirm}
+          isLoading={isRepairing}
         />
       )}
     </div>

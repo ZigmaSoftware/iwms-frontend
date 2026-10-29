@@ -1,4 +1,5 @@
 import { getStoredProjectConfig } from "@/utils/authStorage";
+import { sessionStore } from "@/utils/sessionStore";
 
 const PROJECT_STORAGE_KEYS = [
   "project_id",
@@ -20,7 +21,7 @@ const asNonEmptyString = (value: unknown): string | null => {
 };
 
 const readProfile = (): Record<string, unknown> | null => {
-  const rawProfile = localStorage.getItem("profile");
+  const rawProfile = sessionStore.getItem("profile");
   if (!rawProfile) return null;
 
   try {
@@ -59,7 +60,7 @@ export const getCurrentProjectId = (): string | null => {
   if (fromQuery) return fromQuery;
 
   for (const key of PROJECT_STORAGE_KEYS) {
-    const value = asNonEmptyString(localStorage.getItem(key));
+    const value = asNonEmptyString(sessionStore.getItem(key));
     if (value) return value;
   }
 
@@ -77,7 +78,7 @@ export const getCurrentCompanyUniqueId = (): string | null => {
   if (fromQuery) return fromQuery;
 
   for (const key of COMPANY_STORAGE_KEYS) {
-    const value = asNonEmptyString(localStorage.getItem(key));
+    const value = asNonEmptyString(sessionStore.getItem(key));
     if (value) return value;
   }
 

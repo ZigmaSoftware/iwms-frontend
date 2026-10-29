@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Lock } from "lucide-react";
 
 /** Shown instead of a dashboard the signed-in user may not open. */
-export function NoAccess({ kind }: { kind: "admin" | "superadmin" }) {
+export function NoAccess({ kind }: { kind: "admin" | "superadmin" | "vehicle-status" }) {
   const { t } = useTranslation();
   return (
     <div className="flex min-h-[50vh] flex-col items-center justify-center gap-2 p-6 text-center">
@@ -10,7 +10,9 @@ export function NoAccess({ kind }: { kind: "admin" | "superadmin" }) {
       <h1 className="m-0 text-xl font-semibold text-gray-800 dark:text-gray-100">
         {kind === "admin"
           ? t("admin.dashboards.no_access.admin_title", "Welcome")
-          : t("admin.dashboards.no_access.superadmin_title", "Super admins only")}
+          : kind === "vehicle-status"
+            ? t("admin.dashboards.no_access.vehicle_status_title", "No access")
+            : t("admin.dashboards.no_access.superadmin_title", "Super admins only")}
       </h1>
       <p className="m-0 max-w-md text-sm text-gray-500 dark:text-gray-400">
         {kind === "admin"
@@ -18,10 +20,15 @@ export function NoAccess({ kind }: { kind: "admin" | "superadmin" }) {
               "admin.dashboards.no_access.admin_message",
               "You have not been given the Admin Dashboard. Open your screens from the menu, or ask your administrator to grant Dashboard → Admin Dashboard in Staff Access Configuration.",
             )
-          : t(
-              "admin.dashboards.no_access.superadmin_message",
-              "The Superadmin Dashboard shows every company on the platform, so only platform super admins can open it.",
-            )}
+          : kind === "vehicle-status"
+            ? t(
+                "admin.dashboards.no_access.vehicle_status_message",
+                "You have not been given the Vehicle Status Dashboard. Ask your administrator to grant Dashboard → Vehicle Status Dashboard in Staff Access Configuration.",
+              )
+            : t(
+                "admin.dashboards.no_access.superadmin_message",
+                "The Superadmin Dashboard shows every company on the platform, so only platform super admins can open it.",
+              )}
       </p>
     </div>
   );

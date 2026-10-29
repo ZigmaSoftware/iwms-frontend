@@ -8,6 +8,7 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import { Button } from "@/components/ui/button";
 import Swal from "@/lib/notify";
 import { FilterBar } from "@/components/common/FilterBar";
+import { StackCell } from "@/components/common/TableCells";
 import { FilterSection, type ActiveFilterChip } from "@/components/common/ListToolbar";
 import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
 import { useDraftFilter } from "@/components/filters/useDraftFilter";
@@ -233,6 +234,7 @@ export default function ExternalAttendanceList() {
         filterPanel={combineFilters(companyProject, datePart)}
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage={
           companyUniqueId && projectId
             ? "No attendance records found."
@@ -245,54 +247,66 @@ export default function ExternalAttendanceList() {
           body={(_: AttendanceRecord, options: { rowIndex: number }) =>
             options.rowIndex + 1
           }
-        />
-        <Column
-          field="emp_id"
-          header="Employee ID"
-          body={(row: AttendanceRecord) => text(row, "emp_id", "employee_id")}
-          sortable
+          style={{ width: "5%" }}
         />
         <Column
           field="name"
-          header="Name"
-          body={(row: AttendanceRecord) => text(row, "name", "employee_name")}
+          header="Employee"
           sortable
+          style={{ width: "28%" }}
+          body={(row: AttendanceRecord) => (
+            <StackCell
+              primary={text(row, "name", "employee_name")}
+              lines={[
+                {
+                  icon: "pi-id-card",
+                  value: text(row, "emp_id", "employee_id"),
+                },
+              ]}
+            />
+          )}
         />
         <Column
           field="recognition_date"
-          header="Date"
-          body={(row: AttendanceRecord) =>
-            text(row, "recognition_date", "date")
-          }
+          header="Date & Time"
           sortable
-        />
-        <Column
-          field="recognition_time"
-          header="Time"
-          body={(row: AttendanceRecord) =>
-            text(row, "recognition_time", "time")
-          }
-          sortable
+          style={{ width: "18%" }}
+          body={(row: AttendanceRecord) => (
+            <StackCell
+              primary={text(row, "recognition_date", "date")}
+              lines={[
+                {
+                  icon: "pi-clock",
+                  value: text(row, "recognition_time", "time"),
+                },
+              ]}
+            />
+          )}
         />
         <Column
           field="punch_type"
           header="Punch"
           body={(row: AttendanceRecord) => text(row, "punch_type", "type")}
+          style={{ width: "14%" }}
         />
         <Column
           field="similarity_score"
           header="Similarity"
           body={(row: AttendanceRecord) => text(row, "similarity_score")}
+          style={{ width: "13%" }}
         />
         <Column
           field="latitude"
-          header="Latitude"
-          body={(row: AttendanceRecord) => text(row, "latitude")}
-        />
-        <Column
-          field="longitude"
-          header="Longitude"
-          body={(row: AttendanceRecord) => text(row, "longitude")}
+          header="Coordinates"
+          style={{ width: "22%" }}
+          body={(row: AttendanceRecord) => (
+            <StackCell
+              lines={[
+                { label: "Lat", value: text(row, "latitude") },
+                { label: "Long", value: text(row, "longitude") },
+              ]}
+            />
+          )}
         />
       </DataTable>
     </div>

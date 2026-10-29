@@ -12,7 +12,7 @@ import { FilterMatchMode } from "primereact/api";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -25,6 +25,7 @@ import { combineFilters } from "@/components/filters/useOptionFilter";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { WardListRecord } from "./types";
 import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import { Can } from "@/contexts/ScreenPermissionContext";
 import { useScreenAccess } from "@/contexts/screenPermission";
@@ -393,23 +394,19 @@ export default function WardList() {
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
 
-          {showCol("zone_name") && (
-            <Column
-              field="zone_name"
-              header={t("admin.nav.zone")}
-              sortable={SORTABLE_FIELDS.has("zone_name")}
-              body={(row) => cap(row.zone_name)}
-            />
-          )}
-
-          {showCol("city_name") && (
-            <Column
-              field="city_name"
-              header={t("admin.nav.city")}
-              sortable={SORTABLE_FIELDS.has("city_name")}
-              body={(row) => cap(row.city_name)}
-            />
-          )}
+          {locationColumn<WardListRecord>({
+            header: t("common.location"),
+            levels: [
+              showCol("city_name") && {
+                label: t("admin.nav.city"),
+                value: (row) => cap(row.city_name ?? undefined),
+              },
+              showCol("zone_name") && {
+                label: t("admin.nav.zone"),
+                value: (row) => cap(row.zone_name ?? undefined),
+              },
+            ],
+          })}
 
           {showCol("ward_name") && (
             <Column

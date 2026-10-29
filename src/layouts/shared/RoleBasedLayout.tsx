@@ -10,6 +10,7 @@ import {
   normalizeRole,
 } from "@/types/roles";
 import { hasAnyPermission } from "@/utils/permissions";
+import { sessionStore } from "@/utils/sessionStore";
 
 const AdminLayout = lazy(() =>
   import("@/layouts/admin/AdminLayout").then((m) => ({ default: m.AdminLayout })),
@@ -23,7 +24,7 @@ const getStoredRole = (): UserRole | null => {
     return null;
   }
 
-  return normalizeRole(localStorage.getItem(USER_ROLE_STORAGE_KEY));
+  return normalizeRole(sessionStore.getItem(USER_ROLE_STORAGE_KEY));
 };
 
 export function RoleBasedLayout({

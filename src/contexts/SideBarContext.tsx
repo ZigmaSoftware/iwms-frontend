@@ -1,4 +1,11 @@
 import { createContext, useContext, useState, useEffect } from "react";
+import type { SidebarSectionKey } from "@/layouts/admin/sidebarMenu";
+
+/** Rail icon the user clicked, and the route it was clicked on. */
+export type RailClick = {
+  selection: { type: SidebarSectionKey; index: number };
+  pathname: string;
+};
 
 type SidebarContextType = {
   isExpanded: boolean;
@@ -11,6 +18,8 @@ type SidebarContextType = {
   setIsHovered: (isHovered: boolean) => void;
   setActiveItem: (item: string | null) => void;
   toggleSubmenu: (item: string) => void;
+  railClick: RailClick | null;
+  setRailClick: (click: RailClick | null) => void;
 };
 
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
@@ -32,6 +41,7 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isHovered, setIsHovered] = useState(false);
   const [activeItem, setActiveItem] = useState<string | null>(null);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
+  const [railClick, setRailClick] = useState<RailClick | null>(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -75,6 +85,8 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
         setIsHovered,
         setActiveItem,
         toggleSubmenu,
+        railClick,
+        setRailClick,
       }}
     >
       {children}

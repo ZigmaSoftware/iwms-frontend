@@ -17,7 +17,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -516,43 +516,49 @@ export default function ApartmentListPage() {
           emptyMessage={emptyMessage}
           stripedRows
           showGridlines
+          fitWidth
           className="p-datatable-sm"
         >
           <Column
             header={t("common.s_no")}
             body={indexTemplate}
-            style={{ width: "80px" }}
+            style={{ width: "6%" }}
           />
-          <Column field="apartment_name" header="Apartment" sortable />
+          <Column
+            field="apartment_name"
+            header="Apartment"
+            sortable
+            style={{ width: "38%" }}
+          />
 
           {/* ✅ QR CODE COLUMN */}
           <Column
             header="QR Code"
             body={qrTemplate}
-            style={{ width: "100px", textAlign: "center" }}
+            style={{ width: "12%", textAlign: "center" }}
           />
 
           <Column
             field="total_blocks"
             header="Blocks"
             sortable
-            style={{ width: "100px" }}
+            style={{ width: "12%" }}
           />
           <Column
             field="total_flats"
             header="Flats"
             sortable
-            style={{ width: "100px" }}
+            style={{ width: "12%" }}
           />
           <Column
             field="total_users"
             header="Residents"
             sortable
-            style={{ width: "120px" }}
+            style={{ width: "12%" }}
           />
           <Column
             header={t("common.actions")}
-            style={{ textAlign: "center", width: "100px" }}
+            style={{ textAlign: "center", width: "8%" }}
             body={(row: ApartmentRow) =>
               viewActionTemplate(() => drillToBlock(row))
             }
@@ -577,23 +583,29 @@ export default function ApartmentListPage() {
             emptyMessage={emptyMessage}
             stripedRows
             showGridlines
+            fitWidth
             className="p-datatable-sm"
           >
             <Column
               header={t("common.s_no")}
               body={indexTemplate}
-              style={{ width: "80px" }}
+              style={{ width: "6%" }}
             />
-            <Column field="block" header="Block No." sortable />
+            <Column
+              field="block"
+              header="Block No."
+              sortable
+              style={{ width: "64%" }}
+            />
             <Column
               field="flat_count"
               header="Flats"
               sortable
-              style={{ width: "100px" }}
+              style={{ width: "20%" }}
             />
             <Column
               header={t("common.actions")}
-              style={{ textAlign: "center", width: "100px" }}
+              style={{ textAlign: "center", width: "10%" }}
               body={(row: BlockRow) =>
                 viewActionTemplate(() => drillToFlat(row))
               }
@@ -620,23 +632,29 @@ export default function ApartmentListPage() {
             emptyMessage={emptyMessage}
             stripedRows
             showGridlines
+            fitWidth
             className="p-datatable-sm"
           >
             <Column
               header={t("common.s_no")}
               body={indexTemplate}
-              style={{ width: "80px" }}
+              style={{ width: "6%" }}
             />
-            <Column field="flat_no" header="Flat No." sortable />
+            <Column
+              field="flat_no"
+              header="Flat No."
+              sortable
+              style={{ width: "64%" }}
+            />
             <Column
               field="user_count"
               header="Residents"
               sortable
-              style={{ width: "120px" }}
+              style={{ width: "20%" }}
             />
             <Column
               header={t("common.actions")}
-              style={{ textAlign: "center", width: "100px" }}
+              style={{ textAlign: "center", width: "10%" }}
               body={(row: FlatRow) =>
                 viewActionTemplate(() => drillToUser(row))
               }
@@ -663,20 +681,31 @@ export default function ApartmentListPage() {
             emptyMessage={emptyMessage}
             stripedRows
             showGridlines
+            fitWidth
             className="p-datatable-sm"
           >
             <Column
               header={t("common.s_no")}
               body={indexTemplate}
-              style={{ width: "80px" }}
+              style={{ width: "6%" }}
             />
-            <Column field="customer_name" header="Resident Name" sortable />
-            <Column field="contact_no" header={t("common.mobile")} sortable />
+            <Column
+              field="customer_name"
+              header="Resident Name"
+              sortable
+              style={{ width: "44%" }}
+            />
+            <Column
+              field="contact_no"
+              header={t("common.mobile")}
+              sortable
+              style={{ width: "30%" }}
+            />
             <Column
               field="flat_no"
               header="Flat No."
               sortable
-              style={{ width: "120px" }}
+              style={{ width: "20%" }}
             />
           </DataTable>
           {backButton}

@@ -23,6 +23,7 @@ import type {
 
 import { permissionAuditApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
+import { StackCell } from "@/components/common/TableCells";
 import { FormSelect } from "@/components/common/FormSelect";
 import { FilterSection } from "@/components/common/ListToolbar";
 import { useDraftFilter } from "@/components/filters/useDraftFilter";
@@ -440,64 +441,86 @@ export default function PermissionAuditList() {
           loading={loading}
           stripedRows
           showGridlines
+          fitWidth
           className="p-datatable-sm"
           emptyMessage={t("admin.permission_audit.empty_message")}
         >
           <Column
             header={t("common.s_no")}
             body={(_, { rowIndex }) => rowIndex + 1}
-            style={{ width: 70 }}
-          />
-          <Column
-            field="source_label"
-            header={t("admin.permission_audit.source")}
-            body={(r: PermissionAuditRecord) => r.source_label ?? "-"}
+            style={{ width: "4%" }}
           />
           <Column
             field="target_name"
             header={t("admin.permission_audit.granted_to")}
-            body={(r: PermissionAuditRecord) => r.target_name ?? "-"}
+            body={(r: PermissionAuditRecord) => (
+              <StackCell
+                primary={r.target_name}
+                lines={[
+                  {
+                    label: t("admin.permission_audit.source"),
+                    value: r.source_label,
+                  },
+                ]}
+              />
+            )}
+            style={{ width: "16%" }}
           />
           <Column
             field="company_name"
-            header={t("admin.permission_audit.company")}
-            body={(r: PermissionAuditRecord) => r.company_name ?? "-"}
-          />
-          <Column
-            field="project_name"
-            header={t("admin.permission_audit.project")}
-            body={(r: PermissionAuditRecord) => r.project_name ?? "-"}
+            header={`${t("admin.permission_audit.company")} / ${t("admin.permission_audit.project")}`}
+            body={(r: PermissionAuditRecord) => (
+              <StackCell
+                primary={r.company_name}
+                lines={[
+                  {
+                    label: t("admin.permission_audit.project"),
+                    value: r.project_name,
+                  },
+                ]}
+              />
+            )}
+            style={{ width: "15%" }}
           />
           <Column
             header={t("admin.permission_audit.module")}
             body={moduleTemplate}
+            style={{ width: "17%" }}
           />
           <Column
             header={t("admin.permission_audit.permissions")}
             body={permissionTemplate}
-          />
-          <Column
-            field="http_method"
-            header={t("admin.permission_audit.http_method")}
-            body={(r: PermissionAuditRecord) => <MethodBadge method={r.http_method} />}
-            sortable
+            style={{ width: "14%" }}
           />
           <Column
             field="action_type"
             header={t("admin.permission_audit.action_type")}
-            body={actionTypeTemplate}
+            body={(r: PermissionAuditRecord) => (
+              <div className="flex flex-wrap items-center gap-1">
+                {actionTypeTemplate(r)}
+                <MethodBadge method={r.http_method} />
+              </div>
+            )}
             sortable
-          />
-          <Column
-            field="updated_by_name"
-            header={t("admin.permission_audit.updated_by")}
-            body={(r: PermissionAuditRecord) => r.updated_by_name ?? "-"}
+            style={{ width: "12%" }}
           />
           <Column
             field="timestamp"
             header={t("admin.permission_audit.timestamp")}
-            body={(r: PermissionAuditRecord) => formatDateTime(r.timestamp)}
+            body={(r: PermissionAuditRecord) => (
+              <StackCell
+                primary={formatDateTime(r.timestamp)}
+                lines={[
+                  {
+                    icon: "pi-user",
+                    title: t("admin.permission_audit.updated_by"),
+                    value: r.updated_by_name,
+                  },
+                ]}
+              />
+            )}
             sortable
+            style={{ width: "15%" }}
           />
           <Column
             header={t("common.actions")}
@@ -512,7 +535,7 @@ export default function PermissionAuditList() {
                 </button>
               </div>
             )}
-            style={{ width: 120 }}
+            style={{ width: "7%" }}
           />
         </DataTable>
       </div>

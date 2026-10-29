@@ -66,6 +66,43 @@ export interface PendingStopsSnapshot {
   households: PendingHousehold[];
 }
 
+/** A not-yet-started trip of the broken vehicle that Verify can move to the
+ * replacement vehicle. */
+export interface UpcomingTrip {
+  unique_id: string;
+  trip_date: string;
+  scheduled_time: string | null;
+  trip_plan_display_code: string | null;
+}
+
+/** GET /vehicle-breakdowns/{id}/verify-preview/ — what Verify & Approve
+ * offers for the replacement vehicle, with the work it already has. */
+export interface VerifyPreviewClash {
+  kind: "own_plan" | "substitution";
+  trip_plan_id: string;
+  display_code: string | null;
+  scheduled_time: string | null;
+  days: string[];
+}
+
+export interface VerifyPreview {
+  replacement_vehicle_id: string | null;
+  substitute_from_date: string;
+  original_crew: { driver: string | null; operator: string | null } | null;
+  upcoming_trips: (UpcomingTrip & {
+    replacement_busy: { unique_id: string; scheduled_time: string | null }[];
+    default_move: boolean;
+  })[];
+  plans: {
+    trip_plan_id: string;
+    display_code: string | null;
+    scheduled_time: string | null;
+    days: string[];
+    clashes: VerifyPreviewClash[];
+    default_substitute: boolean;
+  }[];
+}
+
 export interface VehicleBreakdownRecord {
   unique_id: string;
   company_id: string;
@@ -75,6 +112,8 @@ export interface VehicleBreakdownRecord {
   trip_assignment_detail: TripAssignmentDetail | null;
   new_assignment_id: string | null;
   pending_stops: PendingStopsSnapshot | null;
+  upcoming_trips: UpcomingTrip[];
+  moved_assignment_ids: string[];
 
   breakdown_vehicle_id: string;
   breakdown_vehicle_detail: VehicleDetail | null;
@@ -108,6 +147,13 @@ export interface VehicleBreakdownRecord {
   approved_by_detail: StaffDetail | null;
   approved_at: string | null;
   rejection_remarks: string | null;
+
+  // Set by /mark-repaired/ — the broken vehicle is back in service.
+  repaired_at: string | null;
+  repaired_by: string | null;
+  repaired_by_detail: StaffDetail | null;
+  repair_remarks: string | null;
+  breakdown_vehicle_operational_status: "ACTIVE" | "BREAKDOWN" | null;
 
   created_at: string;
   updated_at: string;

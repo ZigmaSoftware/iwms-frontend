@@ -24,6 +24,8 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
+import { StackCell } from "@/components/common/TableCells";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import {
   exportRecordsToExcel,
@@ -261,86 +263,107 @@ export default function HouseholdPickupEventList() {
         header={header}
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         emptyMessage={t("admin.household_pickup_event.empty_message")}
       >
         <Column
           header={t("common.s_no")}
           body={(_, { rowIndex }) => rowIndex + 1}
-          style={{ width: 70 }}
+          style={{ width: "5%" }}
         />
-        {showCol("customer_id") && (
+        {(showCol("customer_id") ||
+          showCol("pickup_time") ||
+          showCol("source")) && (
           <Column
             header={t("admin.household_pickup_event.customer")}
-            body={(row: HouseholdPickupEventRecord) =>
-              customerLookup[row.customer_id] ?? row.customer_id
-            }
+            style={{ width: "24%" }}
+            body={(row: HouseholdPickupEventRecord) => (
+              <StackCell
+                primary={
+                  showCol("customer_id") &&
+                  (customerLookup[row.customer_id] ?? row.customer_id)
+                }
+                lines={[
+                  showCol("pickup_time") && {
+                    icon: "pi-clock",
+                    title: t("admin.household_pickup_event.pickup_time"),
+                    value: formatDate(row.pickup_time),
+                  },
+                  showCol("source") && {
+                    label: t("admin.household_pickup_event.source"),
+                    value: row.source,
+                  },
+                ]}
+              />
+            )}
           />
         )}
-        {showCol("zone_id") && (
-          <Column
-            header={t("admin.household_pickup_event.zone")}
-            body={(row: HouseholdPickupEventRecord) =>
-              zoneLookup[row.zone_id] ?? row.zone_id
-            }
-          />
-        )}
-        {showCol("property_id") && (
+        {locationColumn<HouseholdPickupEventRecord>({
+          header: t("common.location"),
+          style: { width: "12%" },
+          levels: [
+            showCol("zone_id") && {
+              label: t("admin.household_pickup_event.zone"),
+              value: (row) => zoneLookup[row.zone_id] ?? row.zone_id,
+            },
+          ],
+        })}
+        {(showCol("property_id") || showCol("sub_property_id")) && (
           <Column
             header={t("admin.household_pickup_event.property")}
-            body={(row: HouseholdPickupEventRecord) =>
-              propertyLookup[row.property_id] ?? row.property_id
-            }
+            style={{ width: "20%" }}
+            body={(row: HouseholdPickupEventRecord) => (
+              <StackCell
+                primary={
+                  showCol("property_id") &&
+                  (propertyLookup[row.property_id] ?? row.property_id)
+                }
+                lines={[
+                  showCol("sub_property_id") && {
+                    label: t("admin.household_pickup_event.sub_property"),
+                    value:
+                      subPropertyLookup[row.sub_property_id] ??
+                      row.sub_property_id,
+                  },
+                ]}
+              />
+            )}
           />
         )}
-        {showCol("sub_property_id") && (
-          <Column
-            header={t("admin.household_pickup_event.sub_property")}
-            body={(row: HouseholdPickupEventRecord) =>
-              subPropertyLookup[row.sub_property_id] ?? row.sub_property_id
-            }
-          />
-        )}
-        {showCol("collector_staff_id") && (
+        {(showCol("collector_staff_id") || showCol("vehicle_id")) && (
           <Column
             header={t("admin.household_pickup_event.collector")}
-            body={(row: HouseholdPickupEventRecord) =>
-              collectorLookup[row.collector_staff_id] ?? row.collector_staff_id
-            }
-          />
-        )}
-        {showCol("vehicle_id") && (
-          <Column
-            header={t("admin.household_pickup_event.vehicle")}
-            body={(row: HouseholdPickupEventRecord) =>
-              vehicleLookup[row.vehicle_id] ?? row.vehicle_id
-            }
-          />
-        )}
-        {showCol("pickup_time") && (
-          <Column
-            header={t("admin.household_pickup_event.pickup_time")}
-            body={(row: HouseholdPickupEventRecord) =>
-              formatDate(row.pickup_time)
-            }
+            style={{ width: "20%" }}
+            body={(row: HouseholdPickupEventRecord) => (
+              <StackCell
+                primary={
+                  showCol("collector_staff_id") &&
+                  (collectorLookup[row.collector_staff_id] ??
+                    row.collector_staff_id)
+                }
+                lines={[
+                  showCol("vehicle_id") && {
+                    icon: "pi-truck",
+                    title: t("admin.household_pickup_event.vehicle"),
+                    value: vehicleLookup[row.vehicle_id] ?? row.vehicle_id,
+                  },
+                ]}
+              />
+            )}
           />
         )}
         {showCol("weight_kg") && (
           <Column
             field="weight_kg"
             header={t("admin.household_pickup_event.weight_kg")}
-          />
-        )}
-        {showCol("source") && (
-          <Column
-            field="source"
-            header={t("admin.household_pickup_event.source")}
+            style={{ width: "12%" }}
           />
         )}
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ width: 120 }}
+          style={{ width: "7%" }}
         />
       </DataTable>
     </div>

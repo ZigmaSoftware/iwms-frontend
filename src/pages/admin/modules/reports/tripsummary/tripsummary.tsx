@@ -3,10 +3,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { applyTableFilters } from "@/utils/tableFilterMatch";
 import "./tripsummary.css";
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 import { DataTable } from "@/components/common/SafeDataTable";
+import { StackCell } from "@/components/common/TableCells";
 import { FilterBar } from "@/components/common/FilterBar";
 import { FormSelect } from "@/components/common/FormSelect";
 import { FilterSection, type ActiveFilterChip } from "@/components/common/ListToolbar";
@@ -540,52 +541,46 @@ export default function TripSummary() {
             stripedRows
             showGridlines
             className="p-datatable-sm"
+            fitWidth
           >
             <Column
               header={t("admin.reports.trip_summary.columns.s_no")}
               body={(_row, { rowIndex }) => rowIndex + 1}
-              style={{ width: "80px" }}
+              style={{ width: "5%" }}
             />
             <Column
               field="startTime"
               header={t("admin.reports.trip_summary.columns.start_time")}
-              body={(row: HistoryRow) => new Date(row.startTime).toLocaleString()}
+              body={(row: HistoryRow) => (
+                <StackCell
+                  primary={new Date(row.startTime).toLocaleString()}
+                  lines={[{ icon: "pi-map-marker", value: row.intLoc || "-" }]}
+                />
+              )}
               sortable
-              style={{ minWidth: "170px" }}
-              filter
-              showFilterMatchModes={false}
-            />
-            <Column
-              field="intLoc"
-              header={t("admin.reports.trip_summary.columns.start_address")}
-              body={(row: HistoryRow) => row.intLoc || "-"}
-              style={{ minWidth: "180px" }}
+              style={{ width: "24%" }}
               filter
               showFilterMatchModes={false}
             />
             <Column
               field="endTime"
               header={t("admin.reports.trip_summary.columns.end_time")}
-              body={(row: HistoryRow) => new Date(row.endTime).toLocaleString()}
+              body={(row: HistoryRow) => (
+                <StackCell
+                  primary={new Date(row.endTime).toLocaleString()}
+                  lines={[{ icon: "pi-map-marker", value: row.finLoc || "-" }]}
+                />
+              )}
               sortable
-              style={{ minWidth: "170px" }}
+              style={{ width: "24%" }}
               filter
               showFilterMatchModes={false}
-            />
-            <Column
-              field="finLoc"
-              header={t("admin.reports.trip_summary.columns.end_address")}
-              body={(row: HistoryRow) => row.finLoc || "-"}
-              style={{ minWidth: "180px" }}
-              filter
-              showFilterMatchModes={false}
-
             />
             <Column
               field="vehicleName"
               header={t("admin.reports.trip_summary.columns.vehicle_no")}
               body={() => displaySummary.vehicleName || vehicleId}
-              style={{ minWidth: "160px" }}
+              style={{ width: "14%" }}
               filter
               showFilterMatchModes={false}
             />
@@ -593,26 +588,26 @@ export default function TripSummary() {
               field="position"
               header={t("admin.reports.trip_summary.columns.position")}
               body={(row: HistoryRow) => row.position || "-"}
-              style={{ minWidth: "140px" }}
+              style={{ width: "13%" }}
               filter
               showFilterMatchModes={false}
 
             />
             <Column
-            field="duration"
-              header={t("admin.reports.trip_summary.columns.total_minutes")}
-              body={(row: HistoryRow) => Math.floor((row.duration ?? 0) / 60000)}
-              style={{ width: "150px" }}
-              filter
-              showFilterMatchModes={false}
-            />
-            <Column
               field="tripDistance"
               header={t("admin.reports.trip_summary.columns.distance")}
-              body={(row: HistoryRow) => row.tripDistance ?? 0}
-              style={{ width: "140px" }}
-              filter
-              showFilterMatchModes={false}
+              body={(row: HistoryRow) => (
+                <StackCell
+                  primary={row.tripDistance ?? 0}
+                  lines={[
+                    {
+                      label: t("admin.reports.trip_summary.columns.total_minutes"),
+                      value: String(Math.floor((row.duration ?? 0) / 60000)),
+                    },
+                  ]}
+                />
+              )}
+              style={{ width: "20%" }}
             />
           </DataTable>
         </div>

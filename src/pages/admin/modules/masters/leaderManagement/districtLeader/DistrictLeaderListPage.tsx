@@ -21,6 +21,8 @@ import { districtLeaderApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
+import { StackCell } from "@/components/common/TableCells";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import { Can } from "@/contexts/ScreenPermissionContext";
 import { useScreenAccess } from "@/contexts/screenPermission";
@@ -330,6 +332,7 @@ export default function DistrictLeaderListPage() {
         onSort={onSort}
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage={t("common.no_items_found", {
           item: t("admin.nav.district_leader"),
         })}
@@ -338,50 +341,55 @@ export default function DistrictLeaderListPage() {
         <Column
           header={t("common.s_no")}
           body={indexTemplate}
-          style={{ width: "80px" }}
-        />
-        <Column
-          field="username"
-          header={t("common.username")}
-          sortable={SORTABLE_FIELDS.has("username")}
-          body={(r: DistrictLeader) => cap(r.username)}
+          style={{ width: "5%" }}
         />
         <Column
           field="leader_name"
           header={t("common.name")}
           sortable={SORTABLE_FIELDS.has("leader_name")}
-          body={(r: DistrictLeader) => cap(r.leader_name)}
+          style={{ width: "32%" }}
+          body={(r: DistrictLeader) => (
+            <StackCell
+              primary={cap(r.leader_name)}
+              lines={[
+                {
+                  icon: "pi-user",
+                  title: t("common.username"),
+                  value: cap(r.username),
+                },
+                { icon: "pi-envelope", title: t("common.email"), value: r.email },
+              ]}
+            />
+          )}
         />
-        <Column
-          field="district_name"
-          header={t("admin.nav.district")}
-          sortable={SORTABLE_FIELDS.has("district_name")}
-          body={(r: DistrictLeader) => cap(r.district_name)}
-        />
-        <Column
-          field="email"
-          header={t("common.email")}
-          body={(r: DistrictLeader) => r.email || "-"}
-        />
+        {locationColumn<DistrictLeader>({
+          header: t("common.location"),
+          style: { width: "20%" },
+          levels: [
+            { label: t("admin.nav.district"), value: (r) => cap(r.district_name) },
+          ],
+        })}
         <Column
           field="company_name"
           header={t("common.company")}
-          body={(r: DistrictLeader) => r.company_name || "-"}
-        />
-        <Column
-          field="project_name"
-          header={t("common.project")}
-          body={(r: DistrictLeader) => r.project_name || "-"}
+          style={{ width: "28%" }}
+          body={(r: DistrictLeader) => (
+            <StackCell
+              primary={r.company_name}
+              lines={[{ label: t("common.project"), value: r.project_name }]}
+            />
+          )}
         />
         <Column
           field="is_active"
           header={t("common.status")}
           body={statusTemplate}
+          style={{ width: "8%" }}
         />
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ width: "100px", textAlign: "center" }}
+          style={{ width: "7%", textAlign: "center" }}
         />
       </DataTable>
     </div>

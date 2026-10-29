@@ -19,6 +19,7 @@ import { FilterBar } from "@/components/common/FilterBar";
 import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
 import { combineFilters } from "@/components/filters/useOptionFilter";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { StackCell } from "@/components/common/TableCells";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
@@ -239,24 +240,27 @@ export default function AlternativeStaffTemplateList() {
         loading={loading}
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         emptyMessage={t("admin.alternative_staff_template.empty_message")}
       >
-        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: 70 }} />
+        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "5%" }} />
 
-        {showCol("unique_id") && (
+        {(showCol("unique_id") || showCol("staff_template")) && (
           <Column
             header={t("admin.alternative_staff_template.columns.template_id")}
-            body={(row: AlternativeStaffTemplate) => row.display_code ?? row.unique_id}
-          />
-        )}
-
-        {showCol("staff_template") && (
-          <Column
-            header={t("admin.alternative_staff_template.columns.staff_template")}
-            body={(row: AlternativeStaffTemplate) =>
-              row.staff_template_display_code ?? row.staff_template
-            }
+            style={{ width: "20%" }}
+            body={(row: AlternativeStaffTemplate) => (
+              <StackCell
+                primary={showCol("unique_id") && (row.display_code ?? row.unique_id)}
+                lines={[
+                  showCol("staff_template") && {
+                    label: t("admin.alternative_staff_template.columns.staff_template"),
+                    value: row.staff_template_display_code ?? row.staff_template,
+                  },
+                ]}
+              />
+            )}
           />
         )}
 
@@ -269,32 +273,40 @@ export default function AlternativeStaffTemplateList() {
           />
         )} */}
 
-        {showCol("driver_name") && (
+        {(showCol("driver_name") ||
+          showCol("operator_name") ||
+          showCol("extra_operator")) && (
           <Column
             field="driver_name"
-            header={t("admin.alternative_staff_template.columns.driver")}
-            body={(row: AlternativeStaffTemplate) => row.driver_name ?? row.driver}
-          />
-        )}
-
-        {showCol("operator_name") && (
-          <Column
-            field="operator_name"
-            header={t("admin.alternative_staff_template.columns.operator")}
-            body={(row: AlternativeStaffTemplate) => row.operator_name ?? row.operator}
-          />
-        )}
-
-        {showCol("extra_operator") && (
-          <Column
-            header={t("admin.alternative_staff_template.columns.extra_operator")}
+            header="Crew"
+            style={{ width: "30%" }}
             body={(row: AlternativeStaffTemplate) => {
               const names = Array.isArray(row.extra_operator_names)
                 ? row.extra_operator_names
                 : [];
-              if (names.length) return names.join(", ");
-              if (Array.isArray(row.extra_operator)) return row.extra_operator.join(", ");
-              return row.extra_operator || "-";
+              const extraOperators = names.length
+                ? names.join(", ")
+                : Array.isArray(row.extra_operator)
+                  ? row.extra_operator.join(", ")
+                  : row.extra_operator;
+              return (
+                <StackCell
+                  lines={[
+                    showCol("driver_name") && {
+                      label: t("admin.alternative_staff_template.columns.driver"),
+                      value: row.driver_name ?? row.driver,
+                    },
+                    showCol("operator_name") && {
+                      label: t("admin.alternative_staff_template.columns.operator"),
+                      value: row.operator_name ?? row.operator,
+                    },
+                    showCol("extra_operator") && {
+                      label: t("admin.alternative_staff_template.columns.extra_operator"),
+                      value: extraOperators,
+                    },
+                  ]}
+                />
+              );
             }}
           />
         )}
@@ -303,6 +315,7 @@ export default function AlternativeStaffTemplateList() {
           <Column
             field="change_reason"
             header={t("admin.alternative_staff_template.columns.change_reason")}
+            style={{ width: "25%" }}
           />
         )}
 
@@ -310,6 +323,7 @@ export default function AlternativeStaffTemplateList() {
           <Column
             field="approval_status"
             header={t("admin.alternative_staff_template.columns.approval_status")}
+            style={{ width: "12%" }}
           />
         )}
 
@@ -318,7 +332,7 @@ export default function AlternativeStaffTemplateList() {
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ width: 120 }}
+          style={{ width: "8%" }}
         />
       </DataTable>
     </div>

@@ -9,7 +9,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { useTranslation } from "react-i18next";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -195,6 +195,7 @@ export default function UserScreenList() {
           rowsPerPageOptions={[5, 10, 25, 50]}
           stripedRows
           showGridlines
+          fitWidth
           className="p-datatable-sm"
           header={header}
           emptyMessage={t("common.no_items_found", {
@@ -204,47 +205,47 @@ export default function UserScreenList() {
           <Column
             header={t("common.s_no")}
             body={indexTemplate}
-            style={{ width: "70px" }}
+            style={{ width: "5%" }}
           />
           <Column
             field="mainscreen_name"
             header={t("admin.nav.main_screen")}
             sortable
-            style={{ minWidth: "150px" }}
+            style={{ width: "20%" }}
           />
           <Column
             field="userscreen_name"
             header={t("admin.nav.user_screen")}
             sortable
-            style={{ minWidth: "150px" }}
+            style={{ width: "22%" }}
           />
           <Column
             field="folder_name"
             header={t("common.folder")}
             sortable
-            style={{ minWidth: "120px" }}
+            style={{ width: "15%" }}
           />
           <Column
             field="icon_name"
             header={t("common.icon")}
             sortable
-            style={{ minWidth: "100px" }}
+            style={{ width: "13%" }}
           />
           <Column
             field="order_no"
             header={t("common.order")}
             sortable
-            style={{ width: "100px" }}
+            style={{ width: "8%" }}
           />
           <Column
             header={t("common.status")}
             body={statusTemplate}
-            style={{ width: "120px" }}
+            style={{ width: "9%" }}
           />
           <Column
             header={t("common.actions")}
             body={actionTemplate}
-            style={{ width: "150px" }}
+            style={{ width: "8%" }}
           />
         </DataTable>
      

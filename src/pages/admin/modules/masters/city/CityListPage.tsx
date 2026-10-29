@@ -11,7 +11,7 @@ import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -23,6 +23,7 @@ import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectF
 import { combineFilters } from "@/components/filters/useOptionFilter";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import { Can } from "@/contexts/ScreenPermissionContext";
 import { useScreenAccess } from "@/contexts/screenPermission";
@@ -308,36 +309,23 @@ export default function CityList() {
           body={indexTemplate}
           style={{ width: "80px" }}
         />
-        {showCol("country_name") && (
-          <Column
-            field="country_name"
-            header={t("admin.nav.country")}
-            body={(r) => cap(r.country_name)}
-            sortable
-            filter
-            showFilterMatchModes={false}
-          />
-        )}
-        {showCol("state_name") && (
-          <Column
-            field="state_name"
-            header={t("admin.nav.state")}
-            body={(r) => cap(r.state_name)}
-            sortable
-            filter
-            showFilterMatchModes={false}
-          />
-        )}
-        {showCol("district_name") && (
-          <Column
-            field="district_name"
-            header={t("admin.nav.district")}
-            body={(r) => cap(r.district_name)}
-            sortable
-            filter
-            showFilterMatchModes={false}
-          />
-        )}
+        {locationColumn<CityWithRelations>({
+          header: t("common.location"),
+          levels: [
+            showCol("country_name") && {
+              label: t("admin.nav.country"),
+              value: (row) => cap(row.country_name ?? undefined),
+            },
+            showCol("state_name") && {
+              label: t("admin.nav.state"),
+              value: (row) => cap(row.state_name ?? undefined),
+            },
+            showCol("district_name") && {
+              label: t("admin.nav.district"),
+              value: (row) => cap(row.district_name ?? undefined),
+            },
+          ],
+        })}
         {showCol("name") && (
           <Column
             field="name"

@@ -1,4 +1,4 @@
-import { jwtDecode } from "jwt-decode";
+import { apiForPortal, type Portal } from "@/api";
 import {
   clearAdminViewPreference,
   USER_ROLE_STORAGE_KEY,
@@ -13,10 +13,21 @@ import {
   setStoredPermissionDetails,
   setStoredPermissions,
 } from "@/utils/permissions";
-import { clearLoginSessionTracking, startLoginSession } from "@/utils/loginSession";
+import {
+  clearLoginSessionTracking,
+  getSessionInfo,
+  setSessionInfo,
+  startLoginSession,
+  type SessionResponse,
+} from "@/utils/loginSession";
+import { sessionStore } from "@/utils/sessionStore";
 
-export const ACCESS_TOKEN_STORAGE_KEY = "access_token";
-export const REFRESH_TOKEN_STORAGE_KEY = "refresh_token";
+/* --------------------------------------------------------
+   Signed-in user data, held in memory (sessionStore) — never in
+   sessionStore. The access token itself is an HttpOnly cookie the
+   browser manages; JS never sees it.
+-------------------------------------------------------- */
+
 export const USER_STORAGE_KEY = "user";
 export const PROFILE_STORAGE_KEY = "profile";
 export const PROJECTS_STORAGE_KEY = "projects_config";
@@ -28,14 +39,6 @@ export const CITIES_STORAGE_KEY = "cities_config";
 export const ZONES_STORAGE_KEY = "zones_config";
 export const PANCHAYATS_STORAGE_KEY = "panchayats_config";
 export const WARDS_STORAGE_KEY = "wards_config";
-
-type JwtPayload = {
-  exp?: number;
-  unique_id?: string;
-  user_id?: string;
-  username?: string;
-  role?: string;
-};
 
 export type ProjectConfig = {
   unique_id: string;
@@ -84,11 +87,7 @@ export type AuthProfile = {
   [key: string]: unknown;
 };
 
-export type LoginPayload = {
-  access?: string;
-  refresh?: string;
-  access_token?: string;
-  refresh_token?: string;
+export type LoginPayload = SessionResponse & {
   user?: AuthUser;
   role?: string;
   unique_id?: string;
@@ -125,13 +124,6 @@ const safeJsonParse = <T>(value: string | null, fallback: T): T => {
   }
 };
 
-const safeSetStorageItem = (key: string, value: string): void => {
-  try {
-    localStorage.setItem(key, value);
-  } catch (error) {
-    console.warn(`[Auth] Unable to persist '${key}' in localStorage:`, error);
-  }
-};
 
 export const unwrapLoginPayload = (response: LoginEnvelope): LoginPayload => {
   if (response && "data" in response && response.data) {
@@ -140,66 +132,54 @@ export const unwrapLoginPayload = (response: LoginEnvelope): LoginPayload => {
   return response as LoginPayload;
 };
 
-export const getStoredAccessToken = (): string =>
-  localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY) ?? "";
-
-export const getStoredRefreshToken = (): string =>
-  localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY) ?? "";
-
 export const getStoredAuthUser = (): AuthUser | null =>
-  safeJsonParse<AuthUser | null>(localStorage.getItem(USER_STORAGE_KEY), null);
+  safeJsonParse<AuthUser | null>(sessionStore.getItem(USER_STORAGE_KEY), null);
 
 export const getStoredProfile = (): AuthProfile | null =>
-  safeJsonParse<AuthProfile | null>(localStorage.getItem(PROFILE_STORAGE_KEY), null);
+  safeJsonParse<AuthProfile | null>(sessionStore.getItem(PROFILE_STORAGE_KEY), null);
 
 export const getStoredProjects = (): ProjectConfig[] =>
-  safeJsonParse<ProjectConfig[]>(localStorage.getItem(PROJECTS_STORAGE_KEY), []);
+  safeJsonParse<ProjectConfig[]>(sessionStore.getItem(PROJECTS_STORAGE_KEY), []);
 
 export const getStoredProjectConfig = (projectId: string): ProjectConfig | null =>
   getStoredProjects().find((p) => p.unique_id === projectId) ?? null;
 
 export const getStoredContinents = (): LocationConfig[] =>
-  safeJsonParse<LocationConfig[]>(localStorage.getItem(CONTINENTS_STORAGE_KEY), []);
+  safeJsonParse<LocationConfig[]>(sessionStore.getItem(CONTINENTS_STORAGE_KEY), []);
 
 export const getStoredCountries = (): LocationConfig[] =>
-  safeJsonParse<LocationConfig[]>(localStorage.getItem(COUNTRIES_STORAGE_KEY), []);
+  safeJsonParse<LocationConfig[]>(sessionStore.getItem(COUNTRIES_STORAGE_KEY), []);
 
 export const getStoredStates = (): LocationConfig[] =>
-  safeJsonParse<LocationConfig[]>(localStorage.getItem(STATES_STORAGE_KEY), []);
+  safeJsonParse<LocationConfig[]>(sessionStore.getItem(STATES_STORAGE_KEY), []);
 
 export const getStoredDistricts = (): LocationConfig[] =>
-  safeJsonParse<LocationConfig[]>(localStorage.getItem(DISTRICTS_STORAGE_KEY), []);
+  safeJsonParse<LocationConfig[]>(sessionStore.getItem(DISTRICTS_STORAGE_KEY), []);
 
 export const getStoredCities = (): LocationConfig[] =>
-  safeJsonParse<LocationConfig[]>(localStorage.getItem(CITIES_STORAGE_KEY), []);
+  safeJsonParse<LocationConfig[]>(sessionStore.getItem(CITIES_STORAGE_KEY), []);
 
 export const getStoredZones = (): LocationConfig[] =>
-  safeJsonParse<LocationConfig[]>(localStorage.getItem(ZONES_STORAGE_KEY), []);
+  safeJsonParse<LocationConfig[]>(sessionStore.getItem(ZONES_STORAGE_KEY), []);
 
 export const getStoredPanchayats = (): LocationConfig[] =>
-  safeJsonParse<LocationConfig[]>(localStorage.getItem(PANCHAYATS_STORAGE_KEY), []);
+  safeJsonParse<LocationConfig[]>(sessionStore.getItem(PANCHAYATS_STORAGE_KEY), []);
 
 export const getStoredWards = (): LocationConfig[] =>
-  safeJsonParse<LocationConfig[]>(localStorage.getItem(WARDS_STORAGE_KEY), []);
+  safeJsonParse<LocationConfig[]>(sessionStore.getItem(WARDS_STORAGE_KEY), []);
 
-export const isAccessTokenValid = (token = getStoredAccessToken()): boolean => {
-  if (!token) return false;
-  try {
-    const decoded = jwtDecode<JwtPayload>(token);
-    if (!decoded.exp) return true;
-    return decoded.exp > Math.floor(Date.now() / 1000);
-  } catch {
-    return false;
-  }
+/** True while the admin / dashboard app has a live (unexpired) session. */
+export const isAuthSessionActive = (): boolean => {
+  const exp = getSessionInfo("admin")?.exp;
+  if (exp === undefined || !getStoredAuthUser()) return false;
+  return !exp || exp > Math.floor(Date.now() / 1000);
 };
 
-export const persistLoginSession = (payload: LoginPayload): void => {
-  localStorage.removeItem(PERMISSIONS_STORAGE_KEY);
-  localStorage.removeItem(PERMISSION_DETAILS_STORAGE_KEY);
-  localStorage.removeItem(COLUMN_PERMISSIONS_STORAGE_KEY);
+export const persistLoginSession = (payload: LoginPayload, isRestore = false): void => {
+  sessionStore.removeItem(PERMISSIONS_STORAGE_KEY);
+  sessionStore.removeItem(PERMISSION_DETAILS_STORAGE_KEY);
+  sessionStore.removeItem(COLUMN_PERMISSIONS_STORAGE_KEY);
 
-  const access = payload.access ?? payload.access_token ?? "";
-  const refresh = payload.refresh ?? payload.refresh_token ?? "";
   const user: AuthUser = payload.user ?? {
     unique_id: payload.unique_id,
     username: payload.username ?? payload.name,
@@ -209,40 +189,38 @@ export const persistLoginSession = (payload: LoginPayload): void => {
   const profile = payload.profile ?? null;
   const role = normalizeRole(user.role ?? payload.role ?? null);
 
-  if (access) {
-    safeSetStorageItem(ACCESS_TOKEN_STORAGE_KEY, access);
-    startLoginSession(ACCESS_TOKEN_STORAGE_KEY);
-  }
-  if (refresh) safeSetStorageItem(REFRESH_TOKEN_STORAGE_KEY, refresh);
-  safeSetStorageItem(USER_STORAGE_KEY, JSON.stringify(user));
-  if (role) safeSetStorageItem(USER_ROLE_STORAGE_KEY, role);
-  if (user.unique_id) safeSetStorageItem("unique_id", String(user.unique_id));
+  // A restore keeps the idle clock where it was; a fresh login starts it.
+  if (isRestore) setSessionInfo("admin", payload);
+  else startLoginSession("admin", payload);
+  sessionStore.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+  if (role) sessionStore.setItem(USER_ROLE_STORAGE_KEY, role);
+  if (user.unique_id) sessionStore.setItem("unique_id", String(user.unique_id));
 
   setStoredPermissions(payload.permissions ?? {});
   setStoredPermissionDetails(payload.permission_details ?? {});
   setStoredColumnPermissions(payload.column_permissions ?? {});
 
   if (profile) {
-    safeSetStorageItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
+    sessionStore.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
     const projectId =
       profile.project_id ??
       profile.project_unique_id ??
       profile.project?.unique_id;
     if (projectId) {
-      safeSetStorageItem("project_id", String(projectId));
+      sessionStore.setItem("project_id", String(projectId));
     } else {
-      localStorage.removeItem("project_id");
+      sessionStore.removeItem("project_id");
     }
   } else {
-    localStorage.removeItem(PROFILE_STORAGE_KEY);
-    localStorage.removeItem("project_id");
+    sessionStore.removeItem(PROFILE_STORAGE_KEY);
+    sessionStore.removeItem("project_id");
   }
 
   const projects = payload.projects ?? [];
   if (projects.length > 0) {
-    safeSetStorageItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
+    sessionStore.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
   } else {
-    localStorage.removeItem(PROJECTS_STORAGE_KEY);
+    sessionStore.removeItem(PROJECTS_STORAGE_KEY);
   }
 
   const locationEntries: [string, LocationConfig[] | undefined][] = [
@@ -257,41 +235,134 @@ export const persistLoginSession = (payload: LoginPayload): void => {
   ];
   for (const [key, entries] of locationEntries) {
     if (entries && entries.length > 0) {
-      safeSetStorageItem(key, JSON.stringify(entries));
+      sessionStore.setItem(key, JSON.stringify(entries));
     } else {
-      localStorage.removeItem(key);
+      sessionStore.removeItem(key);
     }
   }
 };
 
 export const clearAuthSession = (): void => {
-  clearLoginSessionTracking(ACCESS_TOKEN_STORAGE_KEY);
-  localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
-  localStorage.removeItem(USER_STORAGE_KEY);
-  localStorage.removeItem(PROFILE_STORAGE_KEY);
-  localStorage.removeItem(USER_ROLE_STORAGE_KEY);
-  localStorage.removeItem("unique_id");
-  localStorage.removeItem("user_name");
-  localStorage.removeItem("user_email");
+  clearLoginSessionTracking("admin");
+  sessionStore.removeItem(USER_STORAGE_KEY);
+  sessionStore.removeItem(PROFILE_STORAGE_KEY);
+  sessionStore.removeItem(USER_ROLE_STORAGE_KEY);
+  sessionStore.removeItem("unique_id");
+  sessionStore.removeItem("user_name");
+  sessionStore.removeItem("user_email");
   // Company context keys (used by useCompanyProjectSelection)
-  localStorage.removeItem("company_unique_id");
-  localStorage.removeItem("current_company_unique_id");
-  localStorage.removeItem("selected_company_unique_id");
+  sessionStore.removeItem("company_unique_id");
+  sessionStore.removeItem("current_company_unique_id");
+  sessionStore.removeItem("selected_company_unique_id");
   // Project context keys
-  localStorage.removeItem("project_id");
-  localStorage.removeItem("project_unique_id");
-  localStorage.removeItem("current_project_id");
-  localStorage.removeItem("selected_project_id");
-  localStorage.removeItem(PROJECTS_STORAGE_KEY);
-  localStorage.removeItem(CONTINENTS_STORAGE_KEY);
-  localStorage.removeItem(COUNTRIES_STORAGE_KEY);
-  localStorage.removeItem(STATES_STORAGE_KEY);
-  localStorage.removeItem(DISTRICTS_STORAGE_KEY);
-  localStorage.removeItem(CITIES_STORAGE_KEY);
-  localStorage.removeItem(ZONES_STORAGE_KEY);
-  localStorage.removeItem(PANCHAYATS_STORAGE_KEY);
-  localStorage.removeItem(WARDS_STORAGE_KEY);
+  sessionStore.removeItem("project_id");
+  sessionStore.removeItem("project_unique_id");
+  sessionStore.removeItem("current_project_id");
+  sessionStore.removeItem("selected_project_id");
+  sessionStore.removeItem(PROJECTS_STORAGE_KEY);
+  sessionStore.removeItem(CONTINENTS_STORAGE_KEY);
+  sessionStore.removeItem(COUNTRIES_STORAGE_KEY);
+  sessionStore.removeItem(STATES_STORAGE_KEY);
+  sessionStore.removeItem(DISTRICTS_STORAGE_KEY);
+  sessionStore.removeItem(CITIES_STORAGE_KEY);
+  sessionStore.removeItem(ZONES_STORAGE_KEY);
+  sessionStore.removeItem(PANCHAYATS_STORAGE_KEY);
+  sessionStore.removeItem(WARDS_STORAGE_KEY);
   clearStoredPermissions();
   clearAdminViewPreference();
+};
+
+/* --------------------------------------------------------
+   District and local body portals keep their own, smaller sessions
+   alongside the admin one.
+-------------------------------------------------------- */
+export const DISTRICT_KEYS = {
+  uniqueId: "district_unique_id",
+  name: "district_name",
+  userName: "district_user_name",
+} as const;
+
+export const LOCAL_BODY_KEYS = {
+  panchayatId: "lb_panchayat_unique_id",
+  panchayatName: "lb_panchayat_name",
+  leaderName: "lb_leader_name",
+  role: "lb_role",
+} as const;
+
+/** Store a district login. Throws when the user has no district. */
+export const persistDistrictSession = (payload: LoginPayload, isRestore = false): void => {
+  const profile = (payload.profile ?? {}) as Record<string, string | undefined>;
+  const districtId = profile.district_unique_id;
+  const districtName = profile.district_name;
+  if (!districtId || !districtName) {
+    throw new Error("This user is not assigned to a district.");
+  }
+  sessionStore.setItem(DISTRICT_KEYS.uniqueId, districtId);
+  sessionStore.setItem(DISTRICT_KEYS.name, districtName);
+  sessionStore.setItem(
+    DISTRICT_KEYS.userName,
+    profile.employee_name ?? profile.name ?? payload.name ?? "",
+  );
+  if (isRestore) setSessionInfo("district", payload);
+  else startLoginSession("district", payload);
+};
+
+export const clearDistrictSession = (): void => {
+  clearLoginSessionTracking("district");
+  Object.values(DISTRICT_KEYS).forEach((key) => sessionStore.removeItem(key));
+};
+
+export const persistLocalBodySession = (payload: LoginPayload, isRestore = false): void => {
+  const profile = (payload.profile ?? {}) as Record<string, string | undefined>;
+  if (profile.panchayat_unique_id) {
+    sessionStore.setItem(LOCAL_BODY_KEYS.panchayatId, profile.panchayat_unique_id);
+    sessionStore.setItem(LOCAL_BODY_KEYS.panchayatName, profile.panchayat_name ?? "");
+  }
+  sessionStore.setItem(
+    LOCAL_BODY_KEYS.leaderName,
+    profile.leader_name ?? profile.name ?? payload.name ?? "",
+  );
+  sessionStore.setItem(LOCAL_BODY_KEYS.role, "panchayat_leader");
+  if (isRestore) setSessionInfo("localbody", payload);
+  else startLoginSession("localbody", payload);
+};
+
+export const clearLocalBodySession = (): void => {
+  clearLoginSessionTracking("localbody");
+  Object.values(LOCAL_BODY_KEYS).forEach((key) => sessionStore.removeItem(key));
+};
+
+const PERSIST_BY_PORTAL: Record<Portal, (payload: LoginPayload, isRestore: boolean) => void> = {
+  admin: persistLoginSession,
+  district: persistDistrictSession,
+  localbody: persistLocalBodySession,
+};
+
+/** The portal a URL belongs to, or null for the public /auth pages. */
+const portalForPath = (pathname: string): Portal | null => {
+  const [first] = pathname.split("/").filter(Boolean);
+  if (first === "auth") return null;
+  if (first === "district") return "district";
+  if (first === "localbody") return "localbody";
+  return "admin";
+};
+
+/**
+ * Rebuild the current portal's session from the auth cookie after a page
+ * load. Run once before the app renders; a missing or expired cookie just
+ * leaves the user signed out.
+ */
+export const restoreAuthSession = async (
+  pathname = window.location.pathname,
+): Promise<void> => {
+  const portal = portalForPath(pathname);
+  if (!portal) return;
+  try {
+    const { data } = await apiForPortal(portal).get<LoginPayload>("/login/me/", {
+      silent: true,
+    });
+    PERSIST_BY_PORTAL[portal](data, true);
+  } catch {
+    /* not signed in */
+  }
 };

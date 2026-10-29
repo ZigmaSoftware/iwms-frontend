@@ -128,6 +128,7 @@ const VehicleBreakdownList = lazy(() => import("@/pages/admin/modules/core_modul
 const TripDelayReportList = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/tripDelayReport/tripDelayReportList"));
 const TripDelayReportForm = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/tripDelayReport/tripDelayReportForm"));
 const TripRetripRequestList = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/tripRetripRequest/tripRetripRequestList"));
+const TripRetripRequestForm = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/tripRetripRequest/tripRetripRequestForm"));
 const VehicleBreakdownForm = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/vehicleBreakdown/vehicleBreakdownForm"));
 const DailyWasteComparisonList = lazy(() => import("@/pages/admin/modules/reports/wasteReports/dailyWasteComparison/dailyWasteComparisonList"));
 const CommonAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/commonAudit/commonAuditList"));
@@ -135,6 +136,7 @@ const LoginAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audit
 const PermissionAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/permissionAudit/permissionAuditList"));
 const StaticRouteAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/staticRouteAudit/StaticRouteAuditList"));
 const ComplaintAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/complaintAudit/ComplaintAuditList"));
+const DbChangeAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/dbChangeAudit/DbChangeAuditList"));
 const AuditDashboard = lazy(() => import("@/pages/admin/modules/superadmin/audits/auditDashboard/AuditDashboard"));
 const CompanyList = lazy(() => import("@/pages/admin/modules/superadminMasters/company/companyListPage"));
 const CompanyListForm = lazy(() => import("@/pages/admin/modules/superadminMasters/company/companyForm"));
@@ -300,7 +302,8 @@ export const ROUTES: RouteMap = {
       list: VehicleBreakdownList,
       form: VehicleBreakdownForm,
     },
-    "retrip-requests": { list: TripRetripRequestList },
+    // Raised from the driver app or, on the crew's behalf, from the web form.
+    "retrip-requests": { list: TripRetripRequestList, form: TripRetripRequestForm },
     // Filed from the driver app or, by an admin/supervisor, from the web form.
     "trip-delay-reports": { list: TripDelayReportList, form: TripDelayReportForm },
     "scheduler-config": { component: SchedulerConfigPage },
@@ -370,6 +373,7 @@ export const ROUTES: RouteMap = {
     "permission-audit": { list: PermissionAuditList },
     "static-route-audit": { list: StaticRouteAuditList },
     "complaint-audit": { list: ComplaintAuditList },
+    "db-change-audit": { list: DbChangeAuditList },
   },
   reports: {
     "trip-summary": { component: TripSummary },

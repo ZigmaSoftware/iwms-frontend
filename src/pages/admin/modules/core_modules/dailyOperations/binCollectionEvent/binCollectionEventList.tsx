@@ -13,8 +13,12 @@ import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { binCollectionEventApi } from "@/helpers/admin";
+import { KpiCard } from "../dailyTripLog/tripLogDisplay";
+import { formatKg } from "../dailyTripLog/tripLogSummary";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
+import { StackCell } from "@/components/common/TableCells";
 import { FilterSection } from "@/components/common/ListToolbar";
 import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
 import { useDraftFilter } from "@/components/filters/useDraftFilter";
@@ -316,17 +320,22 @@ export default function BinCollectionEventList() {
   };
 
   /* ── summary stats — computed from filtered rows only ── */
-  const { dailyWeight, overallWeight, totalRecords } = useMemo(() => {
+  const { dailyWeight, dailyCount, overallWeight, totalRecords } = useMemo(() => {
     let daily = 0;
+    let dailyEvents = 0;
     let overall = 0;
     filteredRows.forEach((r) => {
       const w = Number(r.collected_weight_kg ?? 0);
       overall += w;
-      if (r.collection_date === today) daily += w;
+      if (r.collection_date === today) {
+        daily += w;
+        dailyEvents += 1;
+      }
     });
     return {
-      dailyWeight: daily.toFixed(2),
-      overallWeight: overall.toFixed(2),
+      dailyWeight: daily,
+      dailyCount: dailyEvents,
+      overallWeight: overall,
       totalRecords: filteredRows.length,
     };
   }, [filteredRows]);
@@ -354,17 +363,21 @@ export default function BinCollectionEventList() {
         </p>
       </div>
 
-      {/* Daily / Overall / Records — same pattern as Panchayat Base Collection */}
-      <div className="flex gap-3 text-sm">
-        <span className="bg-slate-100 px-4 py-2 rounded-full">
-          Daily: {dailyWeight}
-        </span>
-        <span className="bg-slate-100 px-4 py-2 rounded-full">
-          Overall: {overallWeight}
-        </span>
-        <span className="bg-slate-100 px-4 py-2 rounded-full">
-          Records: {totalRecords}
-        </span>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard
+          icon="pi pi-box"
+          tone="bg-emerald-50 text-emerald-600"
+          label="Overall weight"
+          value={formatKg(overallWeight)}
+          hint={`${totalRecords.toLocaleString()} collections`}
+        />
+        <KpiCard
+          icon="pi pi-calendar"
+          tone="bg-cyan-50 text-cyan-600"
+          label="Today's weight"
+          value={formatKg(dailyWeight)}
+          hint={`${dailyCount.toLocaleString()} collections today`}
+        />
       </div>
 
       {/* Global search + Add button + Filters / Documents */}
@@ -430,50 +443,46 @@ export default function BinCollectionEventList() {
         exportable={false}
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         emptyMessage="No secondary bin collection events found"
       >
         <Column
           header={t("common.s_no")}
           body={(_, { rowIndex }) => rowIndex + 1}
-          style={{ width: 60 }}
+          style={{ width: "4%" }}
         />
         <Column
           field="_trip_plan"
           header="Trip Plan"
           filter
           showFilterMatchModes={false}
+          style={{ width: "22%" }}
+          body={(row: (typeof rows)[number]) => (
+            <StackCell
+              primary={row._trip_plan}
+              lines={[
+                { icon: "pi-map-marker", value: row._collection_point, title: "Collection Point" },
+                { label: "Bin", value: row._bin },
+              ]}
+            />
+          )}
         />
-        <Column
-          field="_collection_point"
-          header="Collection Point"
-          filter
-          showFilterMatchModes={false}
-        />
-        <Column
-          field="_panchayat"
-          header="PLB"
-          filter
-          showFilterMatchModes={false}
-        />
-        <Column
-          field="_ward"
-          header="Ward"
-          filter
-          showFilterMatchModes={false}
-        />
-        <Column
-          field="_zone"
-          header="Zone"
-          filter
-          showFilterMatchModes={false}
-        />
-        <Column field="_bin" header="Bin" filter showFilterMatchModes={false} />
+        {locationColumn<(typeof rows)[number]>({
+          header: "Location",
+          style: { width: "14%" },
+          levels: [
+            { label: "Panchayat", value: (row) => String(row._panchayat) },
+            { label: "Zone", value: (row) => String(row._zone) },
+            { label: "Ward", value: (row) => String(row._ward) },
+          ],
+        })}
         <Column
           field="_waste_type"
           header="Waste Type"
           filter
           showFilterMatchModes={false}
+          style={{ width: "11%" }}
           body={(row: BinCERecord & { _waste_type?: string }) => (
             <span
               className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${wasteTypeColorClass(row._waste_type)}`}
@@ -482,51 +491,56 @@ export default function BinCollectionEventList() {
             </span>
           )}
         />
-        <Column field="_vehicle" header="Vehicle" />
         <Column
-          header="Vehicle Breakdown"
-          body={(row: BinCERecord) => <BreakdownCell row={row} />}
-          style={{ width: 160 }}
-        />
-        <Column
-          header="Weight (kg)"
-          body={(row: BinCERecord) => row.collected_weight_kg ?? "-"}
-          style={{ width: 110 }}
+          field="_vehicle"
+          header="Vehicle"
+          style={{ width: "18%" }}
+          body={(row: (typeof rows)[number]) => (
+            <StackCell
+              primary={row._vehicle}
+              lines={[row.breakdown_info ? <BreakdownCell row={row} /> : null]}
+            />
+          )}
         />
         <Column
           field="collection_date"
-          header="Collection Date"
+          header="Collected"
           filter
           showFilterMatchModes={false}
-          body={(row: BinCERecord) => formatDate(row.collection_date)}
-          style={{ width: 120 }}
-        />
-        <Column
-          header="Collection Time"
-          body={(row: BinCERecord) => formatCollectionTime(row.created_at)}
-          style={{ width: 110 }}
+          style={{ width: "13%" }}
+          body={(row: BinCERecord) => (
+            <StackCell
+              primary={formatDate(row.collection_date)}
+              lines={[
+                { icon: "pi-clock", value: formatCollectionTime(row.created_at) },
+                { label: "Weight (kg)", value: row.collected_weight_kg },
+              ]}
+            />
+          )}
         />
         <Column
           field="status"
           header="Status"
           filter
           showFilterMatchModes={false}
-          body={(row: BinCERecord) => <StatusBadge value={row.status} />}
-          style={{ width: 130 }}
-        />
-        <Column
-          header="Evidence"
-          style={{ width: 100 }}
+          style={{ width: "12%" }}
           body={(row: BinCERecord) => (
-            <EvidenceImagePreview
-              url={row.status_evidence_image_url}
-              label={`Bin status evidence ${row.unique_id ?? ""}`}
+            <StackCell
+              primary={<StatusBadge value={row.status} />}
+              lines={[
+                row.status_evidence_image_url ? (
+                  <EvidenceImagePreview
+                    url={row.status_evidence_image_url}
+                    label={`Bin status evidence ${row.unique_id ?? ""}`}
+                  />
+                ) : null,
+              ]}
             />
           )}
         />
         <Column
           header={t("common.actions")}
-          style={{ width: 90 }}
+          style={{ width: "6%" }}
           body={(row: BinCERecord) => (
             <div className="flex justify-center">
               <ActionMenu

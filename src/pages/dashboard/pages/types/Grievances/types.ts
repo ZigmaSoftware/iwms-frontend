@@ -1,18 +1,19 @@
 import type { LucideIcon } from "lucide-react";
 
-export type SummaryFilter = "none" | "priority_high" | "in_progress";
-export type SummaryTab = "all" | "new" | "open" | "resolved";
+export type GrievanceFilter =
+  | "all"
+  | "new"
+  | "open"
+  | "in_progress"
+  | "priority_high"
+  | "resolved";
 
 export type SummaryCard = {
   label: string;
   value: number;
   subtext: string;
-  gradient: string;
-  border: string;
-  iconColor: string;
-  iconBg: string;
+  /** Tailwind classes for the icon chip + active ring, per tone. */
+  tone: { icon: string; active: string };
   Icon: LucideIcon;
-  tab: SummaryTab;
-  filter: SummaryFilter;
+  filter: GrievanceFilter;
 };
-

@@ -76,6 +76,7 @@ import { decryptSegment } from "@/utils/routeCrypto";
 import { useScreenAccess } from "@/contexts/screenPermission";
 import BulkUploadResultDialog from "@/components/common/BulkUploadResultDialog";
 import BulkRejectedPanel from "@/components/common/BulkRejectedPanel";
+import { cn } from "@/lib/utils";
 
 type SafeTableRow = Record<string, unknown>;
 type SafeTableRows = SafeTableRow[];
@@ -137,6 +138,12 @@ type SafeDataTableProps<TValue extends SafeTableRows> =
      * adds a "Download QR" item for lists with QR codes.
      */
     documentActions?: DocumentActions;
+    /**
+     * Fit the table to the page width instead of scrolling sideways: fixed
+     * layout, so give each Column a percentage `style.width` and let cells
+     * wrap (group related fields into one stacked cell — see TableCells).
+     */
+    fitWidth?: boolean;
   };
 
 const toSafeRows = <TValue extends SafeTableRows>(
@@ -851,6 +858,7 @@ export const DataTable = <TValue extends SafeTableRows>(
     renderHeaderWithActions,
     filterPanel,
     documentActions,
+    fitWidth = false,
     ...tableProps
   } = props;
   // Uploading a file needs "add" AND "import" together.
@@ -1206,6 +1214,20 @@ export const DataTable = <TValue extends SafeTableRows>(
         paginatorTemplate="CurrentPageReport FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink RowsPerPageDropdown"
         currentPageReportTemplate="{first}–{last} of {totalRecords} records"
         {...serverTableProps}
+        {...(fitWidth && {
+          tableStyle: {
+            tableLayout: "fixed",
+            width: "100%",
+            maxWidth: "100%",
+            ...serverTableProps.tableStyle,
+          },
+          // Gridline borders poke a few px past a full-width fixed table,
+          // which is enough to show a pointless horizontal scrollbar.
+          className: cn(
+            serverTableProps.className,
+            "[&_.p-datatable-wrapper]:overflow-x-hidden!",
+          ),
+        })}
         header={header}
         value={(serverApi ? serverRows : safeRows) as TValue}
       />

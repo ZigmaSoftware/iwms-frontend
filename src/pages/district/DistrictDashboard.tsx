@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import { districtApi } from "@/api";
 import { saveAs } from "file-saver";
 // xlsx is ~427KB minified — loaded on demand only when a user actually
 // triggers an Excel export, instead of shipping in this dashboard's chunk.
@@ -8,17 +8,9 @@ const loadXlsx = () => import("xlsx");
 import { Download, LogOut, MapPin, Printer } from "lucide-react";
 import ZigmaLogo from "../../images/logo.png";
 import { useIdleLogout, type SessionEndCause } from "@/hooks/useIdleLogout";
-import { clearLoginSessionTracking, endLoginSession } from "@/utils/loginSession";
-
-const IS_PROD = import.meta.env.VITE_PROD === "true";
-const API_ROOT = IS_PROD ? import.meta.env.VITE_API_PROD : import.meta.env.VITE_API_LOCAL;
-
-const districtApi = axios.create({ baseURL: API_ROOT });
-districtApi.interceptors.request.use((config) => {
-  const token = localStorage.getItem("district_access_token");
-  if (token) { config.headers = config.headers ?? {}; config.headers.Authorization = `Bearer ${token}`; }
-  return config;
-});
+import { endLoginSession, hasSession } from "@/utils/loginSession";
+import { clearDistrictSession, DISTRICT_KEYS } from "@/utils/authStorage";
+import { sessionStore } from "@/utils/sessionStore";
 
 type MonthlyRow = {
   unique_id: string; month: string; waste_type: string;
@@ -70,11 +62,6 @@ const currentMonth = () => {
 };
 const todayStr = () => new Date().toISOString().split("T")[0];
 
-function clearDistrictSession() {
-  clearLoginSessionTracking("district_access_token");
-  ["district_access_token","district_unique_id","district_name","district_user_name","district_role"].forEach((k) => localStorage.removeItem(k));
-}
-
 type View = "home" | "daily" | "monthly";
 
 const fmt = (v?: number | null, dec = 3) =>
@@ -97,7 +84,7 @@ export default function DistrictDashboard() {
   const navigate = useNavigate();
 
   useIdleLogout({
-    tokenKey: "district_access_token",
+    portal: "district",
     onSessionEnd: (cause: SessionEndCause) => {
       clearDistrictSession();
       navigate("/auth/district", {
@@ -106,14 +93,13 @@ export default function DistrictDashboard() {
       });
     },
   });
-  const userName = localStorage.getItem("district_user_name") ?? "District User";
-  const districtName = localStorage.getItem("district_name") ?? "";
+  const userName = sessionStore.getItem(DISTRICT_KEYS.userName) || "District User";
+  const districtName = sessionStore.getItem(DISTRICT_KEYS.name) ?? "";
   const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("district_access_token");
-    const districtId = localStorage.getItem("district_unique_id");
-    if (!token || !districtId) navigate("/auth/district", { replace: true });
+    const districtId = sessionStore.getItem(DISTRICT_KEYS.uniqueId);
+    if (!hasSession("district") || !districtId) navigate("/auth/district", { replace: true });
   }, [navigate]);
 
   const [view, setView] = useState<View>("home");
@@ -237,7 +223,7 @@ export default function DistrictDashboard() {
           <span className="text-xs font-semibold text-gray-700 hidden sm:block">{userName}</span>
         </div>
         <button
-          onClick={async () => { await endLoginSession("district_access_token", "manual"); clearDistrictSession(); navigate("/auth/district", { replace: true }); }}
+          onClick={async () => { await endLoginSession("district", "manual"); clearDistrictSession(); navigate("/auth/district", { replace: true }); }}
           className="flex items-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 hover:border-red-300 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
         >
           <LogOut className="h-3.5 w-3.5" /> Logout

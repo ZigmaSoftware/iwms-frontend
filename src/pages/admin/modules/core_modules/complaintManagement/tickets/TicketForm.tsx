@@ -399,7 +399,7 @@ export default function TicketWizardForm() {
       showCancelButton: true,
       confirmButtonText: "Yes, create ticket",
       cancelButtonText: "Cancel",
-      confirmButtonColor: "#22a855",
+      confirmButtonColor: "#0d9488",
       cancelButtonColor: "#d33",
     });
     if (!confirmCreate.isConfirmed) return;
@@ -524,9 +524,9 @@ export default function TicketWizardForm() {
                 onClick={() => goToStep(index)}
                 className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition ${
                   isActive
-                    ? "!bg-[#22a855] !text-white shadow-sm"
+                    ? "!bg-[#0d9488] !text-white shadow-sm"
                     : isCompleted
-                      ? "!bg-[#e8f8ee] !text-[#22a855] hover:opacity-90"
+                      ? "!bg-[#f0fdfa] !text-[#0d9488] hover:opacity-90"
                       : "bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-900 dark:text-gray-400"
                 }`}
               >
@@ -535,7 +535,7 @@ export default function TicketWizardForm() {
                     isActive
                       ? "bg-white/20 text-white"
                       : isCompleted
-                        ? "!bg-[#22a855] !text-white"
+                        ? "!bg-[#0d9488] !text-white"
                         : "bg-gray-300 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
                   }`}
                 >
@@ -618,7 +618,7 @@ export default function TicketWizardForm() {
                       onClick={() => toggleWasteType(id)}
                       className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
                         isSelected
-                          ? "!border-[#22a855] !bg-[#22a855] !text-white"
+                          ? "!border-[#0d9488] !bg-[#0d9488] !text-white"
                           : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50 dark:bg-transparent dark:text-gray-300"
                       }`}
                     >

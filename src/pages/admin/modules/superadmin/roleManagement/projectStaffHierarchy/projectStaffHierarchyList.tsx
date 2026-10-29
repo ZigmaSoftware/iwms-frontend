@@ -11,7 +11,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { useTranslation } from "react-i18next";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -215,36 +215,37 @@ export default function ProjectStaffHierarchyList() {
         header={header}
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage={t("common.no_items_found", {
           item: t("admin.nav.project_staff_hierarchy"),
         })}
         className="p-datatable-sm"
       >
-        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: 80 }} />
+        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "5%" }} />
         <Column
           field="project_name"
           header={t("admin.nav.project")}
           sortable
-          style={{ minWidth: 160 }}
+          style={{ width: "24%" }}
         />
         <Column
           field="staffusertype_name"
           header={t("admin.nav.staff_user_type")}
           sortable
-          style={{ minWidth: 160 }}
+          style={{ width: "18%" }}
         />
         <Column
           header={t("admin.project_staff_hierarchy.reports_to")}
           body={reportsToTemplate}
           sortable
           field="reports_to_staffusertype_name"
-          style={{ minWidth: 160 }}
+          style={{ width: "18%" }}
         />
         <Column
           field="level"
           header={t("admin.project_staff_hierarchy.level")}
           sortable
-          style={{ width: 100 }}
+          style={{ width: "7%" }}
         />
         <Column
           header={t("admin.project_staff_hierarchy.escalation")}
@@ -255,10 +256,10 @@ export default function ProjectStaffHierarchyList() {
                 : "admin.project_staff_hierarchy.escalation_yes",
             )
           }
-          style={{ width: 160 }}
+          style={{ width: "10%" }}
         />
-        <Column header={t("common.status")} body={statusTemplate} style={{ width: 120 }} />
-        <Column header={t("common.actions")} body={actionTemplate} style={{ width: 150 }} />
+        <Column header={t("common.status")} body={statusTemplate} style={{ width: "10%" }} />
+        <Column header={t("common.actions")} body={actionTemplate} style={{ width: "8%" }} />
       </DataTable>
     </div>
   );

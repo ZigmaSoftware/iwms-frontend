@@ -14,7 +14,7 @@ import type {
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -32,6 +32,8 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { customerCreationApi, wasteTypeApi } from "@/helpers/admin";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
+import { StackCell } from "@/components/common/TableCells";
 import {
   excelFileToCsvFile,
   exportRecordsToExcel,
@@ -855,82 +857,89 @@ export default function CustomerCreationListPage() {
           emptyMessage={t("admin.customer_creation.empty_message")}
           stripedRows
           showGridlines
+          fitWidth
           className="p-datatable-sm"
         >
           <Column
             header={t("common.s_no")}
             body={indexTemplate}
-            style={{ width: "80px" }}
+            style={{ width: "5%" }}
           />
-          <Column field="unique_id" header="Unique ID" sortable />
           <Column
-            field="customer_id"
-            header="Customer ID"
-            sortable
-            body={(row: Customer) => row.customer_id || "-"}
+            field="customer_name"
+            header={t("admin.customer_creation.customer")}
+            sortable={SORTABLE_FIELDS.has("customer_name")}
+            style={{ width: "25%" }}
+            body={(row: Customer) => (
+              <StackCell
+                primary={showCol("customer_name") && row.customer_name}
+                lines={[
+                  { label: "Customer ID", value: row.customer_id },
+                  { label: "Unique ID", value: row.unique_id },
+                  showCol("contact_no") && {
+                    icon: "pi-phone",
+                    value: row.contact_no,
+                  },
+                ]}
+              />
+            )}
           />
-          {showCol("customer_name") && (
-            <Column
-              field="customer_name"
-              header={t("admin.customer_creation.customer")}
-              sortable={SORTABLE_FIELDS.has("customer_name")}
-            />
-          )}
-          {showCol("contact_no") && (
-            <Column field="contact_no" header={t("common.mobile")} />
-          )}
-          {showCol("apartment_name") && (
+          {(showCol("apartment_name") || showCol("unit")) && (
             <Column
               field="apartment_name"
               header="Apartment"
-              body={(row: Customer) =>
-                row.apartment_name && row.apartment_name.trim() !== ""
-                  ? cap(row.apartment_name)
-                  : "-"
-              }
+              style={{ width: "16%" }}
+              body={(row: Customer) => (
+                <StackCell
+                  primary={
+                    showCol("apartment_name") &&
+                    row.apartment_name &&
+                    row.apartment_name.trim() !== "" &&
+                    cap(row.apartment_name)
+                  }
+                  lines={[
+                    showCol("unit") &&
+                      row.block_no &&
+                      row.flat_no && {
+                        label: "Unit",
+                        value: `${row.block_no}-${row.flat_no}`,
+                      },
+                  ]}
+                />
+              )}
             />
           )}
-          {showCol("unit") && (
-            <Column
-              header="Unit"
-              body={(row: Customer) =>
-                row.block_no && row.flat_no
-                  ? `${row.block_no}-${row.flat_no}`
-                  : "-"
-              }
-            />
-          )}
-          {showCol("ward_name") && (
-            <Column
-              field="ward_name"
-              header={t("common.ward")}
-              body={(row: Customer) => row.ward_name || "-"}
-            />
-          )}
-          {showCol("zone_name") && (
-            <Column
-              field="zone_name"
-              header={t("common.zone")}
-              body={(row: Customer) => row.zone_name || "-"}
-            />
-          )}
-          {showCol("city_name") && (
-            <Column field="city_name" header={t("common.city")} />
-          )}
-          {showCol("state_name") && (
-            <Column field="state_name" header={t("common.state")} />
-          )}
-          {showCol("panchayat_name") && (
-            <Column
-              field="panchayat_name"
-              header={t("admin.nav.panchayat")}
-              body={(row: Customer) => row.panchayat_name || "-"}
-            />
-          )}
+          {locationColumn<Customer>({
+            header: t("common.location"),
+            style: { width: "16%" },
+            levels: [
+              showCol("state_name") && {
+                label: t("common.state"),
+                value: (row) => row.state_name,
+              },
+              showCol("city_name") && {
+                label: t("common.city"),
+                value: (row) => row.city_name,
+              },
+              showCol("panchayat_name") && {
+                label: t("common.panchayat"),
+                value: (row) => row.panchayat_name,
+              },
+              showCol("zone_name") && {
+                label: t("common.zone"),
+                value: (row) => row.zone_name,
+              },
+              showCol("ward_name") && {
+                label: t("common.ward"),
+                value: (row) => row.ward_name,
+              },
+            ],
+          })}
           {showCol("waste_types") && (
             <Column
               field="waste_types"
               header={t("common.waste_type")}
+              style={{ width: "14%" }}
               body={(row: Customer) =>
                 row.waste_types?.length
                   ? row.waste_types
@@ -944,7 +953,7 @@ export default function CustomerCreationListPage() {
             <Column
               header={t("admin.customer_creation.qr_label")}
               body={qrTemplate}
-              style={{ width: "100px" }}
+              style={{ width: "9%" }}
             />
           )}
           {showCol("is_active") && (
@@ -952,12 +961,13 @@ export default function CustomerCreationListPage() {
               field="is_active"
               header={t("common.status")}
               body={statusTemplate}
+              style={{ width: "8%" }}
             />
           )}
           <Column
             header={t("common.actions")}
             body={actionTemplate}
-            style={{ textAlign: "center" }}
+            style={{ textAlign: "center", width: "7%" }}
           />
         </DataTable>
       </div>

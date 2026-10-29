@@ -21,6 +21,7 @@ import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectF
 import { combineFilters } from "@/components/filters/useOptionFilter";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
 import { Can } from "@/contexts/ScreenPermissionContext";
 import { useScreenAccess } from "@/contexts/screenPermission";
 import {
@@ -374,20 +375,19 @@ export default function DistrictListPage() {
           body={indexTemplate}
           style={{ width: "80px" }}
         />
-        {showCol("countryName") && (
-          <Column
-            field="countryName"
-            header={t("admin.nav.country")}
-            body={(row) => cap(row.countryName)}
-          />
-        )}
-        {showCol("stateName") && (
-          <Column
-            field="stateName"
-            header={t("admin.nav.state")}
-            body={(row) => cap(row.stateName)}
-          />
-        )}
+        {locationColumn<DistrictListRecord>({
+          header: t("common.location"),
+          levels: [
+            showCol("countryName") && {
+              label: t("admin.nav.country"),
+              value: (row) => cap(row.countryName),
+            },
+            showCol("stateName") && {
+              label: t("admin.nav.state"),
+              value: (row) => cap(row.stateName),
+            },
+          ],
+        })}
         {showCol("name") && (
           <Column
             field="name"

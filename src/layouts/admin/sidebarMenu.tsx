@@ -118,6 +118,7 @@ const {
   encPermissionAudit,
   encStaticRouteAudit,
   encComplaintAudit,
+  encDbChangeAudit,
   encAuditDashboard,
   encDailyWasteComparison,
   encVehicleBreakdown,
@@ -262,6 +263,12 @@ export const navItems: NavItem[] = [
     // Every admin page lives under /admin; only the page itself is this item.
     exact: true,
     ...permissionFor("dashboard", "admin-dashboard"),
+  },
+  {
+    nameKey: "admin.nav.vehicle_status_dashboard",
+    icon: <Truck size={18} />,
+    path: "/admin/vehicle-status",
+    ...permissionFor("dashboard", "vehicle-status-dashboard"),
   },
 ];
 
@@ -733,6 +740,11 @@ export const auditItems: NavItem[] = [
         nameKey: "admin.nav.complaint_audit",
         path: `/${encAudits}/${encComplaintAudit}`,
         ...permissionFor("audits", "complaint-audit"),
+      },
+      {
+        nameKey: "admin.nav.db_change_audit",
+        path: `/${encAudits}/${encDbChangeAudit}`,
+        ...permissionFor("audits", "db-change-audit"),
       },
     ],
   },

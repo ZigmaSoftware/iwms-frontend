@@ -16,7 +16,7 @@ import type {
 } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/themes/lara-light-cyan/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
@@ -26,6 +26,7 @@ import { Switch } from "@/components/ui/switch";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { stateApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
+import { locationColumn } from "@/components/common/LocationColumn";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import { combineFilters } from "@/components/filters/useOptionFilter";
 import { Can } from "@/contexts/ScreenPermissionContext";
@@ -332,13 +333,15 @@ export default function StateList() {
           style={{ width: "70px" }}
         />
 
-        {showCol("country_name") && (
-          <Column
-            field="country_name"
-            header={t("admin.nav.country")}
-            body={(r) => cap(r.country_name)}
-          />
-        )}
+        {locationColumn<StateRecord>({
+          header: t("common.location"),
+          levels: [
+            showCol("country_name") && {
+              label: t("admin.nav.country"),
+              value: (row) => cap(row.country_name),
+            },
+          ],
+        })}
 
         {showCol("name") && (
           <Column

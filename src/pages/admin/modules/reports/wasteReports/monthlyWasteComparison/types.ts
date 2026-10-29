@@ -1,4 +1,6 @@
 export type ReportRow = {
+  company_name?: string;
+  project_name?: string;
   unique_id?: string;
   month: string;
   local_body_field: string;
@@ -39,6 +41,7 @@ export type WasteTypeBreakdownRow = {
   total_trips: number;
   collection_points_covered: number;
   share_percent: number;
+  location_count?: number;
   report_status?: string;
   location_node_id?: string;
   location_node_name?: string;
