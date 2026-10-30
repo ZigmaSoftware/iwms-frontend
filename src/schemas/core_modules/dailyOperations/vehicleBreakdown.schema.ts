@@ -45,8 +45,6 @@ const requiredLongitude = z
 export const vehicleBreakdownSchema = z.object({
   trip_assignment_id: requiredString("Trip Assignment"),
   breakdown_vehicle_id: requiredString("Broken Vehicle"),
-  replacement_vehicle_id: requiredString("Replacement Vehicle"),
-  replacement_staff_template_id: requiredString("Replacement Staff Template"),
   breakdown_reason: requiredString("Breakdown Reason"),
   breakdown_lat: requiredLatitude,
   breakdown_lng: requiredLongitude,

@@ -368,26 +368,141 @@ function VerifyDialog({
     collectionPointIds: string[] | undefined,
     moveAssignmentIds: string[],
     substitutePlanIds: string[],
+    replacementVehicleId: string,
+    replacementDriverId: string,
+    replacementOperatorId: string,
   ) => void;
   isLoading: boolean;
 }) {
   const [remarks, setRemarks] = useState("");
-  const [preview, setPreview] = useState<VerifyPreview | null>(null);
-  const [previewError, setPreviewError] = useState<string | null>(null);
+  // The supervisor picks the replacement vehicle and crew here (the driver
+  // reports from the app without them). A choice made when reporting on the
+  // web is pre-selected.
+  const [replacementVehicleId, setReplacementVehicleId] = useState(
+    row.replacement_vehicle_id ?? "",
+  );
+  const [vehicleOptions, setVehicleOptions] = useState<
+    { value: string; label: string }[]
+  >([]);
+  const [loadingVehicles, setLoadingVehicles] = useState(true);
+  const [crewOptions, setCrewOptions] = useState<
+    { value: string; label: string; driverId: string; operatorId: string }[]
+  >([]);
+  const [crewValue, setCrewValue] = useState("");
+  const [loadingCrews, setLoadingCrews] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const params: Record<string, string> = {
+      date: row.trip_assignment_detail?.trip_date ?? "",
+    };
+    if (row.company_id) params.company_id = row.company_id;
+    if (row.project_id) params.project_id = row.project_id;
+
+    api
+      .get("/schedule-operations/vehicle-breakdowns/available-vehicles/", {
+        // exclude_id keeps this breakdown's own pre-picked vehicle listed.
+        params: { ...params, exclude_id: row.unique_id },
+      })
+      .then(({ data }) => {
+        if (cancelled) return;
+        const list: { unique_id?: string; vehicle_no?: string }[] = Array.isArray(data)
+          ? data
+          : [];
+        const opts = list
+          .filter((v) => v.unique_id && v.unique_id !== row.breakdown_vehicle_id)
+          .map((v) => ({ value: v.unique_id!, label: v.vehicle_no ?? v.unique_id! }));
+        if (
+          row.replacement_vehicle_id &&
+          !opts.some((o) => o.value === row.replacement_vehicle_id)
+        ) {
+          opts.unshift({
+            value: row.replacement_vehicle_id,
+            label: row.replacement_vehicle_detail?.vehicle_no ?? row.replacement_vehicle_id,
+          });
+        }
+        setVehicleOptions(opts);
+      })
+      .catch(() => !cancelled && setVehicleOptions([]))
+      .finally(() => !cancelled && setLoadingVehicles(false));
+
+    api
+      .get("/schedule-operations/vehicle-breakdowns/available-staff-templates/", {
+        // The broken trip's own crew is listed too: it can carry on.
+        params: { ...params, trip_assignment_id: row.trip_assignment_id },
+      })
+      .then(({ data }) => {
+        if (cancelled) return;
+        const list: {
+          unique_id?: string;
+          display_code?: string;
+          driver_id?: string;
+          operator_id?: string;
+          driver_name?: string;
+          operator_name?: string;
+        }[] = Array.isArray(data) ? data : [];
+        const opts = list
+          .filter((t) => t.unique_id && t.driver_id && t.operator_id)
+          .map((t) => ({
+            value: t.unique_id!,
+            label: `${t.display_code ?? t.unique_id} — ${t.driver_name ?? "Driver"} / ${t.operator_name ?? "Operator"}`,
+            driverId: t.driver_id!,
+            operatorId: t.operator_id!,
+          }));
+        if (row.replacement_driver_id && row.replacement_operator_id) {
+          const match = opts.find(
+            (o) =>
+              o.driverId === row.replacement_driver_id &&
+              o.operatorId === row.replacement_operator_id,
+          );
+          if (match) {
+            setCrewValue(match.value);
+          } else {
+            opts.unshift({
+              value: "__current__",
+              label: `Current replacement — ${row.replacement_driver_detail?.name ?? "Driver"} / ${row.replacement_operator_detail?.name ?? "Operator"}`,
+              driverId: row.replacement_driver_id,
+              operatorId: row.replacement_operator_id,
+            });
+            setCrewValue("__current__");
+          }
+        }
+        setCrewOptions(opts);
+      })
+      .catch(() => !cancelled && setCrewOptions([]))
+      .finally(() => !cancelled && setLoadingCrews(false));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [row]);
+  // Keyed by the vehicle it was loaded for: a result for a previously
+  // picked vehicle is treated as still loading.
+  const [previewState, setPreviewState] = useState<{
+    vehicleId: string;
+    data: VerifyPreview | null;
+    error: string | null;
+  } | null>(null);
+  const current = previewState?.vehicleId === replacementVehicleId ? previewState : null;
+  const preview = current?.data ?? null;
+  const previewError = current?.error ?? null;
   // Defaults come from the preview: a trip / plan is ticked only when the
   // replacement vehicle has no other work then.
   const [selectedTrips, setSelectedTrips] = useState<string[]>([]);
   const [selectedPlans, setSelectedPlans] = useState<string[]>([]);
 
   useEffect(() => {
+    // Without a vehicle the preview still lists the trips/plans and the
+    // original crew; it is re-run for each vehicle picked.
     let cancelled = false;
     api
       .get<VerifyPreview>(
         `/schedule-operations/vehicle-breakdowns/${row.unique_id}/verify-preview/`,
+        { params: replacementVehicleId ? { replacement_vehicle_id: replacementVehicleId } : {} },
       )
       .then(({ data }) => {
         if (cancelled) return;
-        setPreview(data);
+        setPreviewState({ vehicleId: replacementVehicleId, data, error: null });
         setSelectedTrips(
           data.upcoming_trips.filter((t) => t.default_move).map((t) => t.unique_id),
         );
@@ -398,12 +513,18 @@ function VerifyDialog({
         );
       })
       .catch((err) => {
-        if (!cancelled) setPreviewError(extractError(err));
+        if (!cancelled) {
+          setPreviewState({
+            vehicleId: replacementVehicleId,
+            data: null,
+            error: extractError(err),
+          });
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [row.unique_id]);
+  }, [row.unique_id, replacementVehicleId]);
 
   const toggle =
     (setter: React.Dispatch<React.SetStateAction<string[]>>) => (id: string) =>
@@ -421,11 +542,26 @@ function VerifyDialog({
   );
   const toggleCp = toggle(setSelectedCps);
 
-  const canConfirm = !!preview && (!isBinTrip || selectedCps.length > 0);
+  // Nothing picked yet: default to the same crew carrying on.
+  const originalCrew = preview?.original_crew;
+  const sameCrewOption = crewOptions.find(
+    (o) =>
+      !!originalCrew &&
+      o.driverId === originalCrew.driver_id &&
+      o.operatorId === originalCrew.operator_id,
+  );
+  // Nothing picked yet → the same crew.
+  const effectiveCrewValue = crewValue || sameCrewOption?.value || "";
+  const selectedCrew = crewOptions.find((o) => o.value === effectiveCrewValue);
+
+  const canConfirm =
+    !!replacementVehicleId &&
+    !!selectedCrew &&
+    !!preview &&
+    (!isBinTrip || selectedCps.length > 0);
   const replacementNo =
-    row.replacement_vehicle_detail?.vehicle_no ?? "the replacement vehicle";
-  // Nobody picked at report time: the same crew carries on (backend default).
-  const sameCrew = !row.replacement_driver_id && !row.replacement_operator_id;
+    vehicleOptions.find((o) => o.value === replacementVehicleId)?.label ??
+    "the replacement vehicle";
 
   const footer = (
     <div className="flex justify-end gap-2 pt-2">
@@ -447,6 +583,9 @@ function VerifyDialog({
             isBinTrip ? selectedCps : undefined,
             selectedTrips,
             selectedPlans,
+            replacementVehicleId,
+            selectedCrew?.driverId ?? "",
+            selectedCrew?.operatorId ?? "",
           )
         }
       />
@@ -483,21 +622,10 @@ function VerifyDialog({
                 row.breakdown_vehicle_id,
             ],
             [
-              "Replacement Vehicle",
-              row.replacement_vehicle_detail?.vehicle_no ??
-                row.replacement_vehicle_id,
-            ],
-            [
-              "Replacement Driver",
-              sameCrew
-                ? `${preview?.original_crew?.driver ?? "-"} (same crew)`
-                : (row.replacement_driver_detail?.name ?? "-"),
-            ],
-            [
-              "Replacement Operator",
-              sameCrew
-                ? `${preview?.original_crew?.operator ?? "-"} (same crew)`
-                : (row.replacement_operator_detail?.name ?? "-"),
+              "Original Crew",
+              originalCrew
+                ? `${originalCrew.driver ?? "-"} / ${originalCrew.operator ?? "-"}`
+                : "-",
             ],
           ].map(([label, value]) => (
             <div key={label} className="flex gap-2">
@@ -505,6 +633,66 @@ function VerifyDialog({
               <span className="font-medium text-gray-800">{value}</span>
             </div>
           ))}
+        </div>
+
+        <div className="rounded-lg border border-gray-200 p-3 space-y-3">
+          <p className="text-sm font-semibold text-gray-700">Replacement</p>
+          <div>
+            <p className="text-sm font-medium text-gray-700 mb-1.5">
+              Replacement Vehicle <span className="text-red-500">*</span>
+            </p>
+            {/* Native select: a popover list would open behind this dialog. */}
+            <select
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              value={replacementVehicleId}
+              onChange={(e) => setReplacementVehicleId(e.target.value)}
+              disabled={loadingVehicles || isLoading}
+            >
+              <option value="">
+                {loadingVehicles
+                  ? "Loading available vehicles…"
+                  : vehicleOptions.length === 0
+                    ? "No vehicles available for this date"
+                    : "Select replacement vehicle"}
+              </option>
+              {vehicleOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Active vehicles, not under breakdown, free on this date.
+            </p>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-gray-700 mb-1.5">
+              Replacement Driver &amp; Operator <span className="text-red-500">*</span>
+            </p>
+            <select
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              value={effectiveCrewValue}
+              onChange={(e) => setCrewValue(e.target.value)}
+              disabled={loadingCrews || isLoading}
+            >
+              <option value="">
+                {loadingCrews
+                  ? "Loading available staff…"
+                  : crewOptions.length === 0
+                    ? "No staff templates available for this date"
+                    : "Select staff template"}
+              </option>
+              {crewOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                  {o === sameCrewOption ? " (same crew)" : ""}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Defaults to the same crew carrying on with the replacement vehicle.
+            </p>
+          </div>
         </div>
 
         {isBinTrip && (
@@ -1018,6 +1206,9 @@ export default function VehicleBreakdownList() {
     collectionPointIds: string[] | undefined,
     moveAssignmentIds: string[],
     substitutePlanIds: string[],
+    replacementVehicleId: string,
+    replacementDriverId: string,
+    replacementOperatorId: string,
   ) => {
     if (!verifyTarget) return;
     setIsVerifying(true);
@@ -1031,6 +1222,9 @@ export default function VehicleBreakdownList() {
             : {}),
           move_assignment_ids: moveAssignmentIds,
           substitute_plan_ids: substitutePlanIds,
+          replacement_vehicle_id: replacementVehicleId,
+          replacement_driver_id: replacementDriverId,
+          replacement_operator_id: replacementOperatorId,
         },
       );
       setRawRows((prev) =>
@@ -1038,6 +1232,8 @@ export default function VehicleBreakdownList() {
           r.unique_id === verifyTarget.unique_id
             ? {
                 ...r,
+                // The response carries the replacement vehicle/crew picked here.
+                ...data,
                 status: "REPLACEMENT_ARRANGED",
                 approval_status: "APPROVED",
                 new_assignment_id: data?.new_assignment_id ?? null,
