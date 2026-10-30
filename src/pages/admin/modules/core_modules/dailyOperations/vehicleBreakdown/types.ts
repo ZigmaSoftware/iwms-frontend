@@ -88,7 +88,12 @@ export interface VerifyPreviewClash {
 export interface VerifyPreview {
   replacement_vehicle_id: string | null;
   substitute_from_date: string;
-  original_crew: { driver: string | null; operator: string | null } | null;
+  original_crew: {
+    driver: string | null;
+    operator: string | null;
+    driver_id: string | null;
+    operator_id: string | null;
+  } | null;
   upcoming_trips: (UpcomingTrip & {
     replacement_busy: { unique_id: string; scheduled_time: string | null }[];
     default_move: boolean;

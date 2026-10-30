@@ -14,7 +14,6 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList } from "@/utils/forms";
-import { api } from "@/api";
 import { AutoDetectLocationButton } from "@/components/common/AutoDetectLocationButton";
 import { vehicleBreakdownSchema } from "@/schemas/core_modules/dailyOperations/vehicleBreakdown.schema";
 import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
@@ -22,11 +21,6 @@ import { FieldError } from "@/components/form/FieldError";
 import { PageLoader } from "@/components/ui/PageLoader";
 
 type SelectOption = { value: string; label: string };
-
-type StaffTemplateOption = SelectOption & {
-  driverId: string;
-  operatorId: string;
-};
 
 type AssignmentBinStop = {
   unique_id?: string;
@@ -68,10 +62,6 @@ const REASON_OPTIONS: SelectOption[] = Object.entries(BREAKDOWN_REASON_LABELS).m
 interface FormState {
   trip_assignment_id: string;
   breakdown_vehicle_id: string;
-  replacement_vehicle_id: string;
-  replacement_staff_template_id: string;
-  replacement_driver_id: string;
-  replacement_operator_id: string;
   breakdown_reason: string;
   breakdown_time: string;
   breakdown_lat: string;
@@ -84,10 +74,6 @@ interface FormState {
 const EMPTY_FORM: FormState = {
   trip_assignment_id: "",
   breakdown_vehicle_id: "",
-  replacement_vehicle_id: "",
-  replacement_staff_template_id: "",
-  replacement_driver_id: "",
-  replacement_operator_id: "",
   breakdown_reason: "",
   breakdown_time: "",
   breakdown_lat: "",
@@ -177,11 +163,7 @@ export default function VehicleBreakdownForm() {
 
   /* ── dropdown data ── */
   const [assignmentOptions, setAssignmentOptions] = useState<SelectOption[]>([]);
-  const [availableVehicleOptions, setAvailableVehicleOptions] = useState<SelectOption[]>([]);
-  const [staffTemplateOptions, setStaffTemplateOptions] = useState<StaffTemplateOption[]>([]);
   const [fetchingDropdowns, setFetchingDropdowns] = useState(false);
-  const [fetchingVehicles, setFetchingVehicles] = useState(false);
-  const [fetchingStaff, setFetchingStaff] = useState(false);
 
   /* ── auto-filled info from selected trip assignment ── */
   const [selectedTripDate, setSelectedTripDate] = useState("");
@@ -192,8 +174,6 @@ export default function VehicleBreakdownForm() {
 
   /* ── pending IDs for edit pre-fill ── */
   const [pendingAssignmentId, setPendingAssignmentId] = useState("");
-  const [pendingReplacementVehicleId, setPendingReplacementVehicleId] = useState("");
-  const [pendingStaffTemplateIds, setPendingStaffTemplateIds] = useState<{ driverId: string; operatorId: string } | null>(null);
 
   /* ────────────────────────────────────────────────────────────
      Load record in edit mode
@@ -216,10 +196,6 @@ export default function VehicleBreakdownForm() {
     setForm({
       trip_assignment_id: String(record.trip_assignment_id ?? ""),
       breakdown_vehicle_id: String(record.breakdown_vehicle_id ?? ""),
-      replacement_vehicle_id: String(record.replacement_vehicle_id ?? ""),
-      replacement_staff_template_id: "",
-      replacement_driver_id: String(record.replacement_driver_id ?? ""),
-      replacement_operator_id: String(record.replacement_operator_id ?? ""),
       breakdown_reason: String(record.breakdown_reason ?? ""),
       breakdown_time: String(record.breakdown_time ?? ""),
       breakdown_lat: String(record.breakdown_lat ?? ""),
@@ -229,13 +205,6 @@ export default function VehicleBreakdownForm() {
       breakdown_remarks: String(record.breakdown_remarks ?? ""),
     });
     if (record.trip_assignment_id) setPendingAssignmentId(String(record.trip_assignment_id));
-    if (record.replacement_vehicle_id) setPendingReplacementVehicleId(String(record.replacement_vehicle_id));
-    if (record.replacement_driver_id && record.replacement_operator_id) {
-      setPendingStaffTemplateIds({
-        driverId: String(record.replacement_driver_id),
-        operatorId: String(record.replacement_operator_id),
-      });
-    }
 
     /* restore auto-filled display strings */
     if (record.trip_assignment_detail?.trip_date) setSelectedTripDate(record.trip_assignment_detail.trip_date);
@@ -287,35 +256,11 @@ export default function VehicleBreakdownForm() {
     }
   }, [pendingAssignmentId, assignmentOptions]);
 
-  useEffect(() => {
-    if (!pendingStaffTemplateIds || !staffTemplateOptions.length) return;
-    const match = staffTemplateOptions.find(
-      (o) => o.driverId === pendingStaffTemplateIds.driverId && o.operatorId === pendingStaffTemplateIds.operatorId,
-    );
-    if (match) {
-      setForm((prev) => ({
-        ...prev,
-        replacement_staff_template_id: match.value,
-        replacement_driver_id: match.driverId,
-        replacement_operator_id: match.operatorId,
-      }));
-      setPendingStaffTemplateIds(null);
-    }
-  }, [pendingStaffTemplateIds, staffTemplateOptions]);
-
-  useEffect(() => {
-    if (!pendingReplacementVehicleId || !availableVehicleOptions.length) return;
-    const match = availableVehicleOptions.find((o) => o.value === pendingReplacementVehicleId);
-    if (match) {
-      setForm((prev) => ({ ...prev, replacement_vehicle_id: pendingReplacementVehicleId }));
-      setPendingReplacementVehicleId("");
-    }
-  }, [pendingReplacementVehicleId, availableVehicleOptions]);
-
   /* ────────────────────────────────────────────────────────────
      When a trip assignment is selected, fetch its details to
      auto-fill the broken vehicle, original driver, operator.
-     Also fetch available vehicles for that trip date.
+     The replacement vehicle and crew are picked by the supervisor
+     at Verify & Approve, not here.
   ──────────────────────────────────────────────────────────── */
   useEffect(() => {
     const assignId = form.trip_assignment_id;
@@ -325,17 +270,8 @@ export default function VehicleBreakdownForm() {
       setAutoDriver("");
       setAutoOperator("");
       setSelectedPendingStops(null);
-      setAvailableVehicleOptions([]);
-      setStaffTemplateOptions([]);
       if (!isEdit) {
-        setForm((prev) => ({
-          ...prev,
-          breakdown_vehicle_id: "",
-          replacement_vehicle_id: "",
-          replacement_staff_template_id: "",
-          replacement_driver_id: "",
-          replacement_operator_id: "",
-        }));
+        setForm((prev) => ({ ...prev, breakdown_vehicle_id: "" }));
       }
       return;
     }
@@ -372,110 +308,6 @@ export default function VehicleBreakdownForm() {
           setForm((prev) => ({ ...prev, breakdown_vehicle_id: vehicleId }));
         }
 
-        /* fetch available vehicles + staff for the trip date */
-        if (tripDate) {
-          const params: Record<string, string> = { date: tripDate };
-          if (companyUniqueId) params.company_id = companyUniqueId;
-          if (projectId) params.project_id = projectId;
-
-          setFetchingVehicles(true);
-          // In edit mode pass exclude_id so this record's own replacement vehicle
-          // is not filtered out by the pending-replacements exclusion logic.
-          if (isEdit && id) params.exclude_id = id;
-          api
-            .get("/schedule-operations/vehicle-breakdowns/available-vehicles/", { params })
-            .then((res) => {
-              const list = Array.isArray(res.data) ? res.data : [];
-              const opts: SelectOption[] = list.map((v: any) => ({
-                value: String(v.unique_id ?? ""),
-                label: `${v.vehicle_no ?? ""}${v.capacity ? " (" + v.capacity + ")" : ""}`,
-              })).filter((o: any) => o.value);
-
-              // Safety net: if edit mode and the current replacement vehicle is still
-              // not in the list (e.g. already assigned to a trip), inject it manually
-              // so the dropdown shows the saved value.
-              if (isEdit && record?.replacement_vehicle_detail) {
-                const existingId = String(record.replacement_vehicle_id ?? "");
-                if (existingId && !opts.find((o) => o.value === existingId)) {
-                  const vd = record.replacement_vehicle_detail;
-                  opts.unshift({
-                    value: existingId,
-                    label: `${vd.vehicle_no ?? ""}${vd.capacity ? " (" + vd.capacity + ")" : ""}`,
-                  });
-                }
-              }
-
-              setAvailableVehicleOptions(opts);
-              if (pendingReplacementVehicleId) {
-                setPendingReplacementVehicleId((prev) => prev);
-              }
-            })
-            .catch(() => setAvailableVehicleOptions([]))
-            .finally(() => setFetchingVehicles(false));
-
-          setFetchingStaff(true);
-          // The trip's own crew is listed too: it is only "busy" on this
-          // trip, so it can carry on with the replacement vehicle.
-          const originalTemplateId: string = String(
-            data.staff_template_id ?? data.staff_template?.unique_id ?? "",
-          );
-          api
-            .get("/schedule-operations/vehicle-breakdowns/available-staff-templates/", {
-              params: { ...params, trip_assignment_id: assignId },
-            })
-            .then((res) => {
-              const list = Array.isArray(res.data) ? res.data : [];
-              const opts: StaffTemplateOption[] = list
-                .map((template: any) => ({
-                  value: String(template.unique_id ?? ""),
-                  label: `${template.display_code ?? template.unique_id ?? ""} — ${template.driver_name ?? "Driver"} / ${template.operator_name ?? "Operator"}`,
-                  driverId: String(template.driver_id ?? ""),
-                  operatorId: String(template.operator_id ?? ""),
-                }))
-                .filter((o) => o.value && o.driverId && o.operatorId)
-                .map((o) =>
-                  o.value === originalTemplateId
-                    ? { ...o, label: `${o.label} (same crew)` }
-                    : o,
-                );
-
-              const currentDriverId = String(record?.replacement_driver_id ?? "");
-              const currentOperatorId = String(record?.replacement_operator_id ?? "");
-              if (
-                isEdit &&
-                currentDriverId &&
-                currentOperatorId &&
-                record?.replacement_driver_detail &&
-                record?.replacement_operator_detail &&
-                !opts.find((o) => o.driverId === currentDriverId && o.operatorId === currentOperatorId)
-              ) {
-                opts.unshift({
-                  value: "__current_replacement_staff__",
-                  label: `Current replacement — ${record.replacement_driver_detail.name ?? "Driver"} / ${record.replacement_operator_detail.name ?? "Operator"}`,
-                  driverId: currentDriverId,
-                  operatorId: currentOperatorId,
-                });
-              }
-
-              setStaffTemplateOptions(opts);
-              // New report: default to the same crew carrying on.
-              const sameCrew = opts.find((o) => o.value === originalTemplateId);
-              if (!isEdit && sameCrew) {
-                setForm((prev) =>
-                  prev.replacement_staff_template_id
-                    ? prev
-                    : {
-                        ...prev,
-                        replacement_staff_template_id: sameCrew.value,
-                        replacement_driver_id: sameCrew.driverId,
-                        replacement_operator_id: sameCrew.operatorId,
-                      },
-                );
-              }
-            })
-            .catch(() => setStaffTemplateOptions([]))
-            .finally(() => setFetchingStaff(false));
-        }
       })
       .catch(() => {/* silent — assignment detail not critical */});
   }, [form.trip_assignment_id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -488,22 +320,6 @@ export default function VehicleBreakdownForm() {
     setFieldErrors((prev) => ({ ...prev, [key]: "" }));
   };
 
-  const setReplacementStaffTemplate = (val: string) => {
-    const selected = staffTemplateOptions.find((option) => option.value === val);
-    setForm((prev) => ({
-      ...prev,
-      replacement_staff_template_id: val,
-      replacement_driver_id: selected?.driverId ?? "",
-      replacement_operator_id: selected?.operatorId ?? "",
-    }));
-    setFieldErrors((prev) => ({
-      ...prev,
-      replacement_staff_template_id: "",
-      replacement_driver_id: "",
-      replacement_operator_id: "",
-    }));
-  };
-
   /* ────────────────────────────────────────────────────────────
      Submit
   ──────────────────────────────────────────────────────────── */
@@ -513,8 +329,6 @@ export default function VehicleBreakdownForm() {
     const validation = parseWithSchema(vehicleBreakdownSchema, {
       trip_assignment_id: form.trip_assignment_id,
       breakdown_vehicle_id: form.breakdown_vehicle_id,
-      replacement_vehicle_id: form.replacement_vehicle_id,
-      replacement_staff_template_id: form.replacement_staff_template_id,
       breakdown_reason: form.breakdown_reason,
       breakdown_lat: form.breakdown_lat,
       breakdown_lng: form.breakdown_lng,
@@ -544,9 +358,6 @@ export default function VehicleBreakdownForm() {
         project_id_input: projectId,
         trip_assignment_id: form.trip_assignment_id,
         breakdown_vehicle_id: form.breakdown_vehicle_id,
-        replacement_vehicle_id: form.replacement_vehicle_id,
-        replacement_driver_id: form.replacement_driver_id,
-        replacement_operator_id: form.replacement_operator_id,
         breakdown_reason: form.breakdown_reason,
         breakdown_time: form.breakdown_time || null,
         breakdown_lat: form.breakdown_lat,
@@ -604,8 +415,8 @@ export default function VehicleBreakdownForm() {
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {isEdit
-              ? "Update the replacement arrangement details."
-              : "Report a vehicle breakdown and arrange a replacement for the trip."}
+              ? "Update the breakdown details."
+              : "Report a vehicle breakdown. The supervisor arranges the replacement when approving."}
           </p>
         </div>
         <button
@@ -834,62 +645,11 @@ export default function VehicleBreakdownForm() {
         </div>
       </ComponentCard>
 
-      {/* ── Section 2: Replacement Arrangement ── */}
-      <ComponentCard title="Replacement Arrangement">
-        {!form.trip_assignment_id && (
-          <p className="text-sm text-gray-400 italic">Select a trip assignment above to see available replacement vehicles.</p>
-        )}
-        {form.trip_assignment_id && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Available Vehicle */}
-            <div className="md:col-span-2">
-              <Label>Replacement Vehicle <span className="text-red-500">*</span></Label>
-              <Select
-                options={availableVehicleOptions}
-                value={form.replacement_vehicle_id}
-                onChange={(val) => setField("replacement_vehicle_id", val)}
-                placeholder={fetchingVehicles ? "Loading available vehicles…" : availableVehicleOptions.length === 0 ? "No vehicles available for this date" : "Select replacement vehicle"}
-                disabled={fetchingVehicles || availableVehicleOptions.length === 0}
-              />
-              <FieldError message={fieldErrors.replacement_vehicle_id} />
-              {availableVehicleOptions.length === 0 && !fetchingVehicles && (
-                <p className="text-xs text-amber-600 mt-1">
-                  All vehicles are assigned on {selectedTripDate}. Please check vehicle availability.
-                </p>
-              )}
-            </div>
-
-            {/* Replacement Staff Template */}
-            <div className="md:col-span-2">
-              <Label>Replacement Staff Template <span className="text-red-500">*</span></Label>
-              <Select
-                options={staffTemplateOptions}
-                value={form.replacement_staff_template_id}
-                onChange={setReplacementStaffTemplate}
-                placeholder={
-                  fetchingStaff
-                    ? "Loading available staff templates…"
-                    : staffTemplateOptions.length === 0
-                      ? "No available staff templates for this date"
-                      : "Select replacement staff template"
-                }
-                disabled={fetchingStaff}
-              />
-              <FieldError message={fieldErrors.replacement_staff_template_id} />
-              {!fetchingStaff && staffTemplateOptions.length === 0 && (
-                <p className="text-xs text-amber-600 mt-1">
-                  All staff templates are already assigned on {selectedTripDate}.
-                </p>
-              )}
-            </div>
-
-            <div className="md:col-span-2 rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 text-xs text-blue-800">
-              <strong>Note:</strong> The replacement trip will be created after a supervisor verifies this
-              breakdown request, carrying over the remaining stops from the original trip.
-            </div>
-          </div>
-        )}
-      </ComponentCard>
+      <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 text-xs text-blue-800">
+        <strong>Note:</strong> The supervisor picks the replacement vehicle and crew at
+        Verify &amp; Approve. The replacement trip is then created, carrying over the remaining
+        stops from this trip.
+      </div>
 
       {/* ── Submit ── */}
       <div className="flex justify-end gap-3 pb-8">
